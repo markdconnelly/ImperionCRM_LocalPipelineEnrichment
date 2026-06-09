@@ -43,7 +43,7 @@ function Invoke-ImperionPolicySync {
         # 2. Device configuration profiles
         $deviceConfig = Invoke-ImperionGraphRequest -Uri 'https://graph.microsoft.com/v1.0/deviceManagement/deviceConfigurations' -AccessToken $graph
         Save-Policy -Items $deviceConfig -Source 'intune' -Table 'device_configuration_policies' -Map ([ordered]@{
-            policy_name = 'displayName'; odata_type = '@odata.type'; created_date_time = 'createdDateTime'; modified_date_time = 'lastModifiedDateTime'
+            policy_name = 'displayName'; odata_type = { param($p) Get-ImperionMember $p '@odata.type' }; created_date_time = 'createdDateTime'; modified_date_time = 'lastModifiedDateTime'
         })
 
         # 3. Autopilot deployment profiles
@@ -55,7 +55,7 @@ function Invoke-ImperionPolicySync {
         # 4. Settings-catalog / endpoint-security policies (beta) → split Intune-security vs Defender XDR by template family.
         $configPolicies = Invoke-ImperionGraphRequest -Uri 'https://graph.microsoft.com/beta/deviceManagement/configurationPolicies' -AccessToken $graph
         $defenderFamilies = @('endpointSecurityAntivirus', 'endpointSecurityEndpointDetectionAndResponse', 'endpointSecurityFirewall', 'endpointSecurityAttackSurfaceReductionRules')
-        $isDefender = { param($p) $fam = $p.templateReference.templateFamily; $fam -and ($defenderFamilies -contains $fam) }
+        $isDefender = { param($p) $fam = Get-ImperionPropertyPath -InputObject $p -Path 'templateReference.templateFamily'; $fam -and ($defenderFamilies -contains $fam) }
         $defenderPolicies = @($configPolicies | Where-Object { & $isDefender $_ })
         $intuneSecurity = @($configPolicies | Where-Object { -not (& $isDefender $_) })
 
