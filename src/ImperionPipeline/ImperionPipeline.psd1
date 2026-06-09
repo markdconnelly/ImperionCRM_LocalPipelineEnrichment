@@ -48,7 +48,9 @@
         'Get-ImperionAutotaskZone',
         'Invoke-ImperionAutotaskRequest',
         'Invoke-ImperionTelivyRequest',
-        'Invoke-ImperionDarkWebIdRequest'
+        'Invoke-ImperionDarkWebIdRequest',
+        # Per-object get layer (collect -> flatten to PSObject; no writes)
+        'Get-ImperionAutotaskCompany'
     )
     CmdletsToExport   = @()
     VariablesToExport = @()
