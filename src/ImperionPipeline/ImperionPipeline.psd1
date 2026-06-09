@@ -51,7 +51,8 @@
         'Invoke-ImperionDarkWebIdRequest',
         # Per-object get layer (collect -> flatten to PSObject; no writes)
         'Get-ImperionAutotaskCompany',
-        'Get-ImperionAutotaskContact'
+        'Get-ImperionAutotaskContact',
+        'Get-ImperionAutotaskContract'
     )
     CmdletsToExport   = @()
     VariablesToExport = @()
