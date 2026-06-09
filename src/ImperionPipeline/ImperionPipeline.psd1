@@ -45,7 +45,8 @@
         'Invoke-ImperionITGlueRequest',
         'Set-ImperionITGlueFlexibleAsset',
         # Per-API connect layer (reusable connection / paged-request utilities)
-        'Get-ImperionAutotaskZone'
+        'Get-ImperionAutotaskZone',
+        'Invoke-ImperionAutotaskRequest'
     )
     CmdletsToExport   = @()
     VariablesToExport = @()
