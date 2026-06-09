@@ -10,14 +10,20 @@ in this repo's [`/sql`](../../sql/) — copy it into a front-end `db/migrations`
 The table migrations below are **authored in the front-end repo** as `db/migrations/0038`–`0043`
 (`0038_local_pipeline_bronze`, `0039_related_bronze_views`, `0042_darkwebid_provider`,
 `0043_security_ingestion`). The `/sql` files in this repo remain the source-of-record DDL they
-were copied from. **Open items before the module can land data:**
-1. **Apply** `0038`–`0043` to prod — `node scripts/migrate.mjs 0038 0039 0042 0043` (live op,
-   Mark's call). The runner keeps no applied-state ledger; confirm by inspecting prod.
-2. **Grant the pipeline SP** — front-end `db/migrations/0044_local_pipeline_grants.sql` is now
-   **authored (proposed)**: it creates least-privilege `SELECT, INSERT, UPDATE` grants (no DELETE,
-   no blanket `ALL TABLES`) on exactly the bronze/golden tables this repo writes. It needs the
-   real SP role name filled in + the one-time `pgaadauth` role bootstrap, and is a **§8 approval
-   gate** (a new write-capable DB principal). See its header.
+were copied from.
+1. **`0038`–`0043` are CONFIRMED APPLIED in prod** (verified 2026-06-09 against
+   `imperioncrm-pg-prd`): every target table, the related-bronze + exposure views, and the
+   `connection_provider` enum value `darkwebid` are present. **No action needed.**
+2. **Grant the pipeline SP** — front-end `db/migrations/0044_local_pipeline_grants.sql` is
+   **authored (proposed) and NOT applied**: least-privilege `SELECT, INSERT, UPDATE` (no DELETE,
+   no blanket `ALL TABLES`) on exactly the bronze/golden tables this repo writes. **Blocked:** it
+   needs the pipeline SP's real Postgres role name + Entra object id (the unattended identity is
+   **not yet provisioned on the server** — no `%ProgramData%\Imperion\`, no filled
+   `pipeline.config.psd1`), plus the one-time `pgaadauth` role bootstrap. **§8 approval gate**
+   (a new write-capable DB principal). See its header.
+3. **Prove the live chain** once the cert/gMSA/SecretStore + SP role exist:
+   `build/Test-ImperionUnattendedChain.ps1` (cert → token → Postgres → rolled-back throwaway
+   write). It cannot pass until the unattended identity is provisioned (CLAUDE.md §10 step 2).
 
 ## How to apply (for net-new tables added later)
 1. Create a new front-end migration (next number after the latest — the dir is at `0044`).
