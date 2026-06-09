@@ -50,17 +50,17 @@ function Invoke-ImperionAzureInventorySync {
 
             $resourceGroups = Invoke-ImperionArmRequest -Path "/subscriptions/$subId/resourcegroups?api-version=$ApiVersionResources" -AccessToken $armToken
             Save-Inventory -Items $resourceGroups -Source 'azure' -Table 'azure_resource_groups' -Map ([ordered]@{
-                name = 'name'; location = 'location'; subscription_id = { $subId }; provisioning_state = 'properties.provisioningState'; tags = { param($x) & $joinTags $x.tags }
+                name = 'name'; location = 'location'; subscription_id = { $subId }; provisioning_state = 'properties.provisioningState'; tags = { param($x) & $joinTags (Get-ImperionMember $x 'tags') }
             })
 
             $resources = Invoke-ImperionArmRequest -Path "/subscriptions/$subId/resources?api-version=$ApiVersionResources" -AccessToken $armToken
             Save-Inventory -Items $resources -Source 'azure' -Table 'azure_resources' -Map ([ordered]@{
-                name = 'name'; type = 'type'; location = 'location'; resource_group = { param($x) & $rgFromId $x.id }; subscription_id = { $subId }; sku = 'sku.name'; kind = 'kind'; tags = { param($x) & $joinTags $x.tags }
+                name = 'name'; type = 'type'; location = 'location'; resource_group = { param($x) & $rgFromId (Get-ImperionMember $x 'id') }; subscription_id = { $subId }; sku = 'sku.name'; kind = 'kind'; tags = { param($x) & $joinTags (Get-ImperionMember $x 'tags') }
             })
 
             $workspaces = Invoke-ImperionArmRequest -Path "/subscriptions/$subId/providers/Microsoft.OperationalInsights/workspaces?api-version=2022-10-01" -AccessToken $armToken
             foreach ($ws in $workspaces) {
-                $wsRg = & $rgFromId $ws.id
+                $wsRg = & $rgFromId (Get-ImperionMember $ws 'id')
                 $sentinelBase = "/subscriptions/$subId/resourceGroups/$wsRg/providers/Microsoft.OperationalInsights/workspaces/$($ws.name)/providers/Microsoft.SecurityInsights"
                 try {
                     $alertRules = Invoke-ImperionArmRequest -Path "$sentinelBase/alertRules?api-version=2023-11-01" -AccessToken $armToken
@@ -70,7 +70,7 @@ function Invoke-ImperionAzureInventorySync {
                     continue
                 }
                 Save-Inventory -Items $alertRules -Source 'sentinel' -Table 'sentinel_analytic_rules' -Map ([ordered]@{
-                    name = 'name'; display_name = 'properties.displayName'; rule_kind = 'kind'; enabled = 'properties.enabled'; severity = 'properties.severity'; tactics = { param($x) $x.properties.tactics | Join-ImperionValues }; last_modified = 'properties.lastModifiedUtc'; workspace = { $ws.name }
+                    name = 'name'; display_name = 'properties.displayName'; rule_kind = 'kind'; enabled = 'properties.enabled'; severity = 'properties.severity'; tactics = { param($x) (Get-ImperionPropertyPath -InputObject $x -Path 'properties.tactics') | Join-ImperionValues }; last_modified = 'properties.lastModifiedUtc'; workspace = { $ws.name }
                 })
                 $automationRules = Invoke-ImperionArmRequest -Path "$sentinelBase/automationRules?api-version=2023-11-01" -AccessToken $armToken
                 Save-Inventory -Items $automationRules -Source 'sentinel' -Table 'sentinel_automation_rules' -Map ([ordered]@{
