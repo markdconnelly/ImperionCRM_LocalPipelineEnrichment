@@ -46,8 +46,9 @@ function Invoke-ImperionITGlueRequest {
     $next = $uri
     while ($next) {
         $resp = Invoke-ImperionRestWithRetry -Uri $next -Headers $headers -Method GET
-        if ($null -ne $resp.Body.data) { $resp.Body.data | ForEach-Object { $items.Add($_) } }
-        $next = if ($resp.Body.links) { $resp.Body.links.next } else { $null }
+        $data = Get-ImperionMember $resp.Body 'data'
+        if ($null -ne $data) { $data | ForEach-Object { $items.Add($_) } }
+        $next = Get-ImperionPropertyPath -InputObject $resp.Body -Path 'links.next'
     }
     return $items.ToArray()
 }
