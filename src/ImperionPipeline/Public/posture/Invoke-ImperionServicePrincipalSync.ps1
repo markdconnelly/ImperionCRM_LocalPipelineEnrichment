@@ -46,15 +46,15 @@ function Invoke-ImperionServicePrincipalSync {
         app_owner_org_id           = 'appOwnerOrganizationId'
         sign_in_audience           = 'signInAudience'
         homepage                   = 'homepage'
-        reply_urls                 = { param($sp) $sp.replyUrls | Join-ImperionValues }
-        sp_names                   = { param($sp) $sp.servicePrincipalNames | Join-ImperionValues }
-        tags                       = { param($sp) $sp.tags | Join-ImperionValues }
-        app_roles_count            = { param($sp) @($sp.appRoles).Count }
-        oauth2_scopes_count        = { param($sp) @($sp.oauth2PermissionScopes).Count }
-        key_credentials_count      = { param($sp) @($sp.keyCredentials).Count }
-        key_credential_next_expiry = { param($sp) & $nearestExpiry $sp.keyCredentials }
-        pwd_credentials_count      = { param($sp) @($sp.passwordCredentials).Count }
-        pwd_credential_next_expiry = { param($sp) & $nearestExpiry $sp.passwordCredentials }
+        reply_urls                 = { param($sp) (Get-ImperionMember $sp 'replyUrls') | Join-ImperionValues }
+        sp_names                   = { param($sp) (Get-ImperionMember $sp 'servicePrincipalNames') | Join-ImperionValues }
+        tags                       = { param($sp) (Get-ImperionMember $sp 'tags') | Join-ImperionValues }
+        app_roles_count            = { param($sp) (Get-ImperionMember $sp 'appRoles' | Measure-Object).Count }
+        oauth2_scopes_count        = { param($sp) (Get-ImperionMember $sp 'oauth2PermissionScopes' | Measure-Object).Count }
+        key_credentials_count      = { param($sp) (Get-ImperionMember $sp 'keyCredentials' | Measure-Object).Count }
+        key_credential_next_expiry = { param($sp) & $nearestExpiry (Get-ImperionMember $sp 'keyCredentials') }
+        pwd_credentials_count      = { param($sp) (Get-ImperionMember $sp 'passwordCredentials' | Measure-Object).Count }
+        pwd_credential_next_expiry = { param($sp) & $nearestExpiry (Get-ImperionMember $sp 'passwordCredentials') }
         created_date_time          = 'createdDateTime'
     }
     $flat = $servicePrincipals | ConvertTo-ImperionFlatObject -PropertyMap $propertyMap -Source $source -TenantId $TenantId -ExternalIdProperty 'id'
