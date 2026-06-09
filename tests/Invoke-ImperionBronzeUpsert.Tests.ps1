@@ -72,4 +72,16 @@ Describe 'Invoke-ImperionBronzeUpsert' {
         Invoke-ImperionBronzeUpsert -Connection (New-FakeConn -ChangedFlags @($true) -Capture $cap) -Table 'foo' -Rows $rows -KeyColumns @('id') | Out-Null
         $cap.Sql | Should -Match 'ON CONFLICT \("id"\)'
     }
+
+    It '-NoChangeDetect omits the content_hash guard (ADR-0039 per-source shape)' {
+        $cap = @{}
+        # televy/darkwebid shape: external_ref UNIQUE + payload_bronze, no content_hash column.
+        $rows = @([pscustomobject]@{ external_ref = 'x1'; payload_bronze = '{}' })
+        Invoke-ImperionBronzeUpsert -Connection (New-FakeConn -ChangedFlags @($true) -Capture $cap) -Table 'televy_reports' `
+            -Rows $rows -KeyColumns @('external_ref') -JsonColumns @('payload_bronze') -NoChangeDetect | Out-Null
+        $cap.Sql | Should -Match 'ON CONFLICT \("external_ref"\)'
+        $cap.Sql | Should -Not -Match 'content_hash'
+        $cap.Sql | Should -Match '::jsonb'              # payload_bronze placeholder cast to jsonb
+        $cap.Sql | Should -Match 'RETURNING \(xmax = 0\)'
+    }
 }

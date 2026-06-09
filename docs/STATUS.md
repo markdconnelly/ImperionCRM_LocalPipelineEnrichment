@@ -62,13 +62,17 @@ _Snapshot of where the `ImperionPipeline` module stands. Updated as layers land.
    map to the ADR-0039 per-source shape (`external_ref` ← `external_id`, `payload_bronze` ←
    `raw_payload`) of `televy_reports` / `darkwebid_exposures`. Operational/infra sources also
    document into IT Glue (flatten → IT Glue → Postgres, ADR-0006).
-   - **Pattern established:** `Set-ImperionAutotaskContractToBronze` (autotask/post) is the
-     reference writer — pipeline-accepting, opens/reuses a short-lived-token DB connection,
-     change-detected upsert, metric log line, `ShouldProcess`. 4 hermetic tests, analyzer-clean.
-     Remaining sources copy it (telivy/darkwebid swap the envelope mapping).
+   - **Done:** `Set-ImperionAutotaskContractToBronze` + `…TicketToBronze` (standard envelope) and
+     `Set-ImperionTelivyReportToBronze` + `…DarkWebIdCompromiseToBronze` (ADR-0039 `external_ref`/
+     `payload_bronze` remap via `Invoke-ImperionBronzeUpsert -NoChangeDetect`). All pipeline-accepting,
+     open/reuse a short-lived-token connection, metric-log, `ShouldProcess`-gated; hermetic tests.
+   - **Still to fan out:** m365/itglue/kqm/docusign/website posts once their bronze tables land
+     (handoff §3). azure + itglue-export + posture already write via their `Invoke-*Sync` cmdlets.
 3. **Scheduled-task files** — short `scheduled-tasks/<area>/*.task.ps1` composing get → post per the
-   cadence registry, registered with `Register-ImperionTask`. First get→post example:
-   `scheduled-tasks/autotask/contracts.task.ps1`.
+   cadence registry, registered with `Register-ImperionTask`. Done: `autotask/contracts`,
+   `autotask/tickets`, `telivy/assessments`. **Deferred:** `darkwebid/compromises` — its API key is a
+   Key Vault *company* credential (`conn-company-darkwebid`); needs a Key Vault reader cmdlet first
+   (the post writer + get already exist).
 4. **Vectorization stage** (`CLAUDE.md §7`) — chunk → embed → pgvector, after gold exists.
 
 ## Toolchain note

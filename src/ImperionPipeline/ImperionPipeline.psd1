@@ -68,7 +68,10 @@
         'Get-ImperionTelivyReport',
         'Get-ImperionDarkWebIdCompromise',
         # Per-object post layer (write flattened rows -> bronze; change-detected upsert)
-        'Set-ImperionAutotaskContractToBronze'
+        'Set-ImperionAutotaskContractToBronze',
+        'Set-ImperionAutotaskTicketToBronze',
+        'Set-ImperionTelivyReportToBronze',
+        'Set-ImperionDarkWebIdCompromiseToBronze'
     )
     CmdletsToExport   = @()
     VariablesToExport = @()
