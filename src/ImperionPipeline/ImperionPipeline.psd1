@@ -52,7 +52,8 @@
         # Per-object get layer (collect -> flatten to PSObject; no writes)
         'Get-ImperionAutotaskCompany',
         'Get-ImperionAutotaskContact',
-        'Get-ImperionAutotaskContract'
+        'Get-ImperionAutotaskContract',
+        'Get-ImperionAutotaskTicket'
     )
     CmdletsToExport   = @()
     VariablesToExport = @()
