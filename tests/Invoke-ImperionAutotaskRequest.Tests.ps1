@@ -50,4 +50,14 @@ Describe 'Invoke-ImperionAutotaskRequest' {
             }
         }
     }
+
+    It 'does not throw when the response omits items or pageDetails (StrictMode-safe)' {
+        InModuleScope ImperionPipeline {
+            Mock Invoke-ImperionRestWithRetry { [pscustomobject]@{ Body = [pscustomobject]@{ } } }
+            { Invoke-ImperionAutotaskRequest -ApiBaseUrl 'https://ws.autotask.net/atservicesrest/V1.0' -Headers @{} -Entity 'Companies' } |
+                Should -Not -Throw
+            @(Invoke-ImperionAutotaskRequest -ApiBaseUrl 'https://ws.autotask.net/atservicesrest/V1.0' -Headers @{} -Entity 'Companies').Count |
+                Should -Be 0
+        }
+    }
 }
