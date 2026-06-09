@@ -14,16 +14,24 @@ were copied from.
 1. **`0038`–`0043` are CONFIRMED APPLIED in prod** (verified 2026-06-09 against
    `imperioncrm-pg-prd`): every target table, the related-bronze + exposure views, and the
    `connection_provider` enum value `darkwebid` are present. **No action needed.**
-2. **Grant the pipeline SP** — front-end `db/migrations/0044_local_pipeline_grants.sql` is
-   **authored (proposed) and NOT applied**: least-privilege `SELECT, INSERT, UPDATE` (no DELETE,
-   no blanket `ALL TABLES`) on exactly the bronze/golden tables this repo writes. **Blocked:** it
-   needs the pipeline SP's real Postgres role name + Entra object id (the unattended identity is
-   **not yet provisioned on the server** — no `%ProgramData%\Imperion\`, no filled
-   `pipeline.config.psd1`), plus the one-time `pgaadauth` role bootstrap. **§8 approval gate**
-   (a new write-capable DB principal). See its header.
-3. **Prove the live chain** once the cert/gMSA/SecretStore + SP role exist:
-   `build/Test-ImperionUnattendedChain.ps1` (cert → token → Postgres → rolled-back throwaway
-   write). It cannot pass until the unattended identity is provisioned (CLAUDE.md §10 step 2).
+2. **Pipeline SP grants — APPLIED + VERIFIED in prod (2026-06-09).** Front-end
+   `db/migrations/0044_local_pipeline_grants.sql` created the least-privilege role
+   **`imperion-localpipeline`** (mapped via `pgaadauth` to the cert-backed SP **"Imperion CRM"**,
+   appId `46f1077b-…`, objectId `d944e180-…`, type `service`, non-admin) and granted it
+   `SELECT, INSERT, UPDATE` on exactly the **42** bronze/golden tables this repo writes — **no
+   DELETE, no blanket `ALL TABLES`**. Verified: 42 tables each privilege, 0 DELETE, CONNECT true.
+3. **Live chain PROVEN (2026-06-09).** `cert → token → Postgres → write`: minted an `ossrdbms`
+   token from the SP certificate (`CN=ImperionCRM-WebApp-EntraAuthCert`), connected as
+   `imperion-localpipeline` over TLS, INSERT into `autotask_contracts` (rolled back, zero
+   residue), and confirmed DELETE is refused (`42501`). The reusable proof for the *unattended*
+   host is `build/Test-ImperionUnattendedChain.ps1`.
+
+**Still needed for an UNATTENDED run on the server** (the auth/DB/schema are done; this is host
+packaging — CLAUDE.md §2/§10 step 2): import the cert into `LocalMachine\My` ACL'd to the gMSA
+(it is currently in `CurrentUser\My`), install Npgsql + MSAL.PS machine-wide, create the
+SecretStore + CMS unlock, fill `%ProgramData%\Imperion\pipeline.config.psd1`
+(`Db.Username='imperion-localpipeline'`, `ClientId='46f1077b-…'`, `CertThumbprint='F860A0D5…'`,
+`PartnerTenantId='49307c12-…'`), and load the source API keys.
 
 ## How to apply (for net-new tables added later)
 1. Create a new front-end migration (next number after the latest — the dir is at `0044`).
