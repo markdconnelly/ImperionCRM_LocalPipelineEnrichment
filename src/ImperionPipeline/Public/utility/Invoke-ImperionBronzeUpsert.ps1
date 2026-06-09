@@ -28,7 +28,7 @@ function Invoke-ImperionBronzeUpsert {
     param(
         [Parameter(Mandatory)] $Connection,
         [Parameter(Mandatory)][string] $Table,
-        [Parameter(Mandatory)][object[]] $Rows,
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $Rows,
         [string[]] $KeyColumns = @('tenant_id', 'source', 'external_id'),
         [string[]] $JsonColumns = @('raw_payload'),
         [int] $BatchSize = 500
