@@ -54,7 +54,8 @@
         'Get-ImperionAutotaskContact',
         'Get-ImperionAutotaskContract',
         'Get-ImperionAutotaskTicket',
-        'Get-ImperionM365User'
+        'Get-ImperionM365User',
+        'Get-ImperionM365Device'
     )
     CmdletsToExport   = @()
     VariablesToExport = @()
