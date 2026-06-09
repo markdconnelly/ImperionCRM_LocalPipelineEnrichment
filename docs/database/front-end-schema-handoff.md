@@ -6,13 +6,25 @@ shared PostgreSQL but never runs DDL. This doc is the **migration request**: eve
 front-end repo must add before the module's cmdlets can land data. Ready-to-apply DDL lives
 in this repo's [`/sql`](../../sql/) — copy it into a front-end `db/migrations` file.
 
-## How to apply
-1. Create a new front-end migration (next number after the latest applied — prod is at
-   `0001–0037`, so e.g. `0038_local_pipeline_bronze.sql`).
+## Status (2026-06-09)
+The table migrations below are **authored in the front-end repo** as `db/migrations/0038`–`0043`
+(`0038_local_pipeline_bronze`, `0039_related_bronze_views`, `0042_darkwebid_provider`,
+`0043_security_ingestion`). The `/sql` files in this repo remain the source-of-record DDL they
+were copied from. **Open items before the module can land data:**
+1. **Apply** `0038`–`0043` to prod — `node scripts/migrate.mjs 0038 0039 0042 0043` (live op,
+   Mark's call). The runner keeps no applied-state ledger; confirm by inspecting prod.
+2. **Grant the pipeline SP** — front-end `db/migrations/0044_local_pipeline_grants.sql` is now
+   **authored (proposed)**: it creates least-privilege `SELECT, INSERT, UPDATE` grants (no DELETE,
+   no blanket `ALL TABLES`) on exactly the bronze/golden tables this repo writes. It needs the
+   real SP role name filled in + the one-time `pgaadauth` role bootstrap, and is a **§8 approval
+   gate** (a new write-capable DB principal). See its header.
+
+## How to apply (for net-new tables added later)
+1. Create a new front-end migration (next number after the latest — the dir is at `0044`).
 2. Paste the DDL from the `/sql` files below (in this order).
-3. Apply with the committed runner: `node C:/Development/GitHub/ImperionCRM/scripts/migrate.mjs 0038`.
-4. Grant the local module's Postgres Entra role `SELECT, INSERT, UPDATE` on the new tables
-   (ADR-0003 — the role is scoped to exactly the tables this repo touches).
+3. Apply with the committed runner: `node C:/Development/GitHub/ImperionCRM/scripts/migrate.mjs <n>`.
+4. Add the new tables to `0044`'s grant list (or a follow-on grant migration) so the pipeline
+   SP can write them (ADR-0003 — the role is scoped to exactly the tables this repo touches).
 
 ## Conventions (apply to every table below)
 - **Naming:** `{source}_{entity}` (e.g. `autotask_contracts`, `itglue_organizations`) —

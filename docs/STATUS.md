@@ -62,8 +62,13 @@ _Snapshot of where the `ImperionPipeline` module stands. Updated as layers land.
    map to the ADR-0039 per-source shape (`external_ref` ← `external_id`, `payload_bronze` ←
    `raw_payload`) of `televy_reports` / `darkwebid_exposures`. Operational/infra sources also
    document into IT Glue (flatten → IT Glue → Postgres, ADR-0006).
+   - **Pattern established:** `Set-ImperionAutotaskContractToBronze` (autotask/post) is the
+     reference writer — pipeline-accepting, opens/reuses a short-lived-token DB connection,
+     change-detected upsert, metric log line, `ShouldProcess`. 4 hermetic tests, analyzer-clean.
+     Remaining sources copy it (telivy/darkwebid swap the envelope mapping).
 3. **Scheduled-task files** — short `scheduled-tasks/<area>/*.task.ps1` composing get → post per the
-   cadence registry, registered with `Register-ImperionTask`.
+   cadence registry, registered with `Register-ImperionTask`. First get→post example:
+   `scheduled-tasks/autotask/contracts.task.ps1`.
 4. **Vectorization stage** (`CLAUDE.md §7`) — chunk → embed → pgvector, after gold exists.
 
 ## Toolchain note
