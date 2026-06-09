@@ -37,13 +37,17 @@ in this repo's [`/sql`](../../sql/) — copy it into a front-end `db/migrations`
 ## 2. New tables to add (by source file)
 
 ### a. IT Glue export — [`sql/itglue_bronze_schema.sql`](../../sql/itglue_bronze_schema.sql)
-- 13 per-type tables `itglue_{organizations, configurations, contacts, locations,
+- 13 per-type tables **`itglue_export_{organizations, configurations, contacts, locations,
   flexible_asset_types, flexible_assets, domains, manufacturers, models, operating_systems,
-  configuration_types, organization_types, organization_statuses}` — generic envelope +
+  configuration_types, organization_types, organization_statuses}`** — generic envelope +
   `organization_id, name, resource_url, created_at, updated_at`. **Verified against the live
   US IT Glue API.** (`documents` and `configuration_interfaces` are nested, not top-level
   collections — excluded.)
-- `itglue_relationship` — the **polymorphic many-to-many edge table**
+- **`itglue_export_*` is namespaced** to avoid colliding with the existing per-source bronze
+  `itglue_contacts` / `itglue_companies` / `itglue_devices` from front-end migration 0036
+  (those are IT Glue *as a source of contacts/companies/devices*; the export is the full IT
+  Glue *documentation graph* — a different dataset).
+- `itglue_export_relationship` — the **polymorphic many-to-many edge table**
   (`from_type, from_id, to_type, to_id, relationship_name`) for IT Glue's open relationship
   types (ADR-0006). Indexed both directions.
 

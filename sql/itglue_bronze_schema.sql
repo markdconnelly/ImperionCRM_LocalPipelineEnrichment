@@ -1,4 +1,4 @@
--- itglue_bronze_schema.sql
+-- itglue_export_bronze_schema.sql
 -- PROPOSED migration (schema is owned by the front-end repo — ADR-0005 / front-end ADR-0017).
 -- This is the migration request for the IT Glue export (ADR-0006). Loaders fail loudly if
 -- these are absent; they do NOT create them by default.
@@ -23,7 +23,7 @@ BEGIN
         'configuration_types','organization_types','organization_statuses'
     ] LOOP
         EXECUTE format($f$
-            CREATE TABLE IF NOT EXISTS itglue_%s (
+            CREATE TABLE IF NOT EXISTS itglue_export_%s (
                 source          text        NOT NULL DEFAULT 'itglue',
                 external_id     text        NOT NULL,
                 organization_id text,
@@ -40,7 +40,7 @@ BEGIN
 END $$;
 
 -- Polymorphic relationship edge table (ADR-0006).
-CREATE TABLE IF NOT EXISTS itglue_relationship (
+CREATE TABLE IF NOT EXISTS itglue_export_relationship (
     from_type          text        NOT NULL,
     from_id            text        NOT NULL,
     to_type            text        NOT NULL,
@@ -49,5 +49,5 @@ CREATE TABLE IF NOT EXISTS itglue_relationship (
     collected_at       timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (from_type, from_id, relationship_name, to_type, to_id)
 );
-CREATE INDEX IF NOT EXISTS ix_itglue_rel_to   ON itglue_relationship (to_type, to_id);
-CREATE INDEX IF NOT EXISTS ix_itglue_rel_from ON itglue_relationship (from_type, from_id);
+CREATE INDEX IF NOT EXISTS ix_itglue_export_rel_to   ON itglue_export_relationship (to_type, to_id);
+CREATE INDEX IF NOT EXISTS ix_itglue_export_rel_from ON itglue_export_relationship (from_type, from_id);
