@@ -7,30 +7,30 @@ BeforeAll {
 }
 
 Describe 'Invoke-ImperionTelivyRequest' {
-    It 'sends a bearer token and returns the data collection' {
+    It 'sends the x-api-key header and returns the data collection' {
         InModuleScope ImperionPipeline {
             Mock Invoke-ImperionRestWithRetry {
-                [pscustomobject]@{ Body = [pscustomobject]@{ data = @([pscustomobject]@{ id = 'a' }, [pscustomobject]@{ id = 'b' }); next = $null } }
+                [pscustomobject]@{ Body = [pscustomobject]@{ data = @([pscustomobject]@{ id = 'a' }, [pscustomobject]@{ id = 'b' }) } }
             }
-            $rows = Invoke-ImperionTelivyRequest -AccessToken 'tok123' -Uri 'https://api.telivy.com/v1/assessments'
+            $rows = Invoke-ImperionTelivyRequest -ApiKey 'tok123' -Uri 'https://api.telivy.com/reports'
             $rows.Count | Should -Be 2
             Should -Invoke Invoke-ImperionRestWithRetry -Times 1 -ParameterFilter {
-                $Headers.Authorization -eq 'Bearer tok123'
+                $Headers.'x-api-key' -eq 'tok123'
             }
         }
     }
 
-    It 'follows the next cursor across pages' {
+    It 'follows the JSON:API links.next cursor across pages' {
         InModuleScope ImperionPipeline {
             Mock Invoke-ImperionRestWithRetry {
-                if ($Uri -match 'cursor=2') {
-                    [pscustomobject]@{ Body = [pscustomobject]@{ data = @([pscustomobject]@{ id = 'c' }); next = $null } }
+                if ($Uri -match 'page=2') {
+                    [pscustomobject]@{ Body = [pscustomobject]@{ data = @([pscustomobject]@{ id = 'c' }) } }
                 }
                 else {
-                    [pscustomobject]@{ Body = [pscustomobject]@{ data = @([pscustomobject]@{ id = 'a' }); next = 'https://api.telivy.com/v1/assessments?cursor=2' } }
+                    [pscustomobject]@{ Body = [pscustomobject]@{ data = @([pscustomobject]@{ id = 'a' }); links = [pscustomobject]@{ next = 'https://api.telivy.com/reports?page=2' } } }
                 }
             }
-            $rows = Invoke-ImperionTelivyRequest -AccessToken 't' -Uri 'https://api.telivy.com/v1/assessments'
+            $rows = Invoke-ImperionTelivyRequest -ApiKey 't' -Uri 'https://api.telivy.com/reports'
             ($rows.id -join ',') | Should -Be 'a,c'
             Should -Invoke Invoke-ImperionRestWithRetry -Times 2
         }
@@ -38,21 +38,26 @@ Describe 'Invoke-ImperionTelivyRequest' {
 
     It 'returns the body as a single item when the collection property is absent' {
         InModuleScope ImperionPipeline {
-            Mock Invoke-ImperionRestWithRetry {
-                [pscustomobject]@{ Body = [pscustomobject]@{ id = 'solo'; name = 'one' } }
-            }
-            $rows = Invoke-ImperionTelivyRequest -AccessToken 't' -Uri 'https://api.telivy.com/v1/assessments/solo'
+            Mock Invoke-ImperionRestWithRetry { [pscustomobject]@{ Body = [pscustomobject]@{ id = 'solo'; name = 'one' } } }
+            $rows = Invoke-ImperionTelivyRequest -ApiKey 't' -Uri 'https://api.telivy.com/reports/solo'
             $rows.Count | Should -Be 1
             $rows[0].id | Should -Be 'solo'
         }
     }
 
-    It 'honors a custom items/next property name' {
+    It 'does not throw when neither data nor links is present (StrictMode-safe)' {
+        InModuleScope ImperionPipeline {
+            Mock Invoke-ImperionRestWithRetry { [pscustomobject]@{ Body = [pscustomobject]@{ meta = 'x' } } }
+            { Invoke-ImperionTelivyRequest -ApiKey 't' -Uri 'https://api.telivy.com/reports' } | Should -Not -Throw
+        }
+    }
+
+    It 'honors custom items/next property paths' {
         InModuleScope ImperionPipeline {
             Mock Invoke-ImperionRestWithRetry {
-                [pscustomobject]@{ Body = [pscustomobject]@{ results = @([pscustomobject]@{ id = 1 }); nextPage = $null } }
+                [pscustomobject]@{ Body = [pscustomobject]@{ results = @([pscustomobject]@{ id = 1 }) } }
             }
-            $rows = Invoke-ImperionTelivyRequest -AccessToken 't' -Uri 'https://api.telivy.com/x' -ItemsProperty 'results' -NextLinkProperty 'nextPage'
+            $rows = Invoke-ImperionTelivyRequest -ApiKey 't' -Uri 'https://api.telivy.com/x' -ItemsProperty 'results' -NextLinkProperty 'paging.next'
             $rows.Count | Should -Be 1
         }
     }

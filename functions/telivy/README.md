@@ -10,12 +10,13 @@ in the data model they land as `assessment_artifact` rows with `source = televy`
 > spelling **telivy**. The `source` value written to Postgres must be `televy` to match the
 > `assessment_artifact.source` enum.
 
-**Auth:** Bearer token (API key) from the SecretStore (`TelivyApiKey`). Read-only.
+**Auth:** `x-api-key` header from the SecretStore secret **`Telivy-API-Key`** (aligned with the
+cloud Pipeline's Televy client, ADR-0040). Read-only.
 
-## connect (planned)
+## connect
 | Function | Purpose |
 | --- | --- |
-| `Invoke-ImperionTelivyRequest` ☐ | GET a Telivy collection with bearer auth, page, 429/503 backoff, return items. |
+| `Invoke-ImperionTelivyRequest` ✓ | GET a Telivy collection with `x-api-key` auth, JSON:API paging (`data` + `links.next`), 429/503 backoff, return items. StrictMode-safe. |
 
 ## get (planned — per object)
 | Function | Object |
@@ -25,8 +26,9 @@ in the data model they land as `assessment_artifact` rows with `source = televy`
 | `Get-ImperionTelivyReport` ☐ | Report artifacts (`kind = report`) |
 
 ## post (planned)
-`Set-ImperionTelivy*ToBronze` ☐ → `assessment_artifact` (`source = televy`). New table mapping
-may need a front-end migration — confirm before coding (CLAUDE.md §5).
+`Set-ImperionTelivy*ToBronze` ☐ → bronze **`televy_reports`** (front-end migration `0043`,
+ADR-0039 per-source shape: `external_ref` / `payload_bronze`), which a merge folds into
+`assessment_artifact` (`source = televy`). Tables exist — no new migration needed.
 
 ## Cadence
 Daily (assessments change slowly). See [`../../scheduled-tasks/`](../../scheduled-tasks).
