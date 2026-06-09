@@ -23,7 +23,7 @@ function Get-ImperionSecretValue {
 }
 
 function Get-ImperionGraphToken {
-    param([string] $TenantId, [switch] $Beta)
+    param([string] $TenantId)
     $cfg = Get-ImperionConfig
     if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
     Get-ImperionAccessToken -Resource 'https://graph.microsoft.com/.default' -TenantId $TenantId -ClientId $cfg.ClientId -CertThumbprint $cfg.CertThumbprint
@@ -37,6 +37,10 @@ function Get-ImperionArmToken {
 }
 
 function New-ImperionDbConnection {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Opens a transient DB connection object; it changes no persistent system state, so ShouldProcess is not warranted.')]
+    [CmdletBinding()]
+    param()
     # Mint a short-lived Postgres token (ADR-0003) and open a connection from config.
     $cfg = Get-ImperionConfig
     $token = Get-ImperionAccessToken -Resource 'https://ossrdbms-aad.database.windows.net/.default' -TenantId $cfg.PartnerTenantId -ClientId $cfg.ClientId -CertThumbprint $cfg.CertThumbprint

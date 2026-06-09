@@ -19,6 +19,10 @@ function Initialize-ImperionUnattended {
     .EXAMPLE
         Initialize-ImperionUnattended -CertThumbprint ABC123… -TaskIdentity 'CORP\svc-imperion$'
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingConvertToSecureStringWithPlainText', '',
+        Justification = 'The vault password is generated in-process from a CSPRNG and must be passed to Set-SecretStoreConfiguration as a SecureString; it is never read from a plaintext literal or disk and is cleared after use.')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'CmsPasswordPath',
+        Justification = 'CmsPasswordPath is a filesystem output path for the CMS-encrypted blob, not a password value.')]
     [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)][string] $CertThumbprint,
@@ -53,7 +57,8 @@ function Initialize-ImperionUnattended {
 
     if ($TaskIdentity) {
         $keyName = $null
-        try { $keyName = ([System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)).Key.UniqueName } catch { }
+        try { $keyName = ([System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)).Key.UniqueName }
+        catch { Write-Verbose "Could not resolve the private-key unique name automatically: $($_.Exception.Message)" }
         $machineKeyDir = "$env:ProgramData\Microsoft\Crypto\Keys"
         $keyFile = Get-ChildItem -Path $machineKeyDir -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq $keyName } | Select-Object -First 1
         if ($keyFile -and $PSCmdlet.ShouldProcess($TaskIdentity, "Grant read on private key $($keyFile.Name)")) {

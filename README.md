@@ -113,6 +113,141 @@ web-app entries win). `m365` (not `365`) per the digit-prefix convention. Physic
 names are **defined by the front-end migration** — several sources here are new to the
 schema and need migrations there first. See [`CLAUDE.md §5`](./CLAUDE.md).
 
+## Data model — what this pipeline populates
+
+The shared schema is **owned by the front-end repo** ([`ImperionCRM/docs/database/data-model.md`](../ImperionCRM/docs/database/data-model.md),
+ADR-0017). This repo never owns migrations; it is a **producer** of the bronze rows, the
+silver/gold aggregates, and the vectors below. The two diagrams show only the slice this
+pipeline writes.
+
+### Stages — the medallion flow
+
+```mermaid
+flowchart LR
+    subgraph SRC["Sources (this repo polls)"]
+      direction TB
+      S1["m365 / azure (Graph + ARM, GDAP)"]
+      S2["autotask · it glue · kaseya (KQM)"]
+      S3["telivy · dark web id"]
+    end
+    SRC -->|"connect → get (flatten to flat table)"| BR
+    subgraph BR["BRONZE — per-source, lossless + filter"]
+      direction TB
+      B1["*_companies · *_contacts · *_devices"]
+      B2["autotask_ticket_bronze · *_contract_bronze · kqm_proposal_bronze"]
+      B3["assessment_artifact (source=televy) · posture tables"]
+    end
+    BR -->|"precedence merge (website &gt; machine sources)"| SI
+    subgraph SI["SILVER — unified entities"]
+      direction TB
+      V1["account · contact · device"]
+      V2["interaction · meeting · ticket"]
+    end
+    SI -->|"summarize → knowledge objects"| GO["GOLD — summaries (summary_gold)"]
+    GO -->|"chunk · embed (no re-embed on unchanged hash)"| VEC[("pgvector — interaction_embedding · contact_embedding")]
+    VEC --> AG["Backend agent reads gold + vectors"]
+```
+
+### Tables — bronze → silver → gold (the producer's view)
+
+```mermaid
+erDiagram
+    ACCOUNT ||--o{ AUTOTASK_COMPANIES : "merges from"
+    ACCOUNT ||--o{ ITGLUE_COMPANIES : ""
+    ACCOUNT ||--o{ APOLLO_COMPANIES : ""
+    ACCOUNT ||--o{ WEBSITE_COMPANIES : "manual (front-end, highest precedence)"
+    CONTACT ||--o{ AUTOTASK_CONTACTS : "merges from"
+    CONTACT ||--o{ M365_CONTACTS : ""
+    CONTACT ||--o{ ITGLUE_CONTACTS : ""
+    DEVICE  ||--o{ M365_DEVICES : "merges from"
+    DEVICE  ||--o{ ITGLUE_DEVICES : ""
+    ACCOUNT ||--o{ CONTACT : has
+    ACCOUNT ||--o{ DEVICE : owns
+    ACCOUNT ||--o{ INTERACTION : timeline
+    CONTACT ||--o{ INTERACTION : participates
+    INTERACTION ||--o| MEETING : "1:1 (kind=meeting)"
+    INTERACTION ||--o| INTERACTION_EMBEDDING : "gold → pgvector"
+    CONTACT ||--o| CONTACT_EMBEDDING : "gold → pgvector"
+    ACCOUNT ||--o{ TICKET : "company owns"
+    ACCOUNT ||--o{ ASSESSMENT_ARTIFACT : "telivy evidence"
+
+    AUTOTASK_COMPANIES {
+      uuid id PK
+      uuid account_id FK "silver (null until merged)"
+      text external_ref "UNIQUE"
+      jsonb payload_bronze
+      text summary_gold
+      timestamptz last_seen_at
+    }
+    ACCOUNT {
+      uuid id PK
+      text name
+      text relationship "prospect|customer|partner"
+      text lifecycle_stage
+    }
+    CONTACT {
+      uuid id PK
+      uuid account_id FK
+      text full_name
+      text email
+      text crm_stage "audience|lead|prospect|client"
+    }
+    DEVICE {
+      uuid id PK
+      uuid account_id FK
+      text name
+      text os
+      timestamptz last_seen_at
+    }
+    INTERACTION {
+      uuid id PK
+      uuid account_id FK
+      uuid contact_id FK
+      text source "m365_email|m365_teams|…"
+      text kind "email|message|meeting"
+      text summary_gold
+      timestamptz occurred_at
+    }
+    MEETING {
+      uuid id PK
+      uuid interaction_id FK "UNIQUE 1:1"
+      text platform "teams"
+      text summary_gold
+    }
+    TICKET {
+      uuid id PK
+      uuid account_id FK
+      text source "autotask"
+      text external_ref
+      text status
+    }
+    ASSESSMENT_ARTIFACT {
+      uuid id PK
+      uuid assessment_id FK
+      text source "televy"
+      text kind "report|analytics|metric"
+      text summary_gold
+    }
+    INTERACTION_EMBEDDING {
+      uuid id PK
+      uuid interaction_id FK
+      vector embedding
+      text model "pinned system-wide"
+    }
+    CONTACT_EMBEDDING {
+      uuid id PK
+      uuid contact_id FK
+      vector embedding
+      text model
+    }
+```
+
+> All `*_companies` bronze tables share the shape above (with `account_id`); `*_contacts`
+> with `contact_id`; `*_devices` with `device_id` (front-end Diagram 6b). The **security
+> posture** tables (`secure_scores`, `*_policies` + `*_golden`, `m365_service_principals`,
+> the Azure inventory set) are written alongside this slice — see
+> [`docs/database/`](docs/database) and the front-end ERD for their columns.
+
 ## The ingestion pattern — flatten → IT Glue → Postgres
 
 How almost everything from Azure / 365 is collected, one shape end to end:
@@ -169,8 +304,10 @@ current policy to baseline (human-gated). See [`docs/database/golden-states-and-
 ## Install & develop
 
 ```powershell
-# deps
-Install-Module Microsoft.PowerShell.SecretManagement, Microsoft.PowerShell.SecretStore, MSAL.PS, Pester, PSScriptAnalyzer
+# runtime deps, machine-wide (elevated pwsh 7) — pinned SecretManagement/SecretStore/MSAL.PS + Npgsql
+.\build\Install-ImperionDependencies.ps1
+# dev/test tooling (current user is fine)
+Install-Module Pester, PSScriptAnalyzer -Scope CurrentUser
 
 # install the module + seed config in %ProgramData%\Imperion\
 .\build\Install-ImperionModule.ps1 -Scope AllUsers
