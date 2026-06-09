@@ -47,7 +47,8 @@
         # Per-API connect layer (reusable connection / paged-request utilities)
         'Get-ImperionAutotaskZone',
         'Invoke-ImperionAutotaskRequest',
-        'Invoke-ImperionTelivyRequest'
+        'Invoke-ImperionTelivyRequest',
+        'Connect-ImperionDarkWebId'
     )
     CmdletsToExport   = @()
     VariablesToExport = @()
