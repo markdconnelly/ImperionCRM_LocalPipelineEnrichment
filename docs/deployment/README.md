@@ -2,6 +2,10 @@
 
 How the module + scheduled tasks are installed and updated on the home server.
 
+> **Doing the actual bring-up?** Use [unattended-bringup.md](unattended-bringup.md) — a concrete,
+> values-filled checklist for *this* system (the identity, grants, and live DB chain are already
+> proven; only host packaging remains). The notes below are the generic reference.
+
 ## Prerequisites
 - **PowerShell 7.2+** (`pwsh`).
 - Modules: `Microsoft.PowerShell.SecretManagement`, `Microsoft.PowerShell.SecretStore`, `MSAL.PS`, `Pester`, `PSScriptAnalyzer`.
