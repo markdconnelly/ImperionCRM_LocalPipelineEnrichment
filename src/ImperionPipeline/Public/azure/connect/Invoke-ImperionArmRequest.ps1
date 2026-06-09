@@ -22,9 +22,10 @@ function Invoke-ImperionArmRequest {
     $next = $uri
     while ($next) {
         $resp = Invoke-ImperionRestWithRetry -Uri $next -Headers $headers -Method GET
-        if ($null -ne $resp.Body.value) { $resp.Body.value | ForEach-Object { $items.Add($_) } }
-        elseif ($null -ne $resp.Body) { $items.Add($resp.Body) }
-        $next = $resp.Body.nextLink
+        $value = Get-ImperionMember $resp.Body 'value'
+        if ($null -ne $value) { $value | ForEach-Object { $items.Add($_) } }
+        elseif ($null -ne $resp.Body) { $items.Add($resp.Body) }   # single resource (no 'value' collection)
+        $next = Get-ImperionMember $resp.Body 'nextLink'
     }
     return $items.ToArray()
 }
