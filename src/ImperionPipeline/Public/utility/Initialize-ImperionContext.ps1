@@ -12,13 +12,23 @@ function Initialize-ImperionContext {
         (override with $env:IMPERION_CONFIG).
     .PARAMETER SecretNamesPath
         Path to secret-names.psd1. Default: alongside the config.
+    .PARAMETER SkipSecretStore
+        Initialize WITHOUT unlocking the local SecretStore. Interim mode for a host where
+        the service identity (and therefore its per-user-profile vault) is not provisioned
+        yet: cmdlets that resolve secrets from Key Vault (Dark Web ID, the Voyage embedding
+        key fallback) still work; any cmdlet that needs a SecretStore-only secret fails
+        loudly at its Get-Secret call. The unattended end-state does NOT use this switch.
     .EXAMPLE
         Import-Module ImperionPipeline; Initialize-ImperionContext
+    .EXAMPLE
+        # Interim (no service account yet): Key-Vault-backed secrets only.
+        Initialize-ImperionContext -SkipSecretStore
     #>
     [CmdletBinding()]
     param(
         [string] $ConfigPath,
-        [string] $SecretNamesPath
+        [string] $SecretNamesPath,
+        [switch] $SkipSecretStore
     )
 
     if (-not $ConfigPath) {
@@ -35,6 +45,11 @@ function Initialize-ImperionContext {
     if ($script:ImperionConfig.LogDirectory) { $env:IMPERION_LOG_DIR = $script:ImperionConfig.LogDirectory; $script:ImperionLogDirectory = $script:ImperionConfig.LogDirectory }
     if ($script:ImperionConfig.NpgsqlDllPath) { $env:IMPERION_NPGSQL_DLL = $script:ImperionConfig.NpgsqlDllPath; $script:ImperionNpgsqlPath = $script:ImperionConfig.NpgsqlDllPath }
 
-    Connect-ImperionSecretStore -CmsPasswordPath $script:ImperionConfig.CmsPasswordPath -VaultName $script:ImperionConfig.SecretVault
+    if ($SkipSecretStore) {
+        Write-ImperionLog -Level Warn -Source 'context' -Message 'SecretStore SKIPPED (interim mode) — only Key-Vault-backed secrets are available this run.'
+    }
+    else {
+        Connect-ImperionSecretStore -CmsPasswordPath $script:ImperionConfig.CmsPasswordPath -VaultName $script:ImperionConfig.SecretVault
+    }
     Write-ImperionLog -Source 'context' -Message "Context initialized (tenant $($script:ImperionConfig.PartnerTenantId))."
 }

@@ -4,15 +4,15 @@ function Invoke-ImperionKnowledgeSync {
         Build the gold knowledge layer (and optionally its vectors) end to end.
     .DESCRIPTION
         Sync entry point for the gold tier (CLAUDE.md §6/§7, ADR-0009) — the cmdlet the
-        scheduled task runs. Composes knowledge objects from silver (accounts, contacts)
-        through the Get-ImperionKnowledge* composers, upserts them change-detected into
-        `knowledge_object`, and — with -Vectorize — runs the chunk→Voyage→pgvector stage
-        so the backend agent's retrieval surface is current.
+        scheduled task runs. Composes knowledge objects (accounts, contacts, contracts,
+        tickets) through the Get-ImperionKnowledge* composers, upserts them
+        change-detected into `knowledge_object`, and — with -Vectorize — runs the
+        chunk→Voyage→pgvector stage so the backend agent's retrieval surface is current.
 
         One DB connection is shared across the whole run (ADR-0003 short-lived token).
         Idempotent and resumable: unchanged objects are not rewritten and never re-embedded.
     .PARAMETER EntityType
-        'account', 'contact', or 'all' (default).
+        'account', 'contact', 'contract', 'ticket', or 'all' (default).
     .PARAMETER Vectorize
         Also run Invoke-ImperionVectorizeKnowledge after the gold upsert.
     .PARAMETER TenantId
@@ -27,7 +27,7 @@ function Invoke-ImperionKnowledgeSync {
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
-        [ValidateSet('account', 'contact', 'all')][string] $EntityType = 'all',
+        [ValidateSet('account', 'contact', 'contract', 'ticket', 'all')][string] $EntityType = 'all',
         [switch] $Vectorize,
         [string] $TenantId
     )
@@ -43,6 +43,14 @@ function Invoke-ImperionKnowledgeSync {
         if ($EntityType -in 'contact', 'all') {
             $contactRows = Get-ImperionKnowledgeContact -Connection $conn -TenantId $TenantId
             $tallies['contact'] = $contactRows | Set-ImperionKnowledgeObject -Connection $conn
+        }
+        if ($EntityType -in 'contract', 'all') {
+            $contractRows = Get-ImperionKnowledgeContract -Connection $conn -TenantId $TenantId
+            $tallies['contract'] = $contractRows | Set-ImperionKnowledgeObject -Connection $conn
+        }
+        if ($EntityType -in 'ticket', 'all') {
+            $ticketRows = Get-ImperionKnowledgeTicket -Connection $conn -TenantId $TenantId
+            $tallies['ticket'] = $ticketRows | Set-ImperionKnowledgeObject -Connection $conn
         }
 
         if ($Vectorize) {

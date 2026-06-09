@@ -27,11 +27,13 @@ tasks land).
   chunking_version, content_hash, token_count`, HNSW cosine index). The pipeline SP role has
   `SELECT/INSERT/UPDATE` on both + `DELETE` on `knowledge_embedding` (the per-object chunk
   replace + pruning superseded versions); the backend agent reads them.
-- **What gets embedded:** the composed `body` of gold knowledge objects. **Coverage today:
-  accounts** (with contact roster, opportunities, Autotask contracts, recent tickets) **and
-  contacts** (profile, reachability, CRM standing). Each further entity (devices, proposals,
-  exposures, assessments, posture, IT Glue/Azure docs) is one new composer + one line in the
-  sync — coverage is the goal, tracked in the production-readiness plan.
+- **What gets embedded:** the composed `body` of gold knowledge objects. **Coverage today
+  (live in prod 2026-06-09 — 205 objects): accounts** (contact roster, opportunities,
+  contracts, recent tickets), **contacts** (profile, reachability, CRM standing),
+  **contracts** (terms, dates, value — per-entity granularity), and **tickets** (full
+  description + resolution — the support memory). Each further entity (devices, proposals,
+  exposures, assessments, posture, IT Glue/Azure docs) is one new composer + one line in
+  the sync — coverage is the goal, tracked in the production-readiness plan.
 - **Pinned model (front-end ADR-0041 / backend ADR-0034):** **Voyage AI `voyage-3-large` at
   dimension 1024**, system-wide — Anthropic's recommended embeddings provider for Claude RAG.
   Stored as `embedding_model='voyage-3-large'`, `dimension=1024` on every row.
@@ -49,8 +51,11 @@ tasks land).
 - **Re-embed:** a model/chunking change is a **versioned re-embed**, never in-place — the
   vectorizer only ever replaces rows matching its own (embedding_model, chunking_version);
   other versions coexist until verified, then pruned (the SP's scoped `DELETE`).
-- **API key:** SecretStore secret `embedding-provider-key` (the `EmbeddingProviderKey`
-  entry in `config/secret-names.psd1`) — it holds the **Voyage** key.
+- **API key (resolution order, ADR-0009):** the SecretStore mirror `embedding-provider-key`
+  when the vault is unlocked this run, else the **Key Vault original
+  `Voyage-Embedding-API-Key`** read by the cert SP (`Key Vault Secrets User`, granted
+  2026-06-09). Key Vault is the single source of truth; the SecretStore copy exists for
+  fully-offline unattended runs once the service identity is provisioned.
 - **Cost telemetry (every run):** objects scanned/unchanged/embedded, chunks, billed
   tokens, estimated USD (~$0.18/M tokens, input-only), provider, model, dimension,
   chunking version, duration — emitted as a `Metric` log line by

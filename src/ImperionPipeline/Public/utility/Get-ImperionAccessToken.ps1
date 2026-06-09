@@ -18,7 +18,9 @@ function Get-ImperionAccessToken {
     .PARAMETER ClientId
         The Entra app (client) id.
     .PARAMETER CertThumbprint
-        Thumbprint of the certificate in Cert:\LocalMachine\My.
+        Thumbprint of the certificate. Looked up in Cert:\LocalMachine\My first (the
+        unattended end-state, ADR-0002), falling back to Cert:\CurrentUser\My (interim
+        interactive runs before the service identity owns a machine-store cert).
     .EXAMPLE
         $tok = Get-ImperionAccessToken -Resource 'https://graph.microsoft.com/.default' -TenantId $tid -ClientId $cid -CertThumbprint $thumb
     #>
@@ -38,7 +40,14 @@ function Get-ImperionAccessToken {
         return $cached.AccessToken
     }
 
-    $cert = Get-Item -Path ("Cert:\LocalMachine\My\{0}" -f $CertThumbprint) -ErrorAction Stop
+    # Machine store first (unattended end-state); user store as the interim fallback.
+    $cert = Get-Item -Path ("Cert:\LocalMachine\My\{0}" -f $CertThumbprint) -ErrorAction SilentlyContinue
+    if (-not $cert) {
+        $cert = Get-Item -Path ("Cert:\CurrentUser\My\{0}" -f $CertThumbprint) -ErrorAction SilentlyContinue
+    }
+    if (-not $cert) {
+        throw "Certificate $CertThumbprint not found in Cert:\LocalMachine\My or Cert:\CurrentUser\My."
+    }
     if (-not $cert.HasPrivateKey) {
         throw "Certificate $CertThumbprint has no accessible private key for this identity."
     }

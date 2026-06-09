@@ -32,6 +32,19 @@ Generic background is in [README.md](README.md); the trust model is `CLAUDE.md` 
   `Invoke-ImperionDbQuery` connected to prod as `imperion-localpipeline` (cert-minted token) and
   read `autotask_contracts`. So the PowerShell path — not just node — is verified end to end.
 
+## ✅ Interim mode active (2026-06-09): `-SkipSecretStore` + Key Vault fallback
+
+Until the service identity exists (decision below), the pipeline runs **interactively as
+`markd`** with `Initialize-ImperionContext -SkipSecretStore`: the markd-profile cert mints
+all tokens, and Key-Vault-backed secrets work (the cert SP was granted **Key Vault
+Secrets User** on `kv-imperioncrm-prd` 2026-06-09 — the CLAUDE.md §2 grant, previously
+missing). The Voyage embedding key resolves SecretStore-first → **Key Vault
+`Voyage-Embedding-API-Key`** (ADR-0009), so vectorization runs without a local vault.
+SecretStore-only secrets (Autotask/IT Glue/Telivy source keys) stay unavailable until
+step 5. **Do NOT create the `ImperionStore` vault under `markd`** — SecretStore config is
+per-user-singleton and markd has personal vaults (AIApp, MarksWorkstationSecureVault);
+reconfiguring would risk them. The vault belongs to the service identity's profile.
+
 ## ⚠️ Identity model: this box is NOT domain-joined → no gMSA
 `MARKSWORKPC` is a workgroup machine, so CLAUDE.md §2's "gMSA (preferred)" is **not possible**.
 The unattended identity must be the documented fallback: a **dedicated local service account**
