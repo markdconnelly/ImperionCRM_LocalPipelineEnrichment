@@ -42,7 +42,7 @@ function Set-ImperionITGlueFlexibleAsset {
 
     # 1. Resolve (or create) the flexible asset type by name.
     $types = Invoke-ImperionITGlueRequest -Path 'flexible_asset_types' -ApiKey $ApiKey -Query ("filter[name]={0}" -f [uri]::EscapeDataString($TypeName))
-    $type = $types | Where-Object { $_.attributes.name -eq $TypeName } | Select-Object -First 1
+    $type = $types | Where-Object { (Get-ImperionPropertyPath -InputObject $_ -Path 'attributes.name') -eq $TypeName } | Select-Object -First 1
     if (-not $type) {
         if (-not $CreateTypeIfMissing) { throw "Flexible Asset Type '$TypeName' not found. Run setup with -CreateTypeIfMissing." }
         if (-not $TypeFields) { throw "Creating type '$TypeName' requires -TypeFields." }
@@ -56,7 +56,7 @@ function Set-ImperionITGlueFlexibleAsset {
     # 2. Find an existing asset for this org+type matching the key trait.
     $existing = Invoke-ImperionITGlueRequest -Path 'flexible_assets' -ApiKey $ApiKey -Query (
         "filter[flexible_asset_type_id]={0}&filter[organization_id]={1}&page[size]=1000" -f $typeId, $OrganizationId)
-    $match = $existing | Where-Object { [string]$_.attributes.traits.$MatchTrait -eq [string]$MatchValue } | Select-Object -First 1
+    $match = $existing | Where-Object { [string](Get-ImperionPropertyPath -InputObject $_ -Path "attributes.traits.$MatchTrait") -eq [string]$MatchValue } | Select-Object -First 1
 
     # 3. POST (create) or PATCH (update).
     $attributes = @{ 'organization-id' = $OrganizationId; 'flexible-asset-type-id' = [int]$typeId; traits = $Traits }
