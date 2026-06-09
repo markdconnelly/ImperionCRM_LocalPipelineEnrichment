@@ -18,10 +18,19 @@ function Invoke-ImperionBronzeUpsert {
         Conflict-target columns (must back a unique/primary key). Default tenant_id, source, external_id.
     .PARAMETER JsonColumns
         Columns cast to jsonb on insert. Default raw_payload.
+    .PARAMETER NoChangeDetect
+        Omit the `content_hash IS DISTINCT FROM` guard. Use for tables that have no
+        content_hash column — e.g. the ADR-0039 per-source shape (televy_reports,
+        darkwebid_exposures) keyed on external_ref, where change is resolved in the merge,
+        not at the bronze gate. Every conflicting row is then updated (none counted unchanged).
     .PARAMETER BatchSize
         Rows per statement. Default 500.
     .EXAMPLE
         $tally = Invoke-ImperionBronzeUpsert -Connection $c -Table m365_service_principals -Rows $flat
+    .EXAMPLE
+        # ADR-0039 per-source shape (no content_hash column):
+        $tally = Invoke-ImperionBronzeUpsert -Connection $c -Table televy_reports -Rows $projected `
+            -KeyColumns external_ref -JsonColumns payload_bronze -NoChangeDetect
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
@@ -31,6 +40,7 @@ function Invoke-ImperionBronzeUpsert {
         [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $Rows,
         [string[]] $KeyColumns = @('tenant_id', 'source', 'external_id'),
         [string[]] $JsonColumns = @('raw_payload'),
+        [switch] $NoChangeDetect,
         [int] $BatchSize = 500
     )
 
@@ -61,11 +71,11 @@ function Invoke-ImperionBronzeUpsert {
             $valueGroups.Add('(' + ($placeholders -join ', ') + ')')
         }
 
+        $changeGuard = if ($NoChangeDetect) { '' } else { "`nWHERE `"$Table`".content_hash IS DISTINCT FROM EXCLUDED.content_hash" }
         $cmd.CommandText = @"
 INSERT INTO "$Table" ($quotedCols)
 VALUES $($valueGroups -join ', ')
-ON CONFLICT ($conflict) DO UPDATE SET $setClause
-WHERE "$Table".content_hash IS DISTINCT FROM EXCLUDED.content_hash
+ON CONFLICT ($conflict) DO UPDATE SET $setClause$changeGuard
 RETURNING (xmax = 0) AS inserted;
 "@
 

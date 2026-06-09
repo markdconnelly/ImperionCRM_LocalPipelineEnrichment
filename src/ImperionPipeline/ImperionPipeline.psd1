@@ -42,6 +42,7 @@
         'Invoke-ImperionBronzeUpsert',
         'Invoke-ImperionGraphRequest',
         'Invoke-ImperionArmRequest',
+        'Get-ImperionKeyVaultSecret',
         'Invoke-ImperionITGlueRequest',
         'Set-ImperionITGlueFlexibleAsset',
         # Per-API connect layer (reusable connection / paged-request utilities)
@@ -66,7 +67,12 @@
         'Get-ImperionITGlueContact',
         'Get-ImperionITGlueConfiguration',
         'Get-ImperionTelivyReport',
-        'Get-ImperionDarkWebIdCompromise'
+        'Get-ImperionDarkWebIdCompromise',
+        # Per-object post layer (write flattened rows -> bronze; change-detected upsert)
+        'Set-ImperionAutotaskContractToBronze',
+        'Set-ImperionAutotaskTicketToBronze',
+        'Set-ImperionTelivyReportToBronze',
+        'Set-ImperionDarkWebIdCompromiseToBronze'
     )
     CmdletsToExport   = @()
     VariablesToExport = @()

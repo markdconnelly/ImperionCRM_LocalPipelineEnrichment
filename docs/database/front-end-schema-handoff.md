@@ -6,13 +6,39 @@ shared PostgreSQL but never runs DDL. This doc is the **migration request**: eve
 front-end repo must add before the module's cmdlets can land data. Ready-to-apply DDL lives
 in this repo's [`/sql`](../../sql/) — copy it into a front-end `db/migrations` file.
 
-## How to apply
-1. Create a new front-end migration (next number after the latest applied — prod is at
-   `0001–0037`, so e.g. `0038_local_pipeline_bronze.sql`).
+## Status (2026-06-09)
+The table migrations below are **authored in the front-end repo** as `db/migrations/0038`–`0043`
+(`0038_local_pipeline_bronze`, `0039_related_bronze_views`, `0042_darkwebid_provider`,
+`0043_security_ingestion`). The `/sql` files in this repo remain the source-of-record DDL they
+were copied from.
+1. **`0038`–`0043` are CONFIRMED APPLIED in prod** (verified 2026-06-09 against
+   `imperioncrm-pg-prd`): every target table, the related-bronze + exposure views, and the
+   `connection_provider` enum value `darkwebid` are present. **No action needed.**
+2. **Pipeline SP grants — APPLIED + VERIFIED in prod (2026-06-09).** Front-end
+   `db/migrations/0044_local_pipeline_grants.sql` created the least-privilege role
+   **`imperion-localpipeline`** (mapped via `pgaadauth` to the cert-backed SP **"Imperion CRM"**,
+   appId `46f1077b-…`, objectId `d944e180-…`, type `service`, non-admin) and granted it
+   `SELECT, INSERT, UPDATE` on exactly the **42** bronze/golden tables this repo writes — **no
+   DELETE, no blanket `ALL TABLES`**. Verified: 42 tables each privilege, 0 DELETE, CONNECT true.
+3. **Live chain PROVEN (2026-06-09).** `cert → token → Postgres → write`: minted an `ossrdbms`
+   token from the SP certificate (`CN=ImperionCRM-WebApp-EntraAuthCert`), connected as
+   `imperion-localpipeline` over TLS, INSERT into `autotask_contracts` (rolled back, zero
+   residue), and confirmed DELETE is refused (`42501`). The reusable proof for the *unattended*
+   host is `build/Test-ImperionUnattendedChain.ps1`.
+
+**Still needed for an UNATTENDED run on the server** (the auth/DB/schema are done; this is host
+packaging — CLAUDE.md §2/§10 step 2): import the cert into `LocalMachine\My` ACL'd to the gMSA
+(it is currently in `CurrentUser\My`), install Npgsql + MSAL.PS machine-wide, create the
+SecretStore + CMS unlock, fill `%ProgramData%\Imperion\pipeline.config.psd1`
+(`Db.Username='imperion-localpipeline'`, `ClientId='46f1077b-…'`, `CertThumbprint='F860A0D5…'`,
+`PartnerTenantId='49307c12-…'`), and load the source API keys.
+
+## How to apply (for net-new tables added later)
+1. Create a new front-end migration (next number after the latest — the dir is at `0044`).
 2. Paste the DDL from the `/sql` files below (in this order).
-3. Apply with the committed runner: `node C:/Development/GitHub/ImperionCRM/scripts/migrate.mjs 0038`.
-4. Grant the local module's Postgres Entra role `SELECT, INSERT, UPDATE` on the new tables
-   (ADR-0003 — the role is scoped to exactly the tables this repo touches).
+3. Apply with the committed runner: `node C:/Development/GitHub/ImperionCRM/scripts/migrate.mjs <n>`.
+4. Add the new tables to `0044`'s grant list (or a follow-on grant migration) so the pipeline
+   SP can write them (ADR-0003 — the role is scoped to exactly the tables this repo touches).
 
 ## Conventions (apply to every table below)
 - **Naming:** `{source}_{entity}` (e.g. `autotask_contracts`, `itglue_organizations`) —
