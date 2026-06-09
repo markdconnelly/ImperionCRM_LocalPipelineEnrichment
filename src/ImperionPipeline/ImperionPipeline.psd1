@@ -61,7 +61,8 @@
         'Get-ImperionM365TeamsMeeting',
         'Get-ImperionAzureSubscription',
         'Get-ImperionAzureResourceGroup',
-        'Get-ImperionAzureResource'
+        'Get-ImperionAzureResource',
+        'Get-ImperionITGlueOrganization'
     )
     CmdletsToExport   = @()
     VariablesToExport = @()
