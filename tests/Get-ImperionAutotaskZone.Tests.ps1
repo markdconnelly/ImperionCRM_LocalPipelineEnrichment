@@ -45,10 +45,17 @@ Describe 'Get-ImperionAutotaskZone' {
         }
     }
 
-    It 'throws when zoneInformation returns no url' {
+    It 'throws when zoneInformation returns no url (null value)' {
         InModuleScope ImperionPipeline {
             Mock Invoke-ImperionRestWithRetry { [pscustomobject]@{ Body = [pscustomobject]@{ url = $null } } }
             { Get-ImperionAutotaskZone -UserName 'u2' -Headers @{} -Force } | Should -Throw '*no url*'
+        }
+    }
+
+    It 'throws (not a StrictMode error) when the body omits url entirely' {
+        InModuleScope ImperionPipeline {
+            Mock Invoke-ImperionRestWithRetry { [pscustomobject]@{ Body = [pscustomobject]@{ } } }
+            { Get-ImperionAutotaskZone -UserName 'u3' -Headers @{} -Force } | Should -Throw '*no url*'
         }
     }
 }
