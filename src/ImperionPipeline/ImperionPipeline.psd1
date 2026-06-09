@@ -43,7 +43,9 @@
         'Invoke-ImperionGraphRequest',
         'Invoke-ImperionArmRequest',
         'Invoke-ImperionITGlueRequest',
-        'Set-ImperionITGlueFlexibleAsset'
+        'Set-ImperionITGlueFlexibleAsset',
+        # Per-API connect layer (reusable connection / paged-request utilities)
+        'Get-ImperionAutotaskZone'
     )
     CmdletsToExport   = @()
     VariablesToExport = @()
