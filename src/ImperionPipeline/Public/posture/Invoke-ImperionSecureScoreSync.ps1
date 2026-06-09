@@ -30,7 +30,7 @@ function Invoke-ImperionSecureScoreSync {
             max_score            = 'maxScore'
             active_user_count    = 'activeUserCount'
             licensed_user_count  = 'licensedUserCount'
-            enabled_services     = { param($s) $s.enabledServices | Join-ImperionValues }
+            enabled_services     = { param($s) (Get-ImperionMember $s 'enabledServices') | Join-ImperionValues }
             created_date_time    = 'createdDateTime'
             azure_tenant_id      = 'azureTenantId'
         }
@@ -51,7 +51,7 @@ function Invoke-ImperionSecureScoreSync {
             user_impact         = 'userImpact'
             implementation_cost = 'implementationCost'
             tier                = 'tier'
-            threats             = { param($p) $p.threats | Join-ImperionValues }
+            threats             = { param($p) (Get-ImperionMember $p 'threats') | Join-ImperionValues }
             remediation         = 'remediation'
             deprecated          = 'deprecated'
         }
