@@ -24,8 +24,17 @@ Describe 'Register-ImperionTask' {
     It 'builds one task action per sync cmdlet and registers nothing under -WhatIf' {
         InModuleScope ImperionPipeline {
             Register-ImperionTask -TaskIdentity 'CORP\svc-imperion$' -PwshPath 'C:\pwsh\pwsh.exe' -WhatIf
-            Should -Invoke New-ScheduledTaskAction -Times 6
+            Should -Invoke New-ScheduledTaskAction -Times 7
             Should -Invoke Register-ScheduledTask -Times 0
+        }
+    }
+
+    It 'schedules the knowledge + vectorization sync after the ingest tasks (ADR-0009)' {
+        InModuleScope ImperionPipeline {
+            Register-ImperionTask -TaskIdentity 'CORP\svc-imperion$' -PwshPath 'C:\pwsh\pwsh.exe' -WhatIf
+            Should -Invoke New-ScheduledTaskAction -ParameterFilter {
+                $Argument -match 'Invoke-ImperionKnowledgeSync -Vectorize'
+            }
         }
     }
 

@@ -1,33 +1,57 @@
 # Vector lifecycle
 
-All embedding/vectorization runs on the home node (ADR-0004). This documents the lifecycle
-the standard requires (front-end `CLAUDE.md §8`). The **target schema is front-end
-`db/migrations/0045` + ADR-0041** (`ImperionCRM`) — this repo writes into it.
+All embedding/vectorization runs on the home node (ADR-0004, **built by ADR-0009** —
+module v0.3.0). The **target schema is front-end `db/migrations/0045` + ADR-0041**
+(`ImperionCRM`) — this repo is its sole producer; the backend agent reads it (and embeds
+only *queries*, backend ADR-0034).
+
+## The pipeline (as built)
+
+```mermaid
+flowchart LR
+    SILVER[("silver account/contact +<br/>autotask contracts/tickets bronze")]
+    SILVER --> COMPOSE["Get-ImperionKnowledgeAccount /<br/>Get-ImperionKnowledgeContact"]
+    COMPOSE --> KO[("knowledge_object<br/>Set-ImperionKnowledgeObject<br/>(upsert, content_hash gated)")]
+    KO --> CHUNK["Split-ImperionTextChunk (v1)"]
+    CHUNK -->|changed objects only| VOYAGE["Get-ImperionVoyageEmbedding<br/>voyage-3-large @ 1024"]
+    VOYAGE --> KE[("knowledge_embedding<br/>Invoke-ImperionVectorizeKnowledge")]
+```
+
+Entry point: **`Invoke-ImperionKnowledgeSync [-Vectorize]`** — the
+`Imperion-KnowledgeVectorize` scheduled task (daily 04:30, after the night's ingest
+tasks land).
 
 - **Target tables:** gold **`knowledge_object`** (one per entity: `tenant_id, entity_type,
   entity_ref, title, body, summary, source, content_hash, metadata`) → **`knowledge_embedding`**
   (chunked vectors: `chunk_index, chunk_text, embedding vector(1024), embedding_model, dimension,
   chunking_version, content_hash, token_count`, HNSW cosine index). The pipeline SP role has
-  `SELECT/INSERT/UPDATE` on both + `DELETE` on `knowledge_embedding` (to prune superseded
-  versions); the backend agent reads them.
-- **What gets embedded:** the `body`/`summary` of gold knowledge objects across **CRM and
-  support** (accounts, contacts, devices, proposals, contracts, tickets, exposures, assessments,
-  security-posture, IT Glue/Azure operational docs) — coverage is the goal.
-- **Pinned model (ADR-0041):** **Voyage AI `voyage-3-large` at dimension 1024**, system-wide —
-  Anthropic's recommended embeddings provider for Claude RAG. Embeddings are decoupled from the
-  generation model (Claude reads retrieved *text*, not vectors), so this is a retrieval/cost/
-  governance choice. Stored as `embedding_model='voyage-3-large'`, `dimension=1024` on every row.
-- **Provider:** provider-agnostic router; a local on-prem model (Ollama/ONNX, zero client-data
-  egress) is swappable behind the same interface via a **versioned re-embed** — a *same-dimension*
-  model swap is in-place-versioned; a *dimension* change needs a new `vector(N)` column (front-end
-  migration).
-- **Chunking:** documented `chunk_size` / `overlap`, versioned as `chunking_version` (start `v1`).
-- **Idempotency:** unchanged `content_hash` → no re-embed (no re-billing).
-- **Re-embed:** a model/chunking change is a **versioned re-embed**, never in-place — write the
-  new `(embedding_model, chunking_version)` rows alongside the old.
-- **Retention:** old vector versions retained until the new version is verified, then pruned
-  (the SP's `DELETE` on `knowledge_embedding`).
-- **Cost telemetry:** rows in, chunks, tokens, provider, model, cost, duration per batch.
-
-> Built later (build-order task 8). This doc is the contract the embedding job implements; the
-> schema it writes into is live (front-end 0045).
+  `SELECT/INSERT/UPDATE` on both + `DELETE` on `knowledge_embedding` (the per-object chunk
+  replace + pruning superseded versions); the backend agent reads them.
+- **What gets embedded:** the composed `body` of gold knowledge objects. **Coverage today:
+  accounts** (with contact roster, opportunities, Autotask contracts, recent tickets) **and
+  contacts** (profile, reachability, CRM standing). Each further entity (devices, proposals,
+  exposures, assessments, posture, IT Glue/Azure docs) is one new composer + one line in the
+  sync — coverage is the goal, tracked in the production-readiness plan.
+- **Pinned model (front-end ADR-0041 / backend ADR-0034):** **Voyage AI `voyage-3-large` at
+  dimension 1024**, system-wide — Anthropic's recommended embeddings provider for Claude RAG.
+  Stored as `embedding_model='voyage-3-large'`, `dimension=1024` on every row.
+  `Get-ImperionVoyageEmbedding` **refuses** any response vector that is not exactly 1024.
+- **Provider (ADR-0009):** Voyage is called **directly** (no router — the system retired
+  provider-agnosticism). The constants live in ONE place (`Get-ImperionVectorContract`).
+  A local on-prem model (Ollama/ONNX) remains a possible future ADR via a **versioned
+  re-embed**; a *dimension* change needs a new `vector(N)` column (front-end migration).
+- **Chunking v1 (pinned):** max **6000 chars** per chunk, **500 chars** overlap, splits
+  prefer paragraph → sentence → word boundaries within the final fifth of the window
+  (`Split-ImperionTextChunk` — deterministic).
+- **Idempotency (two layers):** unchanged object `content_hash` → `knowledge_object` not
+  rewritten; unchanged **chunk-hash set** for the pinned (model, chunking_version) → no
+  re-embed, **no re-billing**. Re-runs converge.
+- **Re-embed:** a model/chunking change is a **versioned re-embed**, never in-place — the
+  vectorizer only ever replaces rows matching its own (embedding_model, chunking_version);
+  other versions coexist until verified, then pruned (the SP's scoped `DELETE`).
+- **API key:** SecretStore secret `embedding-provider-key` (the `EmbeddingProviderKey`
+  entry in `config/secret-names.psd1`) — it holds the **Voyage** key.
+- **Cost telemetry (every run):** objects scanned/unchanged/embedded, chunks, billed
+  tokens, estimated USD (~$0.18/M tokens, input-only), provider, model, dimension,
+  chunking version, duration — emitted as a `Metric` log line by
+  `Invoke-ImperionVectorizeKnowledge`.

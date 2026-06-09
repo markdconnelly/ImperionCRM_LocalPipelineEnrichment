@@ -15,7 +15,7 @@ task command is `pwsh -Command "Import-Module ImperionPipeline; Initialize-Imper
 | IT Glue full export → Postgres | `Invoke-ImperionITGlueExport` | daily/12h | per-type + relationships |
 | Kaseya proposals/contracts/tickets | `Invoke-ImperionKaseyaImport` | hourly–daily | bulk upsert, watermarked |
 | GDAP relationship health | (build-order task) | hourly | fail-closed surfacing |
-| Vectorization | (build-order task) | nightly | versioned, idempotent |
+| **Gold knowledge + vectorization** | `Invoke-ImperionKnowledgeSync -Vectorize` | nightly 04:30 (after ingests) | composes knowledge_object from silver, chunks (v1), embeds via Voyage @ 1024; chunk-hash idempotent — no re-bill (ADR-0009) |
 
 ## Conventions
 - Each task invokes **one** module cmdlet after `Initialize-ImperionContext`. No business

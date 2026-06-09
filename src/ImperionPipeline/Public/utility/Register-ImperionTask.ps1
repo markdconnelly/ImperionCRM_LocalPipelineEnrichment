@@ -31,6 +31,9 @@ function Register-ImperionTask {
         @{ Name = 'Imperion-PolicySync';             Cmdlet = 'Invoke-ImperionPolicySync';            At = '03:00' }
         @{ Name = 'Imperion-ITGlueExport';           Cmdlet = 'Invoke-ImperionITGlueExport';          At = '03:30' }
         @{ Name = 'Imperion-KaseyaImport';           Cmdlet = 'Invoke-ImperionKaseyaImport';          At = '01:00' }
+        # Gold knowledge + vectorization runs LAST, after every ingest task above has
+        # landed its data, so the embedded corpus reflects the night's loads (ADR-0009).
+        @{ Name = 'Imperion-KnowledgeVectorize';     Cmdlet = 'Invoke-ImperionKnowledgeSync -Vectorize'; At = '04:30' }
     )
 
     $principal = New-ScheduledTaskPrincipal -UserId $TaskIdentity -LogonType Password -RunLevel Highest

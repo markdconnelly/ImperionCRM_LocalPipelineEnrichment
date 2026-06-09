@@ -27,6 +27,9 @@
     # Other CRM/enrichment sources — placeholders until provisioned.
     DocuSignToken           = 'docusign-token'
     ApolloApiKey            = 'apollo-api-key'
+
+    # Voyage AI key for the vectorization stage (ADR-0009; pinned voyage-3-large @ 1024,
+    # front-end ADR-0041). Get-ImperionVoyageEmbedding reads this entry.
     EmbeddingProviderKey    = 'embedding-provider-key'
 
     # NOTE: Dark Web ID has NO local SecretStore secret — in the system it is a COMPANY
