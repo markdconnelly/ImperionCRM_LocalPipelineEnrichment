@@ -48,7 +48,8 @@
         'Get-ImperionAutotaskZone',
         'Invoke-ImperionAutotaskRequest',
         'Invoke-ImperionTelivyRequest',
-        'Connect-ImperionDarkWebId'
+        'Connect-ImperionDarkWebId',
+        'Invoke-ImperionDarkWebIdRequest'
     )
     CmdletsToExport   = @()
     VariablesToExport = @()
