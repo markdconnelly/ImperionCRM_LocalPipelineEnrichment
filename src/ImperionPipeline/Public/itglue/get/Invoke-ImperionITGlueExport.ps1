@@ -34,11 +34,11 @@ function Invoke-ImperionITGlueExport {
         @{ Path = 'organization_statuses';    Table = 'itglue_export_organization_statuses' }
     )
 
-    function Get-Attr { param($obj, [string]$name) $p = $obj.PSObject.Properties[$name]; if ($p) { $p.Value } else { $null } }
+    function Get-Attr { param($obj, [string]$name) if ($null -eq $obj) { return $null } $p = $obj.PSObject.Properties[$name]; if ($p) { $p.Value } else { $null } }
 
     function ConvertTo-ItGlueRow {
         param($rec)
-        $attrs = $rec.attributes
+        $attrs = Get-Attr $rec 'attributes'
         $row = [pscustomobject][ordered]@{
             source          = 'itglue'
             external_id     = [string]$rec.id
@@ -94,7 +94,7 @@ VALUES (@ft, @fi, @tt, @ti, @rn) ON CONFLICT DO NOTHING
             foreach ($a in $assets) { $edges += (Save-Relationships -Connection $conn -rec $a) }
             if ($rows.Count) {
                 $tally = Invoke-ImperionBronzeUpsert -Connection $conn -Table 'itglue_export_flexible_assets' -Rows $rows -KeyColumns @('source', 'external_id')
-                Write-ImperionLog -Level Metric -Source 'itglue' -Message "itglue_export_flexible_assets (type $($fat.attributes.name)) exported." -Data @{ scanned = $tally.scanned; inserted = $tally.inserted; updated = $tally.updated; unchanged = $tally.unchanged; edges = $edges }
+                Write-ImperionLog -Level Metric -Source 'itglue' -Message "itglue_export_flexible_assets (type $(Get-ImperionPropertyPath -InputObject $fat -Path 'attributes.name')) exported." -Data @{ scanned = $tally.scanned; inserted = $tally.inserted; updated = $tally.updated; unchanged = $tally.unchanged; edges = $edges }
             }
         }
     }
