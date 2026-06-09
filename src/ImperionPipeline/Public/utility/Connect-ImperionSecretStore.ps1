@@ -14,6 +14,10 @@ function Connect-ImperionSecretStore {
     .EXAMPLE
         Connect-ImperionSecretStore -CmsPasswordPath C:\ProgramData\Imperion\vault.cms
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingConvertToSecureStringWithPlainText', '',
+        Justification = 'Unlock-SecretStore requires a SecureString. The password is CMS-decrypted in memory (cert private key) and the plaintext copy is cleared immediately; nothing is read from a plaintext literal or disk.')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'CmsPasswordPath',
+        Justification = 'CmsPasswordPath is a filesystem path to the CMS-encrypted blob, not a password value.')]
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string] $CmsPasswordPath,

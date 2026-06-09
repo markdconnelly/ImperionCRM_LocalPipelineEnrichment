@@ -17,6 +17,8 @@ function Invoke-ImperionKaseyaImport {
     .EXAMPLE
         Invoke-ImperionKaseyaImport -Entity Tickets -SinceDays 7
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'SinceDays',
+        Justification = 'SinceDays is consumed by the nested Get-AutotaskRecords function via PowerShell scope; the analyzer cannot see the dynamic-scope read.')]
     [CmdletBinding()]
     param(
         [ValidateSet('All', 'Proposals', 'Contracts', 'Tickets')][string] $Entity = 'All',

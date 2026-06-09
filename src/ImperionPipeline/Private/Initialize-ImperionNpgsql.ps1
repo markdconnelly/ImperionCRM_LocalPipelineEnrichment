@@ -20,7 +20,8 @@ function Initialize-ImperionNpgsql {
     ) | Where-Object { $_ -and (Test-Path $_) }
 
     foreach ($dll in $candidates) {
-        try { Add-Type -Path $dll -ErrorAction Stop; if ('Npgsql.NpgsqlConnection' -as [type]) { return } } catch { }
+        try { Add-Type -Path $dll -ErrorAction Stop; if ('Npgsql.NpgsqlConnection' -as [type]) { return } }
+        catch { Write-Verbose "Could not load Npgsql from '$dll': $($_.Exception.Message). Trying next candidate." }
     }
     throw "Npgsql not available. Install it and set `$env:IMPERION_NPGSQL_DLL or drop Npgsql.dll in the module lib/ folder. See docs/deployment."
 }

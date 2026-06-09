@@ -34,9 +34,9 @@ function Invoke-ImperionServicePrincipalSync {
     Write-ImperionLog -Source $source -Message "Fetched $($servicePrincipals.Count) service principals from tenant $TenantId."
 
     $nearestExpiry = {
-        param($creds)
-        if (-not $creds) { return $null }
-        ($creds | Where-Object { $_.endDateTime } | Sort-Object endDateTime | Select-Object -First 1).endDateTime
+        param($expiryCandidates)
+        if (-not $expiryCandidates) { return $null }
+        ($expiryCandidates | Where-Object { $_.endDateTime } | Sort-Object endDateTime | Select-Object -First 1).endDateTime
     }
     $propertyMap = [ordered]@{
         app_id                     = 'appId'
@@ -73,10 +73,12 @@ function Invoke-ImperionServicePrincipalSync {
                 'key-cred-expiry'  = $row.key_credential_next_expiry
                 'pwd-cred-expiry'  = $row.pwd_credential_next_expiry
             }
-            Set-ImperionITGlueFlexibleAsset -ApiKey $writeKey -TypeName 'Azure Service Principal' `
-                -OrganizationId $OrganizationId -MatchTrait 'app-id' -MatchValue $row.app_id `
-                -Traits $traits -CreateTypeIfMissing:$CreateTypeIfMissing | Out-Null
-            $documented++
+            if ($PSCmdlet.ShouldProcess("IT Glue org $OrganizationId / app-id $($row.app_id)", 'Document service principal')) {
+                Set-ImperionITGlueFlexibleAsset -ApiKey $writeKey -TypeName 'Azure Service Principal' `
+                    -OrganizationId $OrganizationId -MatchTrait 'app-id' -MatchValue $row.app_id `
+                    -Traits $traits -CreateTypeIfMissing:$CreateTypeIfMissing | Out-Null
+                $documented++
+            }
         }
         Write-ImperionLog -Source $source -Message "Documented $documented service principals to IT Glue org $OrganizationId."
     }
@@ -84,6 +86,9 @@ function Invoke-ImperionServicePrincipalSync {
         Write-ImperionLog -Level Warn -Source $source -Message 'No -OrganizationId provided; skipping IT Glue documentation.'
     }
 
+    if (-not $PSCmdlet.ShouldProcess('Postgres bronze m365_service_principals', "Upsert $($flat.Count) service-principal rows")) {
+        return
+    }
     $conn = New-ImperionDbConnection
     try {
         $tally = Invoke-ImperionBronzeUpsert -Connection $conn -Table 'm365_service_principals' -Rows $flat
