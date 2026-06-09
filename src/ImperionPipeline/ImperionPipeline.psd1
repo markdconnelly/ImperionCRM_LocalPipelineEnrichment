@@ -57,7 +57,8 @@
         'Get-ImperionM365User',
         'Get-ImperionM365Device',
         'Get-ImperionM365Mail',
-        'Get-ImperionM365TeamsChat'
+        'Get-ImperionM365TeamsChat',
+        'Get-ImperionM365TeamsMeeting'
     )
     CmdletsToExport   = @()
     VariablesToExport = @()
