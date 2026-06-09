@@ -6,15 +6,16 @@ Dark Web ID (Kaseya / ID Agent) monitors client domains for breached/exposed cre
 Its findings are **security-posture evidence** about a client `account` and its `contact`s.
 Net-new integration to this repo.
 
-**Auth:** OAuth2 **client-credentials** against the ID Agent token endpoint — client id +
-secret from the SecretStore (`DarkWebIdClientId`, `DarkWebIdClientSecret`) → short-lived bearer.
-Read-only.
+**Auth:** a single API key sent as `Authorization: Bearer <apiKey>`, aligned with the cloud
+Pipeline's Dark Web ID client (ADR-0040). In the system the key is a **company credential**
+(`conn-company-darkwebid`); locally it's resolved from the SecretStore by the caller and passed
+in. Read-only. (Auth scheme is the system's current assumption — "could be x-api-key / Basic /
+OAuth"; confirm on first live pull.)
 
-## connect (planned)
+## connect
 | Function | Purpose |
 | --- | --- |
-| `Connect-ImperionDarkWebId` ☐ | Client-credentials grant → cached short-lived bearer token. |
-| `Invoke-ImperionDarkWebIdRequest` ☐ | GET a Dark Web ID collection with the bearer, page, backoff, return items. |
+| `Invoke-ImperionDarkWebIdRequest` ✓ | GET a Dark Web ID collection with bearer auth, JSON:API paging (`data` + `links.next`), 429/503 backoff, return items. StrictMode-safe. |
 
 ## get (planned — per object)
 | Function | Object |
@@ -23,10 +24,11 @@ Read-only.
 | `Get-ImperionDarkWebIdCompromise` ☐ | Compromise / exposure records (per credential/contact) |
 
 ## post (planned)
-`Set-ImperionDarkWebId*ToBronze` ☐. **No destination table exists yet** in the shared schema —
-a `dark_web_id_*` bronze (or an `assessment_artifact` mapping) needs a **front-end migration
-first** (CLAUDE.md §5/§6). Track as a cross-repo checklist item; this repo fails loudly on a
-missing table rather than creating one.
+`Set-ImperionDarkWebId*ToBronze` ☐ → bronze **`darkwebid_exposures`** (front-end migration
+`0043`, ADR-0039 per-source shape: `external_ref` / `payload_bronze`), which a merge folds into
+silver **`credential_exposure`** (linked to a `contact` by email and `account` by domain).
+Tables exist — no new migration needed. This repo owns the **bulk** load; the cloud Pipeline's
+darkwebid poll is limited to live GUI-refresh.
 
 ## Provenance & consent
 Exposure data is sensitive: every row stamped `source` / `collected_at` / `lawful_basis`.
