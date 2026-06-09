@@ -1,6 +1,6 @@
 @{
     RootModule        = 'ImperionPipeline.psm1'
-    ModuleVersion     = '0.2.0'
+    ModuleVersion     = '0.3.0'
     GUID              = 'b1e7c4a2-6d3f-4f1a-9c2e-7a0d5e8f3b21'
     Author            = 'Mark / Imperion'
     CompanyName       = 'Imperion'
@@ -26,6 +26,7 @@
         'Invoke-ImperionPolicySync',
         'Invoke-ImperionITGlueExport',
         'Invoke-ImperionKaseyaImport',
+        'Invoke-ImperionKnowledgeSync',
         # Golden state / drift
         'Set-ImperionPolicyGoldenState',
         'Get-ImperionPolicyDrift',
@@ -72,7 +73,14 @@
         'Set-ImperionAutotaskContractToBronze',
         'Set-ImperionAutotaskTicketToBronze',
         'Set-ImperionTelivyReportToBronze',
-        'Set-ImperionDarkWebIdCompromiseToBronze'
+        'Set-ImperionDarkWebIdCompromiseToBronze',
+        # Gold knowledge + vectorization (ADR-0009; front-end migration 0045)
+        'Get-ImperionKnowledgeAccount',
+        'Get-ImperionKnowledgeContact',
+        'Set-ImperionKnowledgeObject',
+        'Split-ImperionTextChunk',
+        'Get-ImperionVoyageEmbedding',
+        'Invoke-ImperionVectorizeKnowledge'
     )
     CmdletsToExport   = @()
     VariablesToExport = @()

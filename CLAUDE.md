@@ -10,14 +10,17 @@ the human (Mark) says otherwise.
 >   Entra SSO). **Owns the database schema and all migrations** (`db/migrations`, ADR-0017).
 >   Authoritative UI. Surfaces client connection / GDAP relationship health. Token model:
 >   per-connection secrets live in **Key Vault, never the database**.
-> - **`ImperionCRM_Backend`** (Azure Functions) — *interactive / on-demand* work: OAuth
->   handshakes, real outbound sends, the orchestrator agent + sub-agents, serving semantic
->   search. Private, MI-authenticated, front-end-only (backend ADR-0028).
-> - **`ImperionCRM_Pipeline`** (Azure Functions) — *cloud, low-latency, internet-facing
->   ingestion*. After this repo exists, the cloud Pipeline keeps **only** the work that
->   must run in Azure: **inbound webhook receivers** (Autotask ticket webhooks, Microsoft
->   Graph change-notification subscriptions + their renewal) and any event that needs
->   sub-minute latency. It no longer carries the bulk polling load.
+> - **`ImperionCRM_Backend`** (Azure Functions) — *every process*: OAuth handshakes, real
+>   outbound sends, credential storage, the orchestrator agent + sub-agents, semantic
+>   search over the gold store. **AI stack settled there: Claude (generation) + Voyage
+>   (embeddings)** — backend ADR-0034. Identity-gated: Easy Auth + caller allowlist,
+>   public endpoint, no VNet (backend ADR-0035).
+> - **`ImperionCRM_Pipeline`** (Azure Functions) — the *live-data plane* (pipeline
+>   ADR-0011, 2026-06-09): **inbound webhook receivers** (Autotask tickets, Graph change
+>   notifications), the **gdap-health** fail-closed sweep, the bronze→silver
+>   **merge-sources** transform, and a caller-auth-gated **`POST /api/refresh`** for
+>   targeted on-demand syncs. Its bulk-poll timers are RETIRED — this repo owns all
+>   scheduled bulk ingestion — and it carries **no AI code at all**.
 > - **`ImperionCRM_LocalPipelineEnrichment`** (this repo) — *on-prem, PowerShell,
 >   scheduled-task ingestion + enrichment + vectorization engine*. Runs unattended on
 >   Mark's home server, reads the full shared database locally, and does the **heavy,
@@ -325,29 +328,33 @@ Two notes that keep this inside the system posture:
 
 ---
 
-## 7. Vectorization strategy — local orchestration, cloud (pluggable) embeddings
+## 7. Vectorization — local orchestration, Voyage pinned (BUILT — ADR-0009)
 
 This repo owns **all** embedding/vectorization (it moved off the website precisely
-because it is the heaviest stage). Decision (record as an ADR): **process locally, embed
-via a pinned provider.**
+because it is the heaviest stage). The stack is **settled and built** (ADR-0009; system
+decision 2026-06-09 — backend ADR-0034 / front-end ADR-0041):
 
-- **Local orchestration.** Reading the whole gold/text corpus, chunking, dedup by content
-  hash, batching to the provider's limits, retry/backoff, rate-limit handling, cost
-  accounting, and the `pgvector` upsert **all run on this machine**. The home server can
-  read the entire database, so large backfills don't touch Azure compute.
-- **Pluggable embedding provider behind one interface.** The inference call goes to the
-  **provider-agnostic model router** the system mandates (Azure OpenAI / OpenAI / Claude).
-  A **local embedding model (Ollama / ONNX)** can drop in behind the same interface later
-  with no schema change — the choice is config, not code.
-- **Pin one model + dimension, system-wide.** The vector space must be identical to what
-  the backend agent queries against. Store `embedding_model`, `dimension`, and
-  `chunking_version` on every vector row; a model change is a **versioned re-embed**, not
-  an in-place overwrite.
-- **Chunking + lifecycle are documented** in `docs/database/` (model, dimension, chunk
-  size/overlap, what gold objects get embedded, retention, re-embed policy, and how the
-  agent consumes them) — this is a required artifact (§8 / front-end §8).
-- **Cost & idempotency telemetry on every batch:** rows in, chunks, tokens, provider,
-  model, cost, duration. Unchanged content hash → **no re-embed**.
+- **Local orchestration.** Composing the gold corpus, chunking, dedup by content hash,
+  batching to the provider's limits, retry/backoff, cost accounting, and the `pgvector`
+  upsert **all run on this machine** (`Invoke-ImperionKnowledgeSync -Vectorize`, the
+  `Imperion-KnowledgeVectorize` task). Large backfills never touch Azure compute.
+- **Voyage `voyage-3-large` @ 1024, called directly.** No provider router — the system
+  retired provider-agnosticism. The pinned constants (model, dimension, chunking `v1` =
+  6000 chars / 500 overlap, batch size, cost rate) live in ONE place
+  (`Get-ImperionVectorContract`); `Get-ImperionVoyageEmbedding` refuses any non-1024
+  vector. The Voyage key is the SecretStore secret `embedding-provider-key`. The backend
+  embeds only *queries* against the same contract. A local model (Ollama/ONNX) is a
+  possible **future ADR** via a versioned re-embed — not dormant code.
+- **Pin one model + dimension, system-wide.** Every vector row stores `embedding_model`,
+  `dimension`, and `chunking_version`; a model/chunking change is a **versioned
+  re-embed**, never an in-place overwrite — the vectorizer only ever touches rows
+  matching its own version pair.
+- **Chunking + lifecycle are documented** in
+  [`docs/database/vector-lifecycle.md`](docs/database/vector-lifecycle.md) — the required
+  artifact (§8 / front-end §8), updated as built.
+- **Cost & idempotency telemetry on every run:** objects, chunks, billed tokens,
+  estimated USD, provider/model/version, duration. Unchanged chunk-hash set → **no
+  re-embed, no re-bill**.
 
 ---
 

@@ -1,6 +1,8 @@
 #Requires -Modules Pester
-# Hermetic tests for Get-ImperionAccessToken. Get-MsalToken (MSAL.PS, not installed here) is
-# stubbed in module scope so it can be mocked; Get-Item is mocked to return a fake certificate.
+# Hermetic tests for Get-ImperionAccessToken. Get-MsalToken is stubbed/mocked in module
+# scope. The fake certificate must be a REAL in-memory X509Certificate2 (with a private
+# key): when MSAL.PS is installed, Get-MsalToken's typed -ClientCertificate parameter
+# binds BEFORE the Pester mock body runs, so a PSCustomObject stand-in fails binding.
 
 BeforeAll {
     $module = Join-Path (Split-Path -Parent $PSScriptRoot) 'src\ImperionPipeline\ImperionPipeline.psd1'
@@ -9,6 +11,14 @@ BeforeAll {
         if (-not (Get-Command Get-MsalToken -ErrorAction SilentlyContinue)) {
             function script:Get-MsalToken { param($ClientId, $TenantId, $ClientCertificate, $Scopes) }
         }
+        # Ephemeral self-signed cert, never touches a cert store; HasPrivateKey = $true.
+        $rsa = [System.Security.Cryptography.RSA]::Create(2048)
+        $request = [System.Security.Cryptography.X509Certificates.CertificateRequest]::new(
+            'CN=ImperionPipeline-Test', $rsa,
+            [System.Security.Cryptography.HashAlgorithmName]::SHA256,
+            [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)
+        $script:ImperionTestCertificate = $request.CreateSelfSigned(
+            [datetimeoffset]::Now.AddDays(-1), [datetimeoffset]::Now.AddDays(1))
     }
 }
 
@@ -16,7 +26,7 @@ Describe 'Get-ImperionAccessToken' {
     BeforeEach {
         InModuleScope ImperionPipeline {
             $script:ImperionTokenCache = @{}
-            Mock Get-Item { [pscustomobject]@{ HasPrivateKey = $true } }
+            Mock Get-Item { $script:ImperionTestCertificate }
             Mock Get-MsalToken { [pscustomobject]@{ AccessToken = 'tok-abc'; ExpiresOn = [datetimeoffset]::Now.AddHours(1) } }
         }
     }

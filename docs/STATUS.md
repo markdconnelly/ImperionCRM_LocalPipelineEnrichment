@@ -4,10 +4,11 @@ _Snapshot of where the `ImperionPipeline` module stands. Updated as layers land.
 
 ## Summary
 
-- **46 exported cmdlets**, **175 hermetic Pester tests** across 51 files, **0 PSScriptAnalyzer
-  findings**. Module imports clean on PowerShell 7.
+- Module **v0.3.0**: **58 exported cmdlets**, **214 hermetic Pester tests**, **0
+  PSScriptAnalyzer findings in `src/`**. Module imports clean on PowerShell 7.
 - Built in the layered order from `CLAUDE.md §10` / `functions/README.md`:
-  **connect → get → post → scheduled-task**. Connect and get are complete; post and the
+  **connect → get → post → scheduled-task**. Connect, get, and the **gold knowledge +
+  vectorization stage (ADR-0009)** are complete; the remaining post writers and
   scheduled-task files are next.
 - Every change shipped as its own branch → PR → merge (one PR per function). `main` on `origin`
   is the source of truth; nothing is local-only.
@@ -72,7 +73,16 @@ _Snapshot of where the `ImperionPipeline` module stands. Updated as layers land.
    cadence registry, registered with `Register-ImperionTask`. Done: `autotask/contracts`,
    `autotask/tickets`, `telivy/assessments`, `darkwebid/compromises` (sources its API key from Key
    Vault via the new `Get-ImperionKeyVaultSecret`, the cert-SP reader for company credentials).
-4. **Vectorization stage** (`CLAUDE.md §7`) — chunk → embed → pgvector, after gold exists.
+4. ~~**Vectorization stage**~~ — **DONE (ADR-0009, v0.3.0).** Gold knowledge composers
+   (`Get-ImperionKnowledgeAccount`/`Contact` → `Set-ImperionKnowledgeObject`), chunking v1
+   (`Split-ImperionTextChunk`), the Voyage client (`Get-ImperionVoyageEmbedding`, pinned
+   `voyage-3-large` @ 1024, refuses other dimensions), and the vectorizer
+   (`Invoke-ImperionVectorizeKnowledge`, chunk-hash idempotent, per-object replace, full
+   cost telemetry). Entry point `Invoke-ImperionKnowledgeSync -Vectorize`; scheduled as
+   `Imperion-KnowledgeVectorize` (04:30). **To go live:** put the Voyage key in the
+   SecretStore (`embedding-provider-key`) and run it once.
+5. **More knowledge composers** — devices, proposals, exposures, assessments, posture,
+   IT Glue docs (one composer per entity as their silver/bronze matures).
 
 ## Toolchain note
 
