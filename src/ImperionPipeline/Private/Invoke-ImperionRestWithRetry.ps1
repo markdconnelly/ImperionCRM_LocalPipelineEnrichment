@@ -17,27 +17,18 @@ function Invoke-ImperionRestWithRetry {
     )
 
     for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
-        $params = @{
-            Uri                     = $Uri
-            Headers                 = $Headers
-            Method                  = $Method
-            SkipHttpErrorCheck      = $true
-            StatusCodeVariable      = 'status'
-            ResponseHeadersVariable = 'respHeaders'
-            ErrorAction             = 'Stop'
-        }
-        if ($null -ne $Body) { $params.Body = $Body; $params.ContentType = $ContentType }
-
-        $body = Invoke-RestMethod @params
+        # Transport is isolated in Invoke-ImperionHttp so this retry policy is unit-testable.
+        $resp = Invoke-ImperionHttp -Uri $Uri -Headers $Headers -Method $Method -Body $Body -ContentType $ContentType
+        $status = $resp.Status
 
         if ($status -ge 200 -and $status -lt 300) {
-            return [pscustomobject]@{ Body = $body; Status = $status; Headers = $respHeaders }
+            return $resp
         }
 
         if ($status -in 429, 503, 504 -and $attempt -lt $MaxAttempts) {
             $retryAfter = 0
-            if ($respHeaders -and $respHeaders['Retry-After']) {
-                [int]::TryParse(([string]$respHeaders['Retry-After'][0]), [ref]$retryAfter) | Out-Null
+            if ($resp.Headers -and $resp.Headers['Retry-After']) {
+                [int]::TryParse(([string]$resp.Headers['Retry-After'][0]), [ref]$retryAfter) | Out-Null
             }
             if ($retryAfter -le 0) { $retryAfter = [math]::Min([math]::Pow(2, $attempt), 60) }
             Write-ImperionLog -Level Warn -Source 'http' -Message "Throttled ($status) on $Uri; retrying in ${retryAfter}s (attempt $attempt/$MaxAttempts)."
@@ -45,7 +36,7 @@ function Invoke-ImperionRestWithRetry {
             continue
         }
 
-        throw "HTTP $status calling $Method $Uri. Body: $($body | ConvertTo-Json -Compress -Depth 4)"
+        throw "HTTP $status calling $Method $Uri. Body: $($resp.Body | ConvertTo-Json -Compress -Depth 4)"
     }
     throw "Exhausted $MaxAttempts attempts calling $Method $Uri."
 }
