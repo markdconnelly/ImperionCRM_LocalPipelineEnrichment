@@ -60,7 +60,8 @@
         'Get-ImperionM365TeamsChat',
         'Get-ImperionM365TeamsMeeting',
         'Get-ImperionAzureSubscription',
-        'Get-ImperionAzureResourceGroup'
+        'Get-ImperionAzureResourceGroup',
+        'Get-ImperionAzureResource'
     )
     CmdletsToExport   = @()
     VariablesToExport = @()
