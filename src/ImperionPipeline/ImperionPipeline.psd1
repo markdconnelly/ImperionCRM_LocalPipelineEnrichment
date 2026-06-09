@@ -62,7 +62,8 @@
         'Get-ImperionAzureSubscription',
         'Get-ImperionAzureResourceGroup',
         'Get-ImperionAzureResource',
-        'Get-ImperionITGlueOrganization'
+        'Get-ImperionITGlueOrganization',
+        'Get-ImperionITGlueContact'
     )
     CmdletsToExport   = @()
     VariablesToExport = @()
