@@ -22,4 +22,11 @@
     ITGlue = @{
         BaseUri = 'https://api.itglue.com'   # use your region's base if different
     }
+
+    # Azure Key Vault holding COMPANY credentials read by the cert SP (Key Vault Secrets User).
+    # e.g. the Dark Web ID API key 'conn-company-darkwebid' (ADR-0040). Leave unset if no
+    # source reads from Key Vault on this node.
+    KeyVault = @{
+        VaultUri = 'https://REPLACE_WITH_VAULT_NAME.vault.azure.net'
+    }
 }

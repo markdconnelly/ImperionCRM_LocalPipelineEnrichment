@@ -70,9 +70,8 @@ _Snapshot of where the `ImperionPipeline` module stands. Updated as layers land.
      (handoff §3). azure + itglue-export + posture already write via their `Invoke-*Sync` cmdlets.
 3. **Scheduled-task files** — short `scheduled-tasks/<area>/*.task.ps1` composing get → post per the
    cadence registry, registered with `Register-ImperionTask`. Done: `autotask/contracts`,
-   `autotask/tickets`, `telivy/assessments`. **Deferred:** `darkwebid/compromises` — its API key is a
-   Key Vault *company* credential (`conn-company-darkwebid`); needs a Key Vault reader cmdlet first
-   (the post writer + get already exist).
+   `autotask/tickets`, `telivy/assessments`, `darkwebid/compromises` (sources its API key from Key
+   Vault via the new `Get-ImperionKeyVaultSecret`, the cert-SP reader for company credentials).
 4. **Vectorization stage** (`CLAUDE.md §7`) — chunk → embed → pgvector, after gold exists.
 
 ## Toolchain note

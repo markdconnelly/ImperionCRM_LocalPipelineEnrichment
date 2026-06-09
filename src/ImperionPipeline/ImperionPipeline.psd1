@@ -42,6 +42,7 @@
         'Invoke-ImperionBronzeUpsert',
         'Invoke-ImperionGraphRequest',
         'Invoke-ImperionArmRequest',
+        'Get-ImperionKeyVaultSecret',
         'Invoke-ImperionITGlueRequest',
         'Set-ImperionITGlueFlexibleAsset',
         # Per-API connect layer (reusable connection / paged-request utilities)
