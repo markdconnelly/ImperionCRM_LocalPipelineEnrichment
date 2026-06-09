@@ -46,7 +46,9 @@ function Format-ImperionScalar {
         if ($Value -is [bool]) { return ([string]$Value).ToLowerInvariant() }
         if ($Value -is [string]) { return $Value }
         if ($Value -is [System.Collections.IEnumerable]) { return ($Value | Join-ImperionValues) }
-        if ($Value -is [psobject] -and $Value.PSObject.Properties.Count -gt 0 -and $Value -isnot [ValueType]) {
+        # @(...) forces array enumeration: $Value.PSObject.Properties.Count throws under StrictMode
+        # (member enumeration over the property collection), so count the enumerated array instead.
+        if ($Value -is [psobject] -and @($Value.PSObject.Properties).Count -gt 0 -and $Value -isnot [ValueType]) {
             return ($Value | ConvertTo-Json -Compress -Depth 12)
         }
         return [string]$Value
