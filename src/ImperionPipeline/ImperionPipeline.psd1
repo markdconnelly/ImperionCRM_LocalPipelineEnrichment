@@ -65,7 +65,8 @@
         'Get-ImperionITGlueOrganization',
         'Get-ImperionITGlueContact',
         'Get-ImperionITGlueConfiguration',
-        'Get-ImperionTelivyReport'
+        'Get-ImperionTelivyReport',
+        'Get-ImperionDarkWebIdCompromise'
     )
     CmdletsToExport   = @()
     VariablesToExport = @()
