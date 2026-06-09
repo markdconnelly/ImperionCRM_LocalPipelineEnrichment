@@ -35,11 +35,12 @@ function Get-ImperionAutotaskZone {
 
     $discoveryUri = 'https://webservices.autotask.net/atservicesrest/v1.0/zoneInformation?user={0}' -f [uri]::EscapeDataString($UserName)
     $zone = (Invoke-ImperionRestWithRetry -Uri $discoveryUri -Headers $Headers -Method GET).Body
-    if (-not $zone.url) {
+    $zoneUrl = Get-ImperionMember $zone 'url'
+    if (-not $zoneUrl) {
         throw "Autotask zoneInformation returned no url for user '$UserName'."
     }
 
-    $baseUrl = ($zone.url.TrimEnd('/')) + '/V1.0'
+    $baseUrl = ($zoneUrl.TrimEnd('/')) + '/V1.0'
     $script:ImperionAutotaskZoneCache[$UserName] = $baseUrl
     return $baseUrl
 }
