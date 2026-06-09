@@ -9,10 +9,15 @@ bronze, the bronze→silver→gold transforms, and **all embedding/vectorization
 PowerShell 7 · Windows Scheduled Tasks · certificate-rooted unattended auth · writes the
 one shared PostgreSQL + pgvector database.
 
-> **Status:** _scaffolding._ This is the **fourth repo** in the Imperion CRM system. Read
-> [`CLAUDE.md`](./CLAUDE.md) first — it states the cloud/local boundary, the certificate
-> trust chain, the GDAP access model, the source catalog, the vectorization strategy, and
-> the build order.
+> **Status:** _in development._ The installed `ImperionPipeline` module is built and tested
+> (PowerShell 7, Pester). **Done:** the per-API **connect layer** (m365, azure, autotask, IT
+> Glue, Telivy, Dark Web ID), the security-posture sync cmdlets, and the per-object **get
+> layer** (collect → flatten to a bronze-shaped `[PSCustomObject]`, no writes) for all six
+> sources — every public/private function has hermetic tests and the lint gate is green.
+> **Next:** the **post layer** (per-`(source, entity)` bronze writers) and the
+> **scheduled-task** files that compose get → post. See [`docs/STATUS.md`](docs/STATUS.md) for
+> the detailed build progress. This is the **fourth repo** in the Imperion CRM system — read
+> [`CLAUDE.md`](./CLAUDE.md) first.
 
 > **Why this repo exists:** heavy pipeline processing was choking the website. The bulk of
 > the pipeline now runs here, on a machine Mark controls, on its own schedule — leaving the
