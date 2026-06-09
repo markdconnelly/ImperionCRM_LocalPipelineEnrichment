@@ -25,24 +25,15 @@ function Get-ImperionAutotaskCompany {
     )
 
     $cfg = Get-ImperionConfig
-    $names = Get-ImperionSecretNames
     if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
 
-    $atUser = Get-ImperionSecretValue -Name $names.AutotaskUserName
-    $headers = @{
-        ApiIntegrationCode = (Get-ImperionSecretValue -Name $names.AutotaskIntegrationCode)
-        UserName           = $atUser
-        Secret             = (Get-ImperionSecretValue -Name $names.AutotaskSecret)
-        'Content-Type'     = 'application/json'
-    }
-    $apiBase = Get-ImperionAutotaskZone -UserName $atUser -Headers $headers
-
+    $ctx = Get-ImperionAutotaskContext
     $filter = if ($SinceDays -gt 0) {
         @{ op = 'gte'; field = 'lastActivityDate'; value = (Get-Date).AddDays(-$SinceDays).ToString('yyyy-MM-ddTHH:mm:ssZ') }
     }
     else { @{ op = 'gte'; field = 'id'; value = 0 } }
 
-    $records = Invoke-ImperionAutotaskRequest -ApiBaseUrl $apiBase -Headers $headers -Entity 'Companies' -Filter $filter
+    $records = Invoke-ImperionAutotaskRequest -ApiBaseUrl $ctx.ApiBase -Headers $ctx.Headers -Entity 'Companies' -Filter $filter
 
     $map = [ordered]@{
         company_name       = 'companyName'
