@@ -30,7 +30,8 @@ function Invoke-ImperionKaseyaImport {
     $tenantId = $cfg.PartnerTenantId
     $started = Get-Date
 
-    # Resolve Autotask auth + zone once (only when an Autotask entity is requested).
+    # Resolve Autotask auth + zone once (only when an Autotask entity is requested). Reuses the
+    # tested connect layer (Get-ImperionAutotaskZone) instead of an inline zone call.
     $atHeaders = $null; $apiBase = $null
     if ($Entity -in 'All', 'Contracts', 'Tickets') {
         $atUser = Get-ImperionSecretValue -Name $names.AutotaskUserName
@@ -40,26 +41,17 @@ function Invoke-ImperionKaseyaImport {
             Secret             = (Get-ImperionSecretValue -Name $names.AutotaskSecret)
             'Content-Type'     = 'application/json'
         }
-        $zone = (Invoke-ImperionRestWithRetry -Uri "https://webservices.autotask.net/atservicesrest/v1.0/zoneInformation?user=$([uri]::EscapeDataString($atUser))" -Headers $atHeaders -Method GET).Body
-        if (-not $zone.url) { throw 'Autotask zoneInformation returned no url.' }
-        $apiBase = ($zone.url.TrimEnd('/')) + '/V1.0'
+        $apiBase = Get-ImperionAutotaskZone -UserName $atUser -Headers $atHeaders
     }
 
     function Get-AutotaskRecords {
         param([string] $EntityName, [string] $SinceField)
+        # Delegate paging to Invoke-ImperionAutotaskRequest (StrictMode-safe; follows pageDetails).
         $filter = if ($SinceDays -gt 0 -and $SinceField) {
-            @(@{ op = 'gte'; field = $SinceField; value = (Get-Date).AddDays(-$SinceDays).ToString('yyyy-MM-ddTHH:mm:ssZ') })
+            @{ op = 'gte'; field = $SinceField; value = (Get-Date).AddDays(-$SinceDays).ToString('yyyy-MM-ddTHH:mm:ssZ') }
         }
-        else { @(@{ op = 'gte'; field = 'id'; value = 0 }) }
-        $search = (@{ filter = $filter } | ConvertTo-Json -Depth 6 -Compress)
-        $items = [System.Collections.Generic.List[object]]::new()
-        $next = "$apiBase/$EntityName/query?search=$([uri]::EscapeDataString($search))"
-        while ($next) {
-            $resp = Invoke-ImperionRestWithRetry -Uri $next -Headers $atHeaders -Method GET
-            if ($resp.Body.items) { $resp.Body.items | ForEach-Object { $items.Add($_) } }
-            $next = $resp.Body.pageDetails.nextPageUrl
-        }
-        return $items.ToArray()
+        else { @{ op = 'gte'; field = 'id'; value = 0 } }
+        Invoke-ImperionAutotaskRequest -ApiBaseUrl $apiBase -Headers $atHeaders -Entity $EntityName -Filter $filter
     }
 
     $conn = New-ImperionDbConnection
@@ -104,7 +96,8 @@ function Invoke-ImperionKaseyaImport {
             $kqmBase = Get-ImperionSecretValue -Name $names.KqmBaseUri
             $kqmKey = Get-ImperionSecretValue -Name $names.KqmApiKey
             $resp = Invoke-ImperionRestWithRetry -Uri "$($kqmBase.TrimEnd('/'))/quotes" -Headers @{ Authorization = "Bearer $kqmKey" } -Method GET
-            $proposals = if ($resp.Body.data) { $resp.Body.data } else { $resp.Body }
+            $kqmData = Get-ImperionMember $resp.Body 'data'
+            $proposals = if ($null -ne $kqmData) { $kqmData } else { $resp.Body }
             Save-Kaseya -Items $proposals -Source 'kqm' -Table 'kqm_proposals' -Map ([ordered]@{
                 name = 'name'; status = 'status'; total = 'total'; account_ref = 'accountId'; created_at = 'createdAt'; updated_at = 'updatedAt'
             })
