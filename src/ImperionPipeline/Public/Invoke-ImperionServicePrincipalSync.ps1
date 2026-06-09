@@ -1,0 +1,97 @@
+function Invoke-ImperionServicePrincipalSync {
+    <#
+    .SYNOPSIS
+        Inventory Entra service principals, optionally document them in IT Glue, and land them in Postgres bronze.
+    .DESCRIPTION
+        Canonical flatten -> IT Glue -> Postgres pattern (ADR-0006). Requires Initialize-ImperionContext.
+    .PARAMETER TenantId
+        Tenant to inventory; defaults to the partner tenant. Customer tenants use GDAP.
+    .PARAMETER OrganizationId
+        IT Glue organization id to relate assets to. Omit (or -SkipITGlue) to skip the hub write.
+    .PARAMETER SkipITGlue
+        Postgres only — skip the IT Glue documentation write.
+    .PARAMETER CreateTypeIfMissing
+        Create the 'Azure Service Principal' flexible asset type if absent (one-time setup).
+    .EXAMPLE
+        Invoke-ImperionServicePrincipalSync -OrganizationId 42
+    #>
+    [CmdletBinding(SupportsShouldProcess)]
+    param(
+        [string] $TenantId,
+        [int] $OrganizationId,
+        [switch] $SkipITGlue,
+        [switch] $CreateTypeIfMissing
+    )
+
+    $cfg = Get-ImperionConfig
+    $names = Get-ImperionSecretNames
+    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    $source = 'm365'
+    $started = Get-Date
+
+    $graphToken = Get-ImperionGraphToken -TenantId $TenantId
+    $servicePrincipals = Invoke-ImperionGraphRequest -Uri 'https://graph.microsoft.com/v1.0/servicePrincipals' -AccessToken $graphToken
+    Write-ImperionLog -Source $source -Message "Fetched $($servicePrincipals.Count) service principals from tenant $TenantId."
+
+    $nearestExpiry = {
+        param($creds)
+        if (-not $creds) { return $null }
+        ($creds | Where-Object { $_.endDateTime } | Sort-Object endDateTime | Select-Object -First 1).endDateTime
+    }
+    $propertyMap = [ordered]@{
+        app_id                     = 'appId'
+        display_name               = 'displayName'
+        sp_type                    = 'servicePrincipalType'
+        account_enabled            = 'accountEnabled'
+        app_owner_org_id           = 'appOwnerOrganizationId'
+        sign_in_audience           = 'signInAudience'
+        homepage                   = 'homepage'
+        reply_urls                 = { param($sp) $sp.replyUrls | Join-ImperionValues }
+        sp_names                   = { param($sp) $sp.servicePrincipalNames | Join-ImperionValues }
+        tags                       = { param($sp) $sp.tags | Join-ImperionValues }
+        app_roles_count            = { param($sp) @($sp.appRoles).Count }
+        oauth2_scopes_count        = { param($sp) @($sp.oauth2PermissionScopes).Count }
+        key_credentials_count      = { param($sp) @($sp.keyCredentials).Count }
+        key_credential_next_expiry = { param($sp) & $nearestExpiry $sp.keyCredentials }
+        pwd_credentials_count      = { param($sp) @($sp.passwordCredentials).Count }
+        pwd_credential_next_expiry = { param($sp) & $nearestExpiry $sp.passwordCredentials }
+        created_date_time          = 'createdDateTime'
+    }
+    $flat = $servicePrincipals | ConvertTo-ImperionFlatObject -PropertyMap $propertyMap -Source $source -TenantId $TenantId -ExternalIdProperty 'id'
+
+    if (-not $SkipITGlue -and $OrganizationId) {
+        $writeKey = Get-ImperionSecretValue -Name $names.ITGlueWriteKey
+        $documented = 0
+        foreach ($row in $flat) {
+            $traits = @{
+                'display-name'     = $row.display_name
+                'app-id'           = $row.app_id
+                'sp-type'          = $row.sp_type
+                'account-enabled'  = $row.account_enabled
+                'sign-in-audience' = $row.sign_in_audience
+                'sp-names'         = $row.sp_names
+                'key-cred-expiry'  = $row.key_credential_next_expiry
+                'pwd-cred-expiry'  = $row.pwd_credential_next_expiry
+            }
+            Set-ImperionITGlueFlexibleAsset -ApiKey $writeKey -TypeName 'Azure Service Principal' `
+                -OrganizationId $OrganizationId -MatchTrait 'app-id' -MatchValue $row.app_id `
+                -Traits $traits -CreateTypeIfMissing:$CreateTypeIfMissing | Out-Null
+            $documented++
+        }
+        Write-ImperionLog -Source $source -Message "Documented $documented service principals to IT Glue org $OrganizationId."
+    }
+    elseif (-not $SkipITGlue) {
+        Write-ImperionLog -Level Warn -Source $source -Message 'No -OrganizationId provided; skipping IT Glue documentation.'
+    }
+
+    $conn = New-ImperionDbConnection
+    try {
+        $tally = Invoke-ImperionBronzeUpsert -Connection $conn -Table 'm365_service_principals' -Rows $flat
+    }
+    finally { $conn.Dispose() }
+
+    Write-ImperionLog -Level Metric -Source $source -Message 'Service-principal sync complete.' -Data @{
+        tenant = $TenantId; scanned = $tally.scanned; inserted = $tally.inserted; updated = $tally.updated; unchanged = $tally.unchanged
+        seconds = [math]::Round(((Get-Date) - $started).TotalSeconds, 1)
+    }
+}
