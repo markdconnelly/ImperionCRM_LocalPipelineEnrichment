@@ -39,8 +39,9 @@ function Invoke-ImperionAutotaskRequest {
 
     while ($next) {
         $resp = Invoke-ImperionRestWithRetry -Uri $next -Headers $Headers -Method GET
-        if ($null -ne $resp.Body.items) { $resp.Body.items | ForEach-Object { $items.Add($_) } }
-        $next = $resp.Body.pageDetails.nextPageUrl
+        $records = Get-ImperionMember $resp.Body 'items'
+        if ($null -ne $records) { $records | ForEach-Object { $items.Add($_) } }
+        $next = Get-ImperionPropertyPath -InputObject $resp.Body -Path 'pageDetails.nextPageUrl'
     }
     return $items.ToArray()
 }
