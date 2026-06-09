@@ -1,0 +1,17 @@
+# Secrets & local config — NEVER commit (CLAUDE.md §2/§8)
+config/pipeline.config.psd1
+config/secret-names.psd1
+config/state/
+*.cer
+*.pfx
+*.pem
+*.cms
+
+# Runtime
+logs/
+**/lib/Npgsql.dll
+
+# OS / editor
+Thumbs.db
+.DS_Store
+*.user
