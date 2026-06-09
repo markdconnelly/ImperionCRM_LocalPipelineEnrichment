@@ -77,6 +77,8 @@
         # Gold knowledge + vectorization (ADR-0009; front-end migration 0045)
         'Get-ImperionKnowledgeAccount',
         'Get-ImperionKnowledgeContact',
+        'Get-ImperionKnowledgeContract',
+        'Get-ImperionKnowledgeTicket',
         'Set-ImperionKnowledgeObject',
         'Split-ImperionTextChunk',
         'Get-ImperionVoyageEmbedding',

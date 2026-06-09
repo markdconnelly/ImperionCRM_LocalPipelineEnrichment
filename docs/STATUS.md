@@ -4,8 +4,15 @@ _Snapshot of where the `ImperionPipeline` module stands. Updated as layers land.
 
 ## Summary
 
-- Module **v0.3.0**: **58 exported cmdlets**, **214 hermetic Pester tests**, **0
+- Module **v0.3.0**: **60 exported cmdlets**, **219 hermetic Pester tests**, **0
   PSScriptAnalyzer findings in `src/`**. Module imports clean on PowerShell 7.
+- **Gold knowledge layer LIVE in prod (2026-06-09):** 205 `knowledge_object` rows
+  (25 accounts · 83 contacts · 9 contracts · 88 tickets) written by
+  `Invoke-ImperionKnowledgeSync` running interactively in `-SkipSecretStore` interim mode
+  (markd-profile cert; KV reads via the SP's new `Key Vault Secrets User` grant; silver
+  reads via front-end migration 0048). **Vectorization pending one operator step:** the
+  Key Vault secret `Voyage-Embedding-API-Key` currently holds a placeholder — paste the
+  real key and re-run `Invoke-ImperionKnowledgeSync -Vectorize`.
 - Built in the layered order from `CLAUDE.md §10` / `functions/README.md`:
   **connect → get → post → scheduled-task**. Connect, get, and the **gold knowledge +
   vectorization stage (ADR-0009)** are complete; the remaining post writers and

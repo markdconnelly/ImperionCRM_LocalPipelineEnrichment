@@ -47,8 +47,12 @@ flowchart LR
     KE --> AGENT["Backend agent retrieval<br/>(embeds QUERIES only — ADR-0034)"]
 ```
 
-- **The API key** lives in the SecretStore under the existing `EmbeddingProviderKey`
-  secret name (`embedding-provider-key`) — it now specifically holds the **Voyage** key.
+- **The API key** resolves SecretStore-first, **Key Vault fallback** (amended
+  2026-06-09): the Key Vault secret `Voyage-Embedding-API-Key` is the single source of
+  truth, read by the cert SP (`Key Vault Secrets User`); the SecretStore mirror
+  (`embedding-provider-key`) serves fully-offline unattended runs once the service
+  identity is provisioned. `Initialize-ImperionContext -SkipSecretStore` enables the
+  interim KV-only mode.
 - **The local-model fallback (Ollama/ONNX) remains a future ADR**, not dormant code: a
   same-dimension swap is a versioned re-embed under a new ADR; a different dimension is
   a front-end migration. Nothing in this design blocks it — there is just no abstraction

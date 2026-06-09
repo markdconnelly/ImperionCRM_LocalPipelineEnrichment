@@ -10,8 +10,11 @@ function Get-ImperionVoyageEmbedding {
         pins `output_dimension` to the contract, and REFUSES any response vector that is
         not exactly the pinned dimension so vector spaces can never silently mix.
 
-        The API key comes from the SecretStore secret named by `EmbeddingProviderKey`
-        (config/secret-names.psd1) — pass -ApiKey explicitly to override (tests do).
+        Key resolution (ADR-0009): explicit -ApiKey wins; else the SecretStore secret named
+        by `EmbeddingProviderKey` when the vault is unlocked this run; else the Key Vault
+        secret named by `EmbeddingProviderKeyVaultSecret` (default
+        `Voyage-Embedding-API-Key`) read by the cert SP — the path used in interim
+        `-SkipSecretStore` mode and the single source of truth the SecretStore copy mirrors.
         Throttling/backoff is handled by Invoke-ImperionRestWithRetry (429/503 +
         Retry-After). Returns per-input vectors in input order plus the billed token
         total for cost telemetry.
@@ -39,7 +42,18 @@ function Get-ImperionVoyageEmbedding {
     $contract = Get-ImperionVectorContract
     if (-not $ApiKey) {
         $secretNames = Get-ImperionSecretNames
-        $ApiKey = Get-ImperionSecretValue -Name $secretNames.EmbeddingProviderKey
+        # SecretStore first (when this run unlocked it), else the Key Vault original.
+        if ($script:ImperionSecretStoreVault -and $secretNames.EmbeddingProviderKey) {
+            $ApiKey = Get-ImperionSecretValue -Name $secretNames.EmbeddingProviderKey
+        }
+        if (-not $ApiKey) {
+            $keyVaultSecretName =
+                if ($secretNames -is [System.Collections.IDictionary] -and $secretNames.Contains('EmbeddingProviderKeyVaultSecret')) {
+                    $secretNames['EmbeddingProviderKeyVaultSecret']
+                }
+                else { 'Voyage-Embedding-API-Key' }
+            $ApiKey = Get-ImperionKeyVaultSecret -Name $keyVaultSecretName
+        }
     }
 
     $headers = @{ Authorization = "Bearer $ApiKey"; Accept = 'application/json' }
