@@ -10,19 +10,24 @@ by default, CLAUDE.md §2). ARM token resource `https://management.azure.com/.de
 | --- | --- |
 | `Invoke-ImperionArmRequest` ✓ | GET an ARM collection, follow `nextLink`, return all items. Shared read primitive. |
 
-## get (planned — per object)
+## get (per object)
 | Function | Object | ARM surface |
 | --- | --- | --- |
-| `Get-ImperionAzureSubscription` ☐ | Subscriptions | `/subscriptions` |
-| `Get-ImperionAzureResourceGroup` ☐ | Resource groups | `/subscriptions/{id}/resourcegroups` |
-| `Get-ImperionAzureResource` ☐ | Resources | `/subscriptions/{id}/resources` |
+| `Get-ImperionAzureSubscription` ✓ | Subscriptions | `/subscriptions` |
+| `Get-ImperionAzureResourceGroup` ✓ | Resource groups | `/subscriptions/{id}/resourcegroups` |
+| `Get-ImperionAzureResource` ✓ | Resources | `/subscriptions/{id}/resources` |
 | `Get-ImperionAzureSentinel` ☐ | Sentinel rules/workbooks/watchlists | `…/providers/Microsoft.SecurityInsights/*` |
 
-> The end-to-end inventory sync currently lives in `posture/Invoke-ImperionAzureInventorySync`;
-> it will be decomposed into the per-object `get` functions above + thin `post` writers.
+> `posture/Invoke-ImperionAzureInventorySync` remains the end-to-end sweep (it also covers
+> management groups + Sentinel); the per-object pairs below are the decomposition the
+> `azure/inventory` scheduled task composes. Both upsert on the same keys — idempotent.
 
-## post (planned)
-`Set-ImperionAzure*ToBronze` ☐ → Postgres inventory tables (see `sql/azure_inventory_schema.sql`).
+## post (per object)
+| Function | Target | Shape |
+| --- | --- | --- |
+| `Set-ImperionAzureSubscriptionToBronze` ✓ | `azure_subscriptions` | standard envelope, projected to the migration-0038 column set (extras stay in `raw_payload`) |
+| `Set-ImperionAzureResourceGroupToBronze` ✓ | `azure_resource_groups` | standard envelope, projected |
+| `Set-ImperionAzureResourceToBronze` ✓ | `azure_resources` | standard envelope, projected |
 
 ## Cadence
 Inventory daily. See [`../../scheduled-tasks/`](../../scheduled-tasks).
