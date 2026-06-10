@@ -13,7 +13,7 @@
 
     # Shared Azure PostgreSQL — short-lived token auth, no stored password (ADR-0003).
     Db = @{
-        Host     = 'imperioncrm-pg-prd.postgres.database.azure.com'
+        Host     = 'imperioncrm-pg-prd-cus.postgres.database.azure.com'
         Database = 'imperioncrm'
         Username = 'imperion-localpipeline'   # the pgaadauth role mapped to the cert SP (migration 0044)
         Port     = 5432
