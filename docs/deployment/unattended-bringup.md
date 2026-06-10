@@ -21,7 +21,7 @@ Generic background is in [README.md](README.md); the trust model is `CLAUDE.md` 
 | Certificate | thumbprint `F860A0D53376DBFD10DD9C2E53C118366832EFCC` (`CN=ImperionCRM-WebApp-EntraAuthCert`, exp 2027-06-06) |
 | Partner tenant | `49307c12-1bb7-42e4-9c7c-43d2850bd8c6` |
 | Postgres role | `imperion-localpipeline` |
-| PG host / db | `imperioncrm-pg-prd.postgres.database.azure.com` / `imperioncrm` |
+| PG host / db | `imperioncrm-pg-prd-cus.postgres.database.azure.com` / `imperioncrm` |
 
 ## Done on the server this session (as `MARKSWORKPC\markd`, non-elevated)
 - Staged `C:\ProgramData\Imperion\` (+ `logs`, `lib`) and wrote the real **`pipeline.config.psd1`**
@@ -90,7 +90,7 @@ identity**, not as markd.
        SecretVault     = 'ImperionStore'
        LogDirectory    = 'C:\ProgramData\Imperion\logs'
        NpgsqlDllPath   = 'C:\ProgramData\Imperion\lib\<...>\lib\net8.0\Npgsql.dll'  # path printed by the deps installer
-       Db = @{ Host='imperioncrm-pg-prd.postgres.database.azure.com'; Database='imperioncrm'; Username='imperion-localpipeline'; Port=5432 }
+       Db = @{ Host='imperioncrm-pg-prd-cus.postgres.database.azure.com'; Database='imperioncrm'; Username='imperion-localpipeline'; Port=5432 }
        ITGlue   = @{ BaseUri='https://api.itglue.com' }
        KeyVault = @{ VaultUri='https://kv-imperioncrm-prd.vault.azure.net' }
    }
