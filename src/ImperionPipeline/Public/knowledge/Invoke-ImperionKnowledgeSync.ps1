@@ -5,14 +5,17 @@ function Invoke-ImperionKnowledgeSync {
     .DESCRIPTION
         Sync entry point for the gold tier (CLAUDE.md §6/§7, ADR-0009) — the cmdlet the
         scheduled task runs. Composes knowledge objects (accounts, contacts, contracts,
-        tickets) through the Get-ImperionKnowledge* composers, upserts them
-        change-detected into `knowledge_object`, and — with -Vectorize — runs the
-        chunk→Voyage→pgvector stage so the backend agent's retrieval surface is current.
+        tickets, devices, credential exposures, assessment artifacts, proposals, and
+        per-tenant security-posture summaries) through the Get-ImperionKnowledge*
+        composers, upserts them change-detected into `knowledge_object`, and — with
+        -Vectorize — runs the chunk→Voyage→pgvector stage so the backend agent's
+        retrieval surface is current.
 
         One DB connection is shared across the whole run (ADR-0003 short-lived token).
         Idempotent and resumable: unchanged objects are not rewritten and never re-embedded.
     .PARAMETER EntityType
-        'account', 'contact', 'contract', 'ticket', or 'all' (default).
+        'account', 'contact', 'contract', 'ticket', 'device', 'exposure', 'assessment',
+        'proposal', 'posture', or 'all' (default).
     .PARAMETER Vectorize
         Also run Invoke-ImperionVectorizeKnowledge after the gold upsert.
     .PARAMETER TenantId
@@ -27,7 +30,7 @@ function Invoke-ImperionKnowledgeSync {
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
-        [ValidateSet('account', 'contact', 'contract', 'ticket', 'all')][string] $EntityType = 'all',
+        [ValidateSet('account', 'contact', 'contract', 'ticket', 'device', 'exposure', 'assessment', 'proposal', 'posture', 'all')][string] $EntityType = 'all',
         [switch] $Vectorize,
         [string] $TenantId
     )
@@ -51,6 +54,26 @@ function Invoke-ImperionKnowledgeSync {
         if ($EntityType -in 'ticket', 'all') {
             $ticketRows = Get-ImperionKnowledgeTicket -Connection $conn -TenantId $TenantId
             $tallies['ticket'] = $ticketRows | Set-ImperionKnowledgeObject -Connection $conn
+        }
+        if ($EntityType -in 'device', 'all') {
+            $deviceRows = Get-ImperionKnowledgeDevice -Connection $conn -TenantId $TenantId
+            $tallies['device'] = $deviceRows | Set-ImperionKnowledgeObject -Connection $conn
+        }
+        if ($EntityType -in 'exposure', 'all') {
+            $exposureRows = Get-ImperionKnowledgeCredentialExposure -Connection $conn -TenantId $TenantId
+            $tallies['exposure'] = $exposureRows | Set-ImperionKnowledgeObject -Connection $conn
+        }
+        if ($EntityType -in 'assessment', 'all') {
+            $artifactRows = Get-ImperionKnowledgeAssessmentArtifact -Connection $conn -TenantId $TenantId
+            $tallies['assessment'] = $artifactRows | Set-ImperionKnowledgeObject -Connection $conn
+        }
+        if ($EntityType -in 'proposal', 'all') {
+            $proposalRows = Get-ImperionKnowledgeProposal -Connection $conn -TenantId $TenantId
+            $tallies['proposal'] = $proposalRows | Set-ImperionKnowledgeObject -Connection $conn
+        }
+        if ($EntityType -in 'posture', 'all') {
+            $postureRows = Get-ImperionKnowledgePosture -Connection $conn -TenantId $TenantId
+            $tallies['posture'] = $postureRows | Set-ImperionKnowledgeObject -Connection $conn
         }
 
         if ($Vectorize) {

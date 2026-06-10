@@ -4,7 +4,7 @@ _Snapshot of where the `ImperionPipeline` module stands. Updated as layers land.
 
 ## Summary
 
-- Module **v0.4.0**: **69 exported cmdlets**, **258 hermetic Pester tests**, **0
+- Module **v0.5.0**: **74 exported cmdlets**, **279 hermetic Pester tests**, **0
   PSScriptAnalyzer findings in `src/`**. Module imports clean on PowerShell 7.
 - **Gold knowledge layer LIVE in prod (2026-06-09):** 205 `knowledge_object` rows
   (25 accounts · 83 contacts · 9 contracts · 88 tickets) written by
@@ -15,9 +15,11 @@ _Snapshot of where the `ImperionPipeline` module stands. Updated as layers land.
   real key and re-run `Invoke-ImperionKnowledgeSync -Vectorize`.
 - Built in the layered order from `CLAUDE.md §10` / `functions/README.md`:
   **connect → get → post → scheduled-task**. Connect, get, the **post fan-out for every
-  bronze table that exists today**, and the **gold knowledge + vectorization stage
-  (ADR-0009)** are complete; what remains is the Sentinel get, the posts whose bronze
-  tables haven't landed yet (kqm/docusign/website), and more knowledge composers.
+  bronze table that exists today**, the **gold knowledge + vectorization stage
+  (ADR-0009)**, and the **knowledge-composer fan-out (v0.5.0 — device, exposure,
+  assessment, proposal, posture)** are complete; what remains is the Sentinel get, the
+  posts whose bronze tables haven't landed yet (kqm/docusign/website), and the IT Glue
+  docs composer.
 - Every change shipped as its own branch → PR → merge (one PR per function). `main` on `origin`
   is the source of truth; nothing is local-only.
 
@@ -107,8 +109,24 @@ _Snapshot of where the `ImperionPipeline` module stands. Updated as layers land.
    cost telemetry). Entry point `Invoke-ImperionKnowledgeSync -Vectorize`; scheduled as
    `Imperion-KnowledgeVectorize` (04:30). **To go live:** put the Voyage key in the
    SecretStore (`embedding-provider-key`) and run it once.
-5. **More knowledge composers** — devices, proposals, exposures, assessments, posture,
-   IT Glue docs (one composer per entity as their silver/bronze matures).
+5. ~~**More knowledge composers**~~ — **DONE (v0.5.0)** for the mature entities:
+   `Get-ImperionKnowledgeDevice` (silver `device` + not-yet-merged
+   `itglue_export_configurations`, mirroring the front-end `device_inventory_all` view,
+   migration 0053), `…CredentialExposure` (silver `credential_exposure`, facts only —
+   no `payload_bronze`, no plaintext credentials in gold), `…AssessmentArtifact`
+   (`assessment_artifact` + assessment/account context + `televy_reports` provenance),
+   `…Proposal` (`proposal` + opportunity/account context), and `…Posture` (one object
+   per tenant: latest Secure Score + per-type policy counts and named gaps via
+   `Get-ImperionPolicyDrift`). All wired into `Invoke-ImperionKnowledgeSync`
+   (entity types `device`/`exposure`/`assessment`/`proposal`/`posture`); `-Vectorize`
+   picks the new objects up through the existing chunk/embed stage. Still to come:
+   the IT Glue docs composer (once the doc corpus lands).
+   **Note (read grants):** front-end migration 0048 granted the SP SELECT on
+   `account`/`contact`/`opportunity`/`autotask_companies` only — the new composers also
+   need SELECT on **`device`, `credential_exposure`, `assessment_artifact`,
+   `assessment`, `proposal`, `itglue_devices`, and the `account_bronze_all` view** via
+   a follow-up front-end grant migration before live runs (the posture/darkwebid/televy
+   bronze reads are already covered by 0044's write grants).
 
 ## Toolchain note
 
