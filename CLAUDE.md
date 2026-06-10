@@ -442,3 +442,17 @@ the prod database.
 Before each task, restate the plan briefly and flag anything conflicting with §2 (cert /
 least privilege), §3 (GDAP), the schema-ownership rule (§5/§6), or the security posture
 (§8).
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked in this repo's GitHub Issues via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default vocabulary: needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
