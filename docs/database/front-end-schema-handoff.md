@@ -6,7 +6,12 @@ shared PostgreSQL but never runs DDL. This doc is the **migration request**: eve
 front-end repo must add before the module's cmdlets can land data. Ready-to-apply DDL lives
 in this repo's [`/sql`](../../sql/) — copy it into a front-end `db/migrations` file.
 
-## Status (2026-06-09)
+## Status (2026-06-09; prod schema level updated 2026-06-10)
+> Prod is now at front-end migrations **0001–0058**. 0058 (front-end ADR-0052) replaced
+> the `project_type` enum with a table and added `project.project_type_id`/`owner_user_id`
+> and `task.project_id`/`autotask_ticket_ref` — app-owned tables; **no new requirements
+> and no new grants for this repo.** The bronze/golden scope below is unchanged.
+
 The table migrations below are **authored in the front-end repo** as `db/migrations/0038`–`0043`
 (`0038_local_pipeline_bronze`, `0039_related_bronze_views`, `0042_darkwebid_provider`,
 `0043_security_ingestion`). The `/sql` files in this repo remain the source-of-record DDL they
