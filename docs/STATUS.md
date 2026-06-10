@@ -4,7 +4,7 @@ _Snapshot of where the `ImperionPipeline` module stands. Updated as layers land.
 
 ## Summary
 
-- Module **v0.3.0**: **60 exported cmdlets**, **219 hermetic Pester tests**, **0
+- Module **v0.4.0**: **69 exported cmdlets**, **258 hermetic Pester tests**, **0
   PSScriptAnalyzer findings in `src/`**. Module imports clean on PowerShell 7.
 - **Gold knowledge layer LIVE in prod (2026-06-09):** 205 `knowledge_object` rows
   (25 accounts · 83 contacts · 9 contracts · 88 tickets) written by
@@ -14,9 +14,10 @@ _Snapshot of where the `ImperionPipeline` module stands. Updated as layers land.
   Key Vault secret `Voyage-Embedding-API-Key` currently holds a placeholder — paste the
   real key and re-run `Invoke-ImperionKnowledgeSync -Vectorize`.
 - Built in the layered order from `CLAUDE.md §10` / `functions/README.md`:
-  **connect → get → post → scheduled-task**. Connect, get, and the **gold knowledge +
-  vectorization stage (ADR-0009)** are complete; the remaining post writers and
-  scheduled-task files are next.
+  **connect → get → post → scheduled-task**. Connect, get, the **post fan-out for every
+  bronze table that exists today**, and the **gold knowledge + vectorization stage
+  (ADR-0009)** are complete; what remains is the Sentinel get, the posts whose bronze
+  tables haven't landed yet (kqm/docusign/website), and more knowledge composers.
 - Every change shipped as its own branch → PR → merge (one PR per function). `main` on `origin`
   is the source of truth; nothing is local-only.
 
@@ -74,12 +75,30 @@ _Snapshot of where the `ImperionPipeline` module stands. Updated as layers land.
      `Set-ImperionTelivyReportToBronze` + `…DarkWebIdCompromiseToBronze` (ADR-0039 `external_ref`/
      `payload_bronze` remap via `Invoke-ImperionBronzeUpsert -NoChangeDetect`). All pipeline-accepting,
      open/reuse a short-lived-token connection, metric-log, `ShouldProcess`-gated; hermetic tests.
-   - **Still to fan out:** m365/itglue/kqm/docusign/website posts once their bronze tables land
-     (handoff §3). azure + itglue-export + posture already write via their `Invoke-*Sync` cmdlets.
+   - **Done (v0.4.0 fan-out, 9 writers):** ADR-0039-shape (migration 0036 tables, `external_ref`/
+     `payload_bronze`, `-NoChangeDetect`): `Set-ImperionM365UserToBronze` → `m365_contacts`,
+     `…M365DeviceToBronze` → `m365_devices`, `…ITGlueOrganizationToBronze` → `itglue_companies`,
+     `…ITGlueContactToBronze` → `itglue_contacts`, `…ITGlueConfigurationToBronze` → `itglue_devices`.
+     Standard envelope projected to the exact migration-0038 column sets (the collectors
+     over-collect; extras stay in `raw_payload`): `Set-ImperionAzureSubscriptionToBronze`,
+     `…AzureResourceGroupToBronze`, `…AzureResourceToBronze`. Multi-table router:
+     `Invoke-ImperionITGlueExportToBronze` (export-envelope rows → `itglue_export_<entity>` by a
+     per-row `entity` discriminator or `-Entity`, keyed `(source, external_id)`, unknown entity
+     fails loudly). Same contract as the reference writers; hermetic tests for all nine.
+   - **Still to fan out:** kqm/docusign/website posts once their sources are wired (their 0038
+     tables exist; no collectors yet). Posture already writes via its `Invoke-*Sync` cmdlets.
 3. **Scheduled-task files** — short `scheduled-tasks/<area>/*.task.ps1` composing get → post per the
    cadence registry, registered with `Register-ImperionTask`. Done: `autotask/contracts`,
    `autotask/tickets`, `telivy/assessments`, `darkwebid/compromises` (sources its API key from Key
-   Vault via the new `Get-ImperionKeyVaultSecret`, the cert-SP reader for company credentials).
+   Vault via the new `Get-ImperionKeyVaultSecret`, the cert-SP reader for company credentials),
+   `m365/users`, `m365/devices` (optional GDAP fan-out via `IMPERION_M365_TENANT_IDS`),
+   `itglue/organizations`, `itglue/contacts`, `itglue/configurations`, `itglue/export`,
+   `azure/inventory` (per-entity composition; Sentinel/mgmt-groups stay with
+   `Invoke-ImperionAzureInventorySync` until the Sentinel get lands).
+   **Note:** front-end migration 0044 grants the local-pipeline SP write on the 0038/0043 tables
+   only — the migration-0036 tables the new writers target (`m365_contacts`, `m365_devices`,
+   `itglue_companies`, `itglue_contacts`, `itglue_devices`) need a follow-up grant migration in
+   the front-end repo before live runs.
 4. ~~**Vectorization stage**~~ — **DONE (ADR-0009, v0.3.0).** Gold knowledge composers
    (`Get-ImperionKnowledgeAccount`/`Contact` → `Set-ImperionKnowledgeObject`), chunking v1
    (`Split-ImperionTextChunk`), the Voyage client (`Get-ImperionVoyageEmbedding`, pinned

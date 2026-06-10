@@ -38,6 +38,9 @@ Register-ImperionTask -Name 'Imperion m365 Mail' `
 | **autotask** | `autotask/contacts` | Contacts | **Daily** | Slow-changing |
 | **autotask** | `autotask/contracts` | Contracts | **Daily** | Slow-changing |
 | **autotask** | `autotask/tickets` | Tickets | **Every 15–30 min** | Bulk reconcile; webhooks (cloud) handle real-time |
+| **itglue** | `itglue/organizations` | Organizations | **Daily** | Slow-changing |
+| **itglue** | `itglue/contacts` | Contacts | **Daily** | Slow-changing |
+| **itglue** | `itglue/configurations` | Configurations (devices) | **Daily** | Slow-changing |
 | **itglue** | `itglue/export` | Full dataset | **Daily** | Documentation snapshot |
 | **telivy** | `telivy/assessments` | Assessments | **Daily** | Assessments change slowly |
 | **darkwebid** | `darkwebid/compromises` | Compromises | **Daily** | Vendor refreshes ~daily |
@@ -53,5 +56,11 @@ Register-ImperionTask -Name 'Imperion m365 Mail' `
 ## Status
 
 Task files land as their `get`/`post` functions are built and tested (build order:
-connect → get → post → task). Folders are scaffolded; `posture/service-principals.task.ps1`
-is the first concrete example (its sync cmdlet already exists).
+connect → get → post → task). Landed: `posture/service-principals`, `autotask/contracts`,
+`autotask/tickets`, `telivy/assessments`, `darkwebid/compromises`, `m365/users`,
+`m365/devices`, `itglue/organizations`, `itglue/contacts`, `itglue/configurations`,
+`itglue/export`, and `azure/inventory` (per-entity get → post composition; Sentinel +
+management groups stay with `Invoke-ImperionAzureInventorySync` until the Sentinel get
+lands). Still to land: the m365 communications tasks (`mail`, `teams-chat`,
+`teams-meeting`), `autotask/companies`, `autotask/contacts`, the remaining posture tasks,
+and `kaseya/import`.

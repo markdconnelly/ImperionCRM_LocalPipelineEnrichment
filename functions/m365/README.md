@@ -16,17 +16,22 @@ devices) and the per-mailbox fan-out for communications.
 | `Invoke-ImperionGraphRequest` ✓ | GET a Graph collection, follow `@odata.nextLink`, return all items. Optional `$select`. The shared read primitive for every `get` below. |
 | `Invoke-ImperionGraphSearch` ☐ | `$search`/`$filter` helper for mail & chat message queries (the communication filter). |
 
-## get (planned — per object)
+## get (per object)
 | Function | Object | Graph surface | Filter |
 | --- | --- | --- | --- |
-| `Get-ImperionM365User` ☐ | Users | `/users` | enabled members |
-| `Get-ImperionM365Device` ☐ | Devices | `/deviceManagement/managedDevices`, `/devices` | → `m365_devices` |
-| `Get-ImperionM365Mail` ☐ | Emails | `/users/{id}/messages` | **communication filter** (below) |
-| `Get-ImperionM365TeamsChat` ☐ | Teams chats | `/users/{id}/chats`, `/chats/{id}/messages` | **communication filter** |
-| `Get-ImperionM365TeamsMeeting` ☐ | Teams meetings | `/users/{id}/onlineMeetings`, `/events` | **communication filter** |
+| `Get-ImperionM365User` ✓ | Users | `/users` | enabled members |
+| `Get-ImperionM365Device` ✓ | Devices | `/deviceManagement/managedDevices` | → `m365_devices` |
+| `Get-ImperionM365Mail` ✓ | Emails | `/users/{id}/messages` | **communication filter** (below) |
+| `Get-ImperionM365TeamsChat` ✓ | Teams chats | `/users/{id}/chats`, `/chats/{id}/messages` | **communication filter** |
+| `Get-ImperionM365TeamsMeeting` ✓ | Teams meetings | `/users/{id}/onlineMeetings`, `/events` | **communication filter** |
 
-## post (planned — per object, per target)
-`Set-ImperionM365*ToBronze` ☐ (Postgres `m365_*` bronze) · device/user docs into IT Glue ☐.
+## post (per object, per target)
+| Function | Target | Shape |
+| --- | --- | --- |
+| `Set-ImperionM365UserToBronze` ✓ | `m365_contacts` | ADR-0039 (`external_ref` ← `external_id`, `payload_bronze` ← `raw_payload`, `-NoChangeDetect`; merge resolves change) |
+| `Set-ImperionM365DeviceToBronze` ✓ | `m365_devices` | ADR-0039 (same remap) |
+| mail/chat/meeting posts ☐ | silver `interaction` landing | once the front-end migration defines it |
+| device/user docs into IT Glue ☐ | IT Glue | flatten → IT Glue → Postgres (ADR-0006) |
 
 ## Communication filter (noise control)
 
