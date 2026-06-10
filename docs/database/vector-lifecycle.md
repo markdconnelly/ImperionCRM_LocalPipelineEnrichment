@@ -9,8 +9,8 @@ only *queries*, backend ADR-0034).
 
 ```mermaid
 flowchart LR
-    SILVER[("silver account/contact +<br/>autotask contracts/tickets bronze")]
-    SILVER --> COMPOSE["Get-ImperionKnowledgeAccount /<br/>Get-ImperionKnowledgeContact"]
+    SILVER[("silver account/contact/device/<br/>credential_exposure/assessment_artifact/proposal +<br/>autotask/itglue/posture bronze")]
+    SILVER --> COMPOSE["Get-ImperionKnowledge*<br/>(account · contact · contract · ticket ·<br/>device · exposure · assessment · proposal · posture)"]
     COMPOSE --> KO[("knowledge_object<br/>Set-ImperionKnowledgeObject<br/>(upsert, content_hash gated)")]
     KO --> CHUNK["Split-ImperionTextChunk (v1)"]
     CHUNK -->|changed objects only| VOYAGE["Get-ImperionVoyageEmbedding<br/>voyage-3-large @ 1024"]
@@ -27,13 +27,20 @@ tasks land).
   chunking_version, content_hash, token_count`, HNSW cosine index). The pipeline SP role has
   `SELECT/INSERT/UPDATE` on both + `DELETE` on `knowledge_embedding` (the per-object chunk
   replace + pruning superseded versions); the backend agent reads them.
-- **What gets embedded:** the composed `body` of gold knowledge objects. **Coverage today
-  (live in prod 2026-06-09 — 205 objects): accounts** (contact roster, opportunities,
-  contracts, recent tickets), **contacts** (profile, reachability, CRM standing),
-  **contracts** (terms, dates, value — per-entity granularity), and **tickets** (full
-  description + resolution — the support memory). Each further entity (devices, proposals,
-  exposures, assessments, posture, IT Glue/Azure docs) is one new composer + one line in
-  the sync — coverage is the goal, tracked in the production-readiness plan.
+- **What gets embedded:** the composed `body` of gold knowledge objects. **Coverage:
+  accounts** (contact roster, opportunities, contracts, recent tickets), **contacts**
+  (profile, reachability, CRM standing), **contracts** (terms, dates, value — per-entity
+  granularity), **tickets** (full description + resolution — the support memory),
+  **devices** (`entity_type='device'` — silver `device` + not-yet-merged IT Glue
+  configurations, mirroring the front-end `device_inventory_all` view), **exposures**
+  (`'exposure'` — `credential_exposure` facts only; no raw breach payloads, no plaintext
+  credentials ever reach gold), **assessments** (`'assessment'` — `assessment_artifact`
+  evidence with its assessment/account context), **proposals** (`'proposal'` — lifecycle,
+  value, opportunity/account context), and **posture** (`'posture'` — ONE object per
+  tenant: latest Secure Score + per-type policy drift counts and named gaps via
+  `Get-ImperionPolicyDrift`). Each further entity (IT Glue/Azure docs) is one new
+  composer + one line in the sync — coverage is the goal, tracked in the
+  production-readiness plan.
 - **Pinned model (front-end ADR-0041 / backend ADR-0034):** **Voyage AI `voyage-3-large` at
   dimension 1024**, system-wide — Anthropic's recommended embeddings provider for Claude RAG.
   Stored as `embedding_model='voyage-3-large'`, `dimension=1024` on every row.
