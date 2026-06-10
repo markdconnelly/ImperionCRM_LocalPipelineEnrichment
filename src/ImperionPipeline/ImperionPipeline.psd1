@@ -1,6 +1,6 @@
 @{
     RootModule        = 'ImperionPipeline.psm1'
-    ModuleVersion     = '0.4.0'
+    ModuleVersion     = '0.5.0'
     GUID              = 'b1e7c4a2-6d3f-4f1a-9c2e-7a0d5e8f3b21'
     Author            = 'Mark / Imperion'
     CompanyName       = 'Imperion'
@@ -88,6 +88,11 @@
         'Get-ImperionKnowledgeContact',
         'Get-ImperionKnowledgeContract',
         'Get-ImperionKnowledgeTicket',
+        'Get-ImperionKnowledgeDevice',
+        'Get-ImperionKnowledgeCredentialExposure',
+        'Get-ImperionKnowledgeAssessmentArtifact',
+        'Get-ImperionKnowledgeProposal',
+        'Get-ImperionKnowledgePosture',
         'Set-ImperionKnowledgeObject',
         'Split-ImperionTextChunk',
         'Get-ImperionVoyageEmbedding',
