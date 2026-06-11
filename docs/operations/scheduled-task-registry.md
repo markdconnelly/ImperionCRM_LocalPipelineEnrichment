@@ -14,6 +14,7 @@ task command is `pwsh -Command "Import-Module ImperionPipeline; Initialize-Imper
 | Secure Score | `Invoke-ImperionSecureScoreSync` | daily | overall + control profiles |
 | Security-posture policies + drift | `Invoke-ImperionPolicySync` | daily | CA/Intune/device-config/Autopilot/Defender; drift vs golden |
 | **Posture silver merge (all tenants)** | `Invoke-ImperionPostureMerge` | daily 03:20 (after SecureScore + PolicySync) | classifies posture_policy + rolls up tenant_posture, unmapped tenants included (ADR-0010); **operator: re-run `Register-ImperionTask` once to register** |
+| **Posture snapshots (Imperion Secure Score)** | `Invoke-ImperionPostureSnapshot` | daily 03:40 (after PostureMerge) — self-gates to calendar quarters | immutable posture_snapshot(+pillar) per mapped account, Score Model v1 parity-pinned to frontend imperion-score.ts (ADR-0011); on-demand/QBR triggers bypass the gate; registered by the same `Register-ImperionTask` run |
 | Autotask contracts | `scheduled-tasks/autotask/contracts.task.ps1` | daily | incremental on `lastModifiedDateTime` (`IMPERION_AUTOTASK_CONTRACT_SINCE_DAYS`) |
 | Autotask tickets | `scheduled-tasks/autotask/tickets.task.ps1` | every 15–30 min | bulk reconcile; webhooks (cloud Pipeline) handle real-time |
 | M365 users | `scheduled-tasks/m365/users.task.ps1` | daily | → `m365_contacts` (ADR-0039 shape); GDAP fan-out via `IMPERION_M365_TENANT_IDS` |

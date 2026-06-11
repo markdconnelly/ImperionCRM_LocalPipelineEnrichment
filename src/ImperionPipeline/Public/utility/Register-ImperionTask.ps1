@@ -32,6 +32,9 @@ function Register-ImperionTask {
         # Posture silver merge runs AFTER SecureScore (02:45) + PolicySync (03:00)
         # so it classifies the night's fresh bronze (ADR-0010, frontend ADR-0051).
         @{ Name = 'Imperion-PostureMerge';           Cmdlet = 'Invoke-ImperionPostureMerge';          At = '03:20' }
+        # Snapshot runs daily AFTER the merge but self-gates to calendar quarters
+        # (ADR-0011): the daily trigger just makes the quarter boundary self-healing.
+        @{ Name = 'Imperion-PostureSnapshot';        Cmdlet = 'Invoke-ImperionPostureSnapshot';       At = '03:40' }
         @{ Name = 'Imperion-ITGlueExport';           Cmdlet = 'Invoke-ImperionITGlueExport';          At = '03:30' }
         @{ Name = 'Imperion-KaseyaImport';           Cmdlet = 'Invoke-ImperionKaseyaImport';          At = '01:00' }
         # Gold knowledge + vectorization runs LAST, after every ingest task above has
