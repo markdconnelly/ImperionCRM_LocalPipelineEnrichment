@@ -335,6 +335,15 @@ Config lives in `%ProgramData%\Imperion\` (outside the module). **Never commit s
 - **Migrations are not run from here** — they live in the front-end repo (ADR-0017). Cmdlets
   fail loudly on a missing table rather than creating it.
 
+## Releases & versioning
+
+Releases follow the cross-repo standard in the front-end repo's
+`docs/architecture/versioning-standard.md` (frontend ADR-0056): `MAJOR.FEATURE.MINOR`
+strict 3-digit semver, majors are coordinated human-declared product milestones, and
+release-please (manifest mode, release-type `simple` — version.txt + CHANGELOG.md)
+maintains the Release PR — never hand-edit tags or the CHANGELOG, never
+`gh release create` manually.
+
 ## Documentation & decisions
 
 - **Read [`CLAUDE.md`](./CLAUDE.md) first.** ADRs live in `docs/decision-records/`. First

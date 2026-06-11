@@ -1,0 +1,35 @@
+# release-please (issue #82, epic #81): maintains the Release PR from merged
+# conventional commits; merging it cuts the tagged GitHub Release + CHANGELOG.
+# The normative versioning standard is the frontend repo's
+# docs/architecture/versioning-standard.md (frontend ADR-0056) —
+# MAJOR.FEATURE.MINOR, majors human-declared via Release-As, no 4th digit.
+# Never hand-edit tags or the CHANGELOG, never `gh release create` manually.
+#
+# release-type "simple" (PowerShell repo, no package.json): release-please
+# maintains version.txt + CHANGELOG.md.
+#
+# Known constraint: the Release PR is created with GITHUB_TOKEN, which does not
+# trigger PR workflows. This repo has NO PR-gating CI yet (separate epic #81
+# item) — once it lands, close/reopen the Release PR to run the gate.
+name: release-please
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      # Manifest mode pinned at 0.1.0 (pre-v1); bootstrap-sha in the config marks
+      # standard adoption so prior history is never re-released. v1.0.0 waits for
+      # the roadmap's v1 gates + Mark's declaration (frontend ADR-0056).
+      - uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
