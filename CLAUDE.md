@@ -5,6 +5,8 @@ making changes.** This is the **fourth repo** in the Imperion CRM system; it doe
 stand alone. When a decision here conflicts with a quick instinct, this file wins unless
 the human (Mark) says otherwise.
 
+/handoff commits files to C:\Development\GitHub\handoff-memory\filename instead of system settings.
+
 > **Four-repo system — read the siblings first.**
 > - **`ImperionCRM`** (front end) — the **live** web app (`imperioncrm.azurewebsites.net`,
 >   Entra SSO). **Owns the database schema and all migrations** (`db/migrations`, ADR-0017).
