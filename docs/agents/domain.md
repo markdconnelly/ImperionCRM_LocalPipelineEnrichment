@@ -5,9 +5,9 @@ How the engineering skills should consume this repo's domain documentation when 
 ## Before exploring, read these
 
 - **`CONTEXT.md`** at the repo root.
-- **`docs/adr/`** — read ADRs that touch the area you're about to work in.
+- **`docs/decision-records/`** — read ADRs that touch the area you're about to work in.
 
-This is a single-context repo: one `CONTEXT.md` and one `docs/adr/` at the root, no `CONTEXT-MAP.md`.
+This is a single-context repo: one `CONTEXT.md` and one `docs/decision-records/` at the root, no `CONTEXT-MAP.md`.
 
 If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The producer skill (`/grill-with-docs`) creates them lazily when terms or decisions actually get resolved.
 
@@ -16,7 +16,7 @@ If any of these files don't exist, **proceed silently**. Don't flag their absenc
 ```
 /
 ├── CONTEXT.md
-├── docs/adr/
+├── docs/decision-records/
 │   ├── 0001-example-decision.md
 │   └── 0002-another-decision.md
 └── src/
