@@ -41,7 +41,11 @@ each run, picking up the highest installed version.
   and inspect `logs/imperion-<date>.jsonl` for `Metric` lines.
 
 ## CI
-A GitHub Actions workflow should gate PRs on lint + Pester + docs checks (mirrors the
-siblings' CI). Add under `.github/workflows/` when the repo is pushed.
+`.github/workflows/ci.yml` gates every PR (mirrors the siblings' CI): `test` on
+windows-latest (PSScriptAnalyzer over ./src + ./build with the repo settings file, then
+the full Pester suite via `Invoke-Pester ./tests -CI`) and `docs` (required /docs
+structure). windows-latest deliberately — the module is the on-prem Windows runtime and
+tests Join-Path with backslash literals. Both check contexts are required by the
+main-branch ruleset.
 
 > Part of the system-wide `/docs` standard (front-end `CLAUDE.md` §8). See [../../CLAUDE.md](../../CLAUDE.md).
