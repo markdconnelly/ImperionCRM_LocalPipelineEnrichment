@@ -1,17 +1,27 @@
-# ADR-0008 — Golden states + drift detection for security-posture policies
+# ADR-0008: Golden states + drift detection for security-posture policies
 
-- **Status:** Accepted
-- **Date:** 2026-06-08
-- **Deciders:** Mark (human), Claude Code
+| Field | Value |
+|---|---|
+| **Repo** | local-pipeline |
+| **Status** | Accepted |
+| **Date** | 2026-06-08 |
+| **Deciders** | Mark (human), Claude Code |
+| **Cross-references** | ADR-0005 |
 
-## Problem & context
+## Problem
+
 Beyond inventorying configuration, Mark wants an approved **golden state** (baseline) for the
 key security-posture policy types, so the pipeline can detect **drift** from the approved
 configuration over time: Conditional Access, Intune security, device configuration,
 Autopilot, and Defender XDR security policies. Plus polling of **Microsoft Secure Score**
 attributes.
 
+## Options considered
+
+None recorded in the original ADR.
+
 ## Decision
+
 1. **Observed vs. golden, per policy type.** Each type has an **observed** bronze table
    (current state, change-detected on every sync) and a **golden** table holding the approved
    baseline keyed on `(tenant_id, policy_id)` with `golden_hash`, `golden_payload`,
@@ -31,17 +41,30 @@ attributes.
    security) — flagged as an assumption to confirm on first live pull.
 
 ## Consequences
+
+### Security impact
+
 - **Security:** turns the pipeline into a posture-drift detector feeding the agent; golden
   baselines are auditable (who approved, when). All reads are least-privilege (Policy.Read.All,
   DeviceManagementConfiguration.Read.All, DeviceManagementServiceConfig.Read.All,
   SecurityEvents.Read.All).
+
+### Cost impact
+
 - **Cost:** negligible; change detection avoids needless writes.
+
+### Operational impact
+
 - **Operational:** drift surfaces in logs and (later) to the front-end/agent; an operator
   promotes baselines after review.
+
+## Future considerations
+
 - **Future:** alert on `drift`/`missing`; auto-open a ticket; extend golden states to other
   policy families; diff `golden_payload` vs current `raw_payload` for field-level drift.
 
 ## Cross-references
+
 This repo `CLAUDE.md §5`; [integrations/security-posture-policies.md](../integrations/security-posture-policies.md),
 [integrations/secure-score.md](../integrations/secure-score.md),
 [database/golden-states-and-drift.md](../database/golden-states-and-drift.md).

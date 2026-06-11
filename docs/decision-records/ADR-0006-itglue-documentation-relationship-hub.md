@@ -1,10 +1,15 @@
-# ADR-0006 — IT Glue as a documentation + relationship hub in the ingestion path
+# ADR-0006: IT Glue as a documentation + relationship hub in the ingestion path
 
-- **Status:** Accepted
-- **Date:** 2026-06-08
-- **Deciders:** Mark (human), Claude Code
+| Field | Value |
+|---|---|
+| **Repo** | local-pipeline |
+| **Status** | Accepted |
+| **Date** | 2026-06-08 |
+| **Deciders** | Mark (human), Claude Code |
+| **Cross-references** | — |
 
-## Problem & context
+## Problem
+
 Mark's established pattern for "most things from Azure": pull the source, **flatten the
 JSON to the attributes that matter**, **automatically document them in IT Glue** (relating
 them to other IT Glue objects), and from that same flat shape **import into Postgres**. IT
@@ -12,7 +17,12 @@ Glue is therefore not just *a source* — it is a documentation + relationship h
 middle of the pipeline. We also need to export the **entire** IT Glue dataset into Postgres
 with its relationships intact.
 
+## Options considered
+
+None recorded in the original ADR.
+
 ## Decision
+
 1. **Canonical pattern:** `Source JSON → flatten to [PSCustomObject] flat table → (a)
    document in IT Glue + relate to other IT Glue objects, and (b) import the same flat
    table into Postgres bronze.` The flat table is the single shared shape.
@@ -32,15 +42,28 @@ with its relationships intact.
    push beyond agreed scope; a net-new write surface is a human-approval gate.
 
 ## Consequences
+
+### Security impact
+
 - **Security impact:** IT Glue holds sensitive operational data; the export reads broadly —
   secrets/passwords are **excluded** from the Postgres export by default.
+
+### Cost impact
+
 - **Cost impact:** IT Glue API rate limits govern throughput; change-detection avoids
   needless writes.
+
+### Operational impact
+
 - **Operational impact:** flexible-asset-type creation is a one-time setup per kind,
   idempotent on re-run.
+
+## Future considerations
+
 - **Future considerations:** the single edge table generalizes to any new IT Glue relation
   without schema change.
 
 ## Cross-references
+
 This repo `CLAUDE.md §6`; [integrations/itglue.md](../integrations/itglue.md);
 `ImperionCRM_Pipeline/CLAUDE.md §5` (IT Glue write-path gating).
