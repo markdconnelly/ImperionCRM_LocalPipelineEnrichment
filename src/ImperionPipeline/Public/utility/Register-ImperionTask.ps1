@@ -3,22 +3,38 @@ function Register-ImperionTask {
     .SYNOPSIS
         Register (or refresh) the pipeline's Windows Scheduled Tasks — one per sync cmdlet (idempotent).
     .DESCRIPTION
-        Each task runs the installed module's cmdlet under the dedicated gMSA/service account,
-        "whether logged on or not", with overlap prevention. The task command imports the
-        module, initializes context, and invokes one cmdlet. Re-running updates definitions in
-        place. See docs/operations/scheduled-task-registry.md.
+        Each task runs the installed module's cmdlet under the dedicated service
+        identity, "whether logged on or not", with overlap prevention. The task command
+        imports the module, initializes context, and invokes one cmdlet. Re-running
+        updates definitions in place. Two identity modes (ADR-0012):
+
+          -TaskIdentity   gMSA (domain-joined hosts): registers a principal with no
+                          stored password — AD manages the credential.
+          -TaskCredential dedicated LOCAL service account (this host: workgroup, no
+                          gMSA possible — '.\svc-imperion'): registers with stored
+                          credentials, which Task Scheduler requires for an
+                          unattended local account. The password is never logged and
+                          never appears in the task action.
+
+        See docs/operations/scheduled-task-registry.md.
     .PARAMETER TaskIdentity
-        gMSA/service account to run the tasks (e.g. 'DOMAIN\svc-imperion$').
+        gMSA to run the tasks (e.g. 'DOMAIN\svc-imperion$'). gMSA mode only.
+    .PARAMETER TaskCredential
+        Credential of the dedicated local service account (e.g. '.\svc-imperion').
+        Local-account mode only — create the account with build/New-ImperionServiceAccount.ps1.
     .PARAMETER PwshPath
         Path to pwsh.exe. Default resolves from PATH.
     .PARAMETER TaskFolder
         Task Scheduler folder. Default '\Imperion'.
     .EXAMPLE
         Register-ImperionTask -TaskIdentity 'CORP\svc-imperion$'
+    .EXAMPLE
+        Register-ImperionTask -TaskCredential (Get-Credential '.\svc-imperion')
     #>
-    [CmdletBinding(SupportsShouldProcess)]
+    [CmdletBinding(SupportsShouldProcess, DefaultParameterSetName = 'Gmsa')]
     param(
-        [Parameter(Mandatory)][string] $TaskIdentity,
+        [Parameter(Mandatory, ParameterSetName = 'Gmsa')][string] $TaskIdentity,
+        [Parameter(Mandatory, ParameterSetName = 'Credential')][pscredential] $TaskCredential,
         [string] $PwshPath = (Get-Command pwsh -ErrorAction SilentlyContinue).Source,
         [string] $TaskFolder = '\Imperion'
     )
@@ -42,7 +58,10 @@ function Register-ImperionTask {
         @{ Name = 'Imperion-KnowledgeVectorize';     Cmdlet = 'Invoke-ImperionKnowledgeSync -Vectorize'; At = '04:30' }
     )
 
-    $principal = New-ScheduledTaskPrincipal -UserId $TaskIdentity -LogonType Password -RunLevel Highest
+    $principal = $null
+    if ($PSCmdlet.ParameterSetName -eq 'Gmsa') {
+        $principal = New-ScheduledTaskPrincipal -UserId $TaskIdentity -LogonType Password -RunLevel Highest
+    }
     $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -DontStopOnIdleEnd -ExecutionTimeLimit (New-TimeSpan -Hours 4)
 
     foreach ($t in $tasks) {
@@ -52,9 +71,15 @@ function Register-ImperionTask {
         $trigger = New-ScheduledTaskTrigger -Daily -At $t.At
 
         if ($PSCmdlet.ShouldProcess($t.Name, 'Register scheduled task')) {
-            Register-ScheduledTask -TaskName $t.Name -TaskPath $TaskFolder -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
+            Invoke-ImperionTaskRegistration -TaskName $t.Name -TaskPath $TaskFolder -Action $action `
+                -Trigger $trigger -Settings $settings -Principal $principal -Credential $TaskCredential
             Write-Host "Registered $TaskFolder\$($t.Name) -> $($t.Cmdlet) @ $($t.At)"
         }
     }
-    Write-Host "`nNote: gMSA principals use -LogonType Password with no stored password (managed by AD)."
+    if ($PSCmdlet.ParameterSetName -eq 'Gmsa') {
+        Write-Host "`nNote: gMSA principals use -LogonType Password with no stored password (managed by AD)."
+    }
+    else {
+        Write-Host "`nNote: local-account tasks store the credential with Task Scheduler (ADR-0012); a password change requires re-running Register-ImperionTask."
+    }
 }

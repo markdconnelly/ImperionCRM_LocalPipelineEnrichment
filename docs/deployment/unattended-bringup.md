@@ -45,14 +45,20 @@ step 5. **Do NOT create the `ImperionStore` vault under `markd`** — SecretStor
 per-user-singleton and markd has personal vaults (AIApp, MarksWorkstationSecureVault);
 reconfiguring would risk them. The vault belongs to the service identity's profile.
 
-## ⚠️ Identity model: this box is NOT domain-joined → no gMSA
+## ✅ Identity model DECIDED (2026-06-11, ADR-0012): local account `.\svc-imperion`
 `MARKSWORKPC` is a workgroup machine, so CLAUDE.md §2's "gMSA (preferred)" is **not possible**.
-The unattended identity must be the documented fallback: a **dedicated local service account**
-(`.\svc-imperion`) — or, least-preferred, run the tasks as `markd`. **Decision needed before the
-steps below** (it changes who the cert key is ACL'd to, whose profile owns the SecretStore, and
-the task `-TaskIdentity`). Record the choice as an ADR (it deviates from §2). Note: the SecretStore
-vault is **per-user-profile**, so `Initialize-ImperionUnattended` must run **as the chosen service
-identity**, not as markd.
+Mark's call: the documented fallback, a **dedicated local service account `.\svc-imperion`**
+(ADR-0012 records the deviation). Create it with the elevated run-once helper:
+```powershell
+.\build\New-ImperionServiceAccount.ps1 -DenyInteractiveLogon   # prompts for the password
+```
+(creates the account, grants "Log on as a batch job", optionally denies console logon).
+Consequences for the steps below: the cert private key is ACL'd to `.\svc-imperion`; the
+SecretStore vault is **per-user-profile**, so `Initialize-ImperionUnattended` must run **as
+`.\svc-imperion`**, not as markd; and task registration uses
+`Register-ImperionTask -TaskCredential (Get-Credential '.\svc-imperion')` — a local account
+needs stored credentials (the gMSA no-password path stays available for a future
+domain-joined host). A password change requires re-running `Register-ImperionTask`.
 
 ## Remaining steps (host packaging — run on the server, ELEVATED, as/for the chosen service account)
 
@@ -74,10 +80,11 @@ identity**, not as markd.
    Confirm the **same thumbprint** ends up in `LocalMachine\My` and is registered on the
    "Imperion CRM" app (it already is).
 
-3. **Local service account** (no gMSA — see the identity note above): create
-   `.\svc-imperion`, grant it **"Log on as a batch job"** (`secpol.msc` → Local Policies → User
-   Rights), and the private-key read from step 2. Tasks run "whether logged on or not" as this
-   identity. (`Initialize-ImperionUnattended` in step 5 must be run **as this account**, since the
+3. **Local service account** (ADR-0012): run `.\build\New-ImperionServiceAccount.ps1
+   -DenyInteractiveLogon` (elevated) — creates `.\svc-imperion` with a prompted password and
+   grants **"Log on as a batch job"** via secedit (no secpol.msc clicking). Then grant it the
+   private-key read from step 2. Tasks run "whether logged on or not" as this identity.
+   (`Initialize-ImperionUnattended` in step 5 must be run **as this account**, since the
    SecretStore vault lives in its profile.)
 
 4. **`%ProgramData%\Imperion\pipeline.config.psd1`** — the installer seeds the template; set:
@@ -111,12 +118,10 @@ identity**, not as markd.
    pwsh -File build\Test-ImperionUnattendedChain.ps1     # expect all stages PASS
    ```
 
-7. **Register tasks** per the cadence registry (`scheduled-tasks/README.md`):
+7. **Register tasks** — ONE elevated run registers all nine (ADR-0012 credential mode;
+   prompts for the svc-imperion password, stores it with Task Scheduler):
    ```powershell
-   Register-ImperionTask -Name 'Imperion autotask contracts' -Interval Daily `
-     -Command 'Import-Module ImperionPipeline; Initialize-ImperionContext; & "<repo>\scheduled-tasks\autotask\contracts.task.ps1"' `
-     -TaskIdentity '.\svc-imperion'
-   #   …and the same for autotask/tickets, telivy/assessments, darkwebid/compromises, and the posture syncs.
+   Register-ImperionTask -TaskCredential (Get-Credential '.\svc-imperion')
    ```
 
 8. **First real load:** run one task by hand and inspect `logs/imperion-<date>.jsonl` for the
