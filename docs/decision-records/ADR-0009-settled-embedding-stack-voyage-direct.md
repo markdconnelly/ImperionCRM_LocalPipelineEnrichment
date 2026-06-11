@@ -1,13 +1,12 @@
-# ADR-0009 — The embedding stack is settled: Voyage direct, pinned, built
+# ADR-0009: The embedding stack is settled: Voyage direct, pinned, built
 
-- **Status:** Accepted
-- **Date:** 2026-06-09
-- **Amends:** [ADR-0004](ADR-0004-vectorization-local-orchestration.md)
-  (its "provider-agnostic router / pluggable provider" framing is retired; its
-  local-orchestration + pinned-contract core is implemented as designed).
-- **Relates to:** front-end ADR-0041 (the pinned vector contract / migration 0045),
-  backend ADR-0034 (Claude + Voyage settled system-wide; the backend embeds queries),
-  pipeline ADR-0011 (the cloud pipeline has no AI at all).
+| Field | Value |
+|---|---|
+| **Repo** | local-pipeline |
+| **Status** | Accepted |
+| **Date** | 2026-06-09 |
+| **Amends** | ADR-0004 |
+| **Cross-references** | ADR-0002; ADR-0004; front-end ADR-0041; backend ADR-0034; pipeline ADR-0011 |
 
 ## Problem
 
@@ -21,6 +20,16 @@ provider behind the system's provider-agnostic model router. Two things changed:
    requirement — it describes a hypothetical.
 2. The vectorization stage (build-order task 8) was due to be **built**, and building a
    router abstraction for exactly one provider would be carrying cost with no consumer.
+
+## Options considered
+
+1. **Direct Voyage client, pinned (chosen).** Smallest correct thing; the contract
+   constants are already the single swap point a future provider change would edit.
+2. Port the backend's model-router pattern to PowerShell. Rejected — an abstraction with
+   one implementation and no second consumer on this node.
+3. Local model now (Ollama). Rejected for now — the corpus must live in the exact vector
+   space the backend queries (`voyage-3-large` @ 1024); a local model is a future
+   versioned re-embed decision with its own quality evaluation.
 
 ## Decision
 
@@ -44,7 +53,7 @@ flowchart LR
     KO --> CHUNK["Split-ImperionTextChunk<br/>(v1: 6000/500, paragraph-aware)"]
     CHUNK -->|"only changed chunk-hash sets"| VOYAGE["Get-ImperionVoyageEmbedding<br/>voyage-3-large @ 1024, input_type=document"]
     VOYAGE --> KE[("knowledge_embedding<br/>replace per (object, model, v1)")]
-    KE --> AGENT["Backend agent retrieval<br/>(embeds QUERIES only — ADR-0034)"]
+    KE --> AGENT["Backend agent retrieval<br/>(embeds QUERIES only — backend ADR-0034)"]
 ```
 
 - **The API key** resolves SecretStore-first, **Key Vault fallback** (amended
@@ -62,24 +71,31 @@ flowchart LR
   one line in the sync — tracked in the production-readiness plan, consistent with the
   "many small jobs" rule.
 
-## Options considered
+## Consequences
 
-1. **Direct Voyage client, pinned (chosen).** Smallest correct thing; the contract
-   constants are already the single swap point a future provider change would edit.
-2. Port the backend's model-router pattern to PowerShell. Rejected — an abstraction with
-   one implementation and no second consumer on this node.
-3. Local model now (Ollama). Rejected for now — the corpus must live in the exact vector
-   space the backend queries (`voyage-3-large` @ 1024); a local model is a future
-   versioned re-embed decision with its own quality evaluation.
-
-## Security / cost / ops impact
+### Security impact
 
 - **Security:** one outbound HTTPS dependency (api.voyageai.com); the key only ever in
   the SecretStore (CMS-unlocked, ADR-0002). Gold bodies are silver-derived text — no raw
   bronze PII is embedded. The SP's scoped `DELETE` on `knowledge_embedding` (migration
   0045) is exactly the per-object replace this stage performs.
+
+### Cost impact
+
 - **Cost:** ~$0.18/M tokens, input-only; chunk-hash idempotency means steady-state runs
   bill only changed objects. Every run logs rows/chunks/tokens/estimated USD.
+
+### Operational impact
+
 - **Ops:** operator puts the Voyage key in the SecretStore (`embedding-provider-key`),
   then `Invoke-ImperionKnowledgeSync -Vectorize` (or the `Imperion-KnowledgeVectorize`
   task) populates the gold store end to end.
+
+## Cross-references
+
+- **Amends:** [ADR-0004](ADR-0004-vectorization-local-orchestration.md)
+  (its "provider-agnostic router / pluggable provider" framing is retired; its
+  local-orchestration + pinned-contract core is implemented as designed).
+- **Relates to:** front-end ADR-0041 (the pinned vector contract / migration 0045),
+  backend ADR-0034 (Claude + Voyage settled system-wide; the backend embeds queries),
+  pipeline ADR-0011 (the cloud pipeline has no AI at all).

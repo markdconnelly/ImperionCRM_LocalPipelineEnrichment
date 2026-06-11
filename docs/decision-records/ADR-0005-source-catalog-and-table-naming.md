@@ -1,17 +1,23 @@
-# ADR-0005 — Source bronze catalog + table-naming reconciliation
+# ADR-0005: Source bronze catalog + table-naming reconciliation
 
-- **Status:** Proposed (needs front-end migration sign-off)
-- **Date:** 2026-06-08
-- **Deciders:** Mark (human), Claude Code
+| Field | Value |
+|---|---|
+| **Repo** | local-pipeline |
+| **Status** | Proposed (needs front-end migration sign-off) |
+| **Date** | 2026-06-08 |
+| **Deciders** | Mark (human), Claude Code |
+| **Cross-references** | ADR-0006; front-end ADR-0017; front-end ADR-0039; pipeline ADR-0009 |
 
-## Problem & context
+## Problem
+
 This repo ingests a broad source catalog (companies, contacts, devices, proposals,
 contracts, tickets). The existing per-source bronze tables follow `{source}_companies` /
 `{source}_contacts` / `{source}_devices` (pipeline ADR-0009 / front-end ADR-0039). Mark's
 catalog uses a `_bronze` suffix. The **front-end repo owns the schema and all migrations**
 — this repo never creates tables.
 
-## Bronze catalog (source names)
+**Bronze catalog (source names)**
+
 | Entity | Sources |
 | --- | --- |
 | Companies | `autotask` · `itglue` · `apollo` · `website` |
@@ -21,7 +27,12 @@ catalog uses a `_bronze` suffix. The **front-end repo owns the schema and all mi
 | Contracts | `autotask` · `docusign` |
 | Tickets | `autotask` |
 
+## Options considered
+
+None recorded in the original ADR.
+
 ## Decision
+
 1. **Adopt the existing `{source}_{entity}` physical-table convention** (not a `_bronze`
    suffix) for consistency with the sibling pipeline; the `_bronze` name is the *logical*
    source key. *(Open: confirm with the front-end repo owner.)*
@@ -36,11 +47,16 @@ catalog uses a `_bronze` suffix. The **front-end repo owns the schema and all mi
    an optional `-EnsureSchema` dev switch may apply it locally but is **off by default**.
 
 ## Consequences
+
 - **Security/cost:** none material.
 - **Operational impact:** a cross-repo checklist gates first ingestion of each new entity.
+
+## Future considerations
+
 - **Future considerations:** keep the source-key→table map in one module file mirroring the
   pipeline's `shared/medallion.ts`.
 
 ## Cross-references
-This repo `CLAUDE.md §5–§6`; front-end ADR-0017 (schema ownership), ADR-0039 + pipeline
+
+This repo `CLAUDE.md §5–§6`; front-end ADR-0017 (schema ownership), front-end ADR-0039 + pipeline
 ADR-0009 (per-source bronze + website precedence).

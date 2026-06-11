@@ -1,15 +1,25 @@
-# ADR-0007 — Package as an installed PowerShell module (not a folder of scripts)
+# ADR-0007: Package as an installed PowerShell module (not a folder of scripts)
 
-- **Status:** Accepted
-- **Date:** 2026-06-08
-- **Deciders:** Mark (human), Claude Code
+| Field | Value |
+|---|---|
+| **Repo** | local-pipeline |
+| **Status** | Accepted |
+| **Date** | 2026-06-08 |
+| **Deciders** | Mark (human), Claude Code |
+| **Cross-references** | — |
 
-## Problem & context
+## Problem
+
 The first cut was a repo of standalone scripts that dot-sourced a `_bootstrap.ps1`. Mark
 wants this delivered as a **full PowerShell module installed on the PC**, so operations run
 as `Import-Module ImperionPipeline; <cmdlet>` and scheduled tasks call cmdlets by name.
 
+## Options considered
+
+None recorded in the original ADR.
+
 ## Decision
+
 Ship **`ImperionPipeline`** as a versioned, installable module:
 - Each former entry script is now an **exported advanced function (cmdlet)**:
   `Invoke-ImperionServicePrincipalSync`, `Invoke-ImperionAzureInventorySync`,
@@ -25,11 +35,21 @@ Ship **`ImperionPipeline`** as a versioned, installable module:
   run `pwsh -Command "Import-Module ImperionPipeline; Initialize-ImperionContext; <cmdlet>"`.
 
 ## Consequences
+
+### Security impact
+
 - **Security:** unchanged posture; config/secrets stay out of the module and the repo.
+
+### Operational impact
+
 - **Operational:** clean install/upgrade story; cmdlets are discoverable (`Get-Command
   -Module ImperionPipeline`, comment-based help) and composable in an operator console.
+
+## Future considerations
+
 - **Future:** can publish to an internal PSRepository / sign the module; CI can run
   `Test-ModuleManifest` + Pester + PSScriptAnalyzer.
 
 ## Cross-references
+
 This repo `CLAUDE.md §4`; [deployment](../deployment/README.md).
