@@ -47,6 +47,7 @@ Register-ImperionTask -Name 'Imperion m365 Mail' `
 | **posture** | `posture/service-principals` | Service principals | **Daily** | Credential-expiry watch |
 | **posture** | `posture/secure-score` | Secure Score | **Daily** | One snapshot/day |
 | **posture** | `posture/policies` | CA/Intune/Defender + drift | **Daily** | Config drift |
+| **posture** | `posture/merge` | posture_policy + tenant_posture silver (all tenants) | **Daily, after secure-score + policies** | Classify the night's fresh bronze (ADR-0010) |
 | **kaseya** | `kaseya/import` | Contracts/tickets/proposals | **Daily** | Legacy bulk reconcile |
 
 > Cadence is the **target**; tune per source rate-limits in `docs/integrations/<source>.md`.

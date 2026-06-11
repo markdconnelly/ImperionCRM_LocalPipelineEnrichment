@@ -29,6 +29,9 @@ function Register-ImperionTask {
         @{ Name = 'Imperion-AzureInventory';         Cmdlet = 'Invoke-ImperionAzureInventorySync';   At = '02:30' }
         @{ Name = 'Imperion-SecureScore';            Cmdlet = 'Invoke-ImperionSecureScoreSync';       At = '02:45' }
         @{ Name = 'Imperion-PolicySync';             Cmdlet = 'Invoke-ImperionPolicySync';            At = '03:00' }
+        # Posture silver merge runs AFTER SecureScore (02:45) + PolicySync (03:00)
+        # so it classifies the night's fresh bronze (ADR-0010, frontend ADR-0051).
+        @{ Name = 'Imperion-PostureMerge';           Cmdlet = 'Invoke-ImperionPostureMerge';          At = '03:20' }
         @{ Name = 'Imperion-ITGlueExport';           Cmdlet = 'Invoke-ImperionITGlueExport';          At = '03:30' }
         @{ Name = 'Imperion-KaseyaImport';           Cmdlet = 'Invoke-ImperionKaseyaImport';          At = '01:00' }
         # Gold knowledge + vectorization runs LAST, after every ingest task above has
