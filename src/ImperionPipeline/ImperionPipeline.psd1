@@ -31,6 +31,8 @@
         'Set-ImperionPolicyGoldenState',
         'Get-ImperionPolicyDrift',
         'Invoke-ImperionPostureMerge',
+        'Invoke-ImperionPostureSnapshot',
+        'Get-ImperionSecureScore',
         # Building blocks (reusable helpers)
         'Write-ImperionLog',
         'Get-ImperionContentHash',
