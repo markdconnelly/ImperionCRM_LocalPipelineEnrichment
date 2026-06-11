@@ -16,6 +16,7 @@ Describe 'Register-ImperionTask' {
             Mock New-ScheduledTaskSettingsSet { 'settings' }
             Mock New-ScheduledTaskAction { 'action' }
             Mock New-ScheduledTaskTrigger { 'trigger' }
+            Mock Invoke-ImperionTaskRegistration { }
             Mock Register-ScheduledTask { }
             Mock Write-Host { }
         }
@@ -24,8 +25,8 @@ Describe 'Register-ImperionTask' {
     It 'builds one task action per sync cmdlet and registers nothing under -WhatIf' {
         InModuleScope ImperionPipeline {
             Register-ImperionTask -TaskIdentity 'CORP\svc-imperion$' -PwshPath 'C:\pwsh\pwsh.exe' -WhatIf
-            Should -Invoke New-ScheduledTaskAction -Times 7
-            Should -Invoke Register-ScheduledTask -Times 0
+            Should -Invoke New-ScheduledTaskAction -Times 9
+            Should -Invoke Invoke-ImperionTaskRegistration -Times 0
         }
     }
 
@@ -51,6 +52,45 @@ Describe 'Register-ImperionTask' {
         InModuleScope ImperionPipeline {
             Register-ImperionTask -TaskIdentity 'CORP\svc-imperion$' -PwshPath 'C:\pwsh\pwsh.exe' -WhatIf
             Should -Invoke New-ScheduledTaskPrincipal -ParameterFilter { $UserId -eq 'CORP\svc-imperion$' }
+        }
+    }
+
+    It 'gMSA mode registers a principal and never a credential (no stored password)' {
+        InModuleScope ImperionPipeline {
+            Register-ImperionTask -TaskIdentity 'CORP\svc-imperion$' -PwshPath 'C:\pwsh\pwsh.exe'
+            Should -Invoke Invoke-ImperionTaskRegistration -Times 9
+            Should -Invoke Invoke-ImperionTaskRegistration -Times 0 -Exactly -ParameterFilter {
+                $null -ne $Credential
+            }
+        }
+    }
+
+    It 'local-account mode (ADR-0012) registers stored credentials and skips the principal' {
+        InModuleScope ImperionPipeline {
+            $secret = ConvertTo-SecureString 'test-only-password' -AsPlainText -Force
+            $credential = [pscredential]::new('.\svc-imperion', $secret)
+
+            Register-ImperionTask -TaskCredential $credential -PwshPath 'C:\pwsh\pwsh.exe'
+
+            Should -Invoke New-ScheduledTaskPrincipal -Times 0 -Exactly
+            Should -Invoke Invoke-ImperionTaskRegistration -Times 9 -ParameterFilter {
+                $Credential.UserName -eq '.\svc-imperion' -and $null -eq $Principal
+            }
+            # the password never leaks into the task action command line
+            Should -Invoke New-ScheduledTaskAction -Times 0 -Exactly -ParameterFilter {
+                $Argument -match 'test-only-password'
+            }
+        }
+    }
+
+    It 'TaskIdentity and TaskCredential are mutually exclusive parameter sets' {
+        InModuleScope ImperionPipeline {
+            $secret = ConvertTo-SecureString 'test-only-password' -AsPlainText -Force
+            $credential = [pscredential]::new('.\svc-imperion', $secret)
+            {
+                Register-ImperionTask -TaskIdentity 'CORP\svc-imperion$' -TaskCredential $credential `
+                    -PwshPath 'C:\pwsh\pwsh.exe'
+            } | Should -Throw
         }
     }
 
