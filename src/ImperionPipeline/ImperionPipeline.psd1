@@ -30,6 +30,7 @@
         # Golden state / drift
         'Set-ImperionPolicyGoldenState',
         'Get-ImperionPolicyDrift',
+        'Invoke-ImperionPostureMerge',
         # Building blocks (reusable helpers)
         'Write-ImperionLog',
         'Get-ImperionContentHash',

@@ -13,6 +13,7 @@ task command is `pwsh -Command "Import-Module ImperionPipeline; Initialize-Imper
 | Azure inventory (per-entity get → post) | `scheduled-tasks/azure/inventory.task.ps1` | daily | subscriptions → resource groups → resources via `Set-ImperionAzure*ToBronze`; Sentinel/mgmt-groups stay with the sync cmdlet above until the Sentinel get lands |
 | Secure Score | `Invoke-ImperionSecureScoreSync` | daily | overall + control profiles |
 | Security-posture policies + drift | `Invoke-ImperionPolicySync` | daily | CA/Intune/device-config/Autopilot/Defender; drift vs golden |
+| **Posture silver merge (all tenants)** | `Invoke-ImperionPostureMerge` | daily 03:20 (after SecureScore + PolicySync) | classifies posture_policy + rolls up tenant_posture, unmapped tenants included (ADR-0010); **operator: re-run `Register-ImperionTask` once to register** |
 | Autotask contracts | `scheduled-tasks/autotask/contracts.task.ps1` | daily | incremental on `lastModifiedDateTime` (`IMPERION_AUTOTASK_CONTRACT_SINCE_DAYS`) |
 | Autotask tickets | `scheduled-tasks/autotask/tickets.task.ps1` | every 15–30 min | bulk reconcile; webhooks (cloud Pipeline) handle real-time |
 | M365 users | `scheduled-tasks/m365/users.task.ps1` | daily | → `m365_contacts` (ADR-0039 shape); GDAP fan-out via `IMPERION_M365_TENANT_IDS` |
