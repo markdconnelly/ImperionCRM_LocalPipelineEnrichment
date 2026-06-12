@@ -105,6 +105,24 @@ function Invoke-ImperionBronzePost {
         $rowsToWrite = $projectedRows.ToArray()
     }
 
+    # Intra-batch dedupe on the effective conflict key. One INSERT statement hitting the
+    # same key twice is a Postgres error (21000 "ON CONFLICT DO UPDATE command cannot
+    # affect row a second time") — seen live when one FB comment surfaces under two page
+    # posts (#133). Last occurrence wins, matching what sequential single-row upserts
+    # would have converged to.
+    $effectiveKeyColumns = if ($KeyColumns) { $KeyColumns } else { @('tenant_id', 'source', 'external_id') }
+    if ($rowsToWrite.Count -gt 1) {
+        $rowsByKey = [System.Collections.Specialized.OrderedDictionary]::new()
+        foreach ($r in $rowsToWrite) {
+            $key = ($effectiveKeyColumns | ForEach-Object { [string](Get-ImperionMember $r $_) }) -join '|'
+            $rowsByKey[$key] = $r
+        }
+        if ($rowsByKey.Count -lt $rowsToWrite.Count) {
+            Write-ImperionLog -Source $LogSource -Message ("{0}: deduped {1} intra-batch duplicate key(s)." -f $Table, ($rowsToWrite.Count - $rowsByKey.Count))
+            $rowsToWrite = @($rowsByKey.Values)
+        }
+    }
+
     if ($rowsToWrite.Count -eq 0) {
         Write-ImperionLog -Source $LogSource -Message "${Table}: 0 rows to write."
         return [pscustomobject]@{ scanned = 0; inserted = 0; updated = 0; unchanged = 0 }

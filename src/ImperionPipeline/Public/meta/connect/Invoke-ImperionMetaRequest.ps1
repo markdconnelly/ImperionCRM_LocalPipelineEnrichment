@@ -43,9 +43,15 @@ function Invoke-ImperionMetaRequest {
     for ($page = 1; $page -le $MaxPages -and $next; $page++) {
         $resp = Invoke-ImperionRestWithRetry -Uri $next -Headers $headers -Method GET
 
-        $data = Get-ImperionMember $resp.Body 'data'
-        if ($null -ne $data) { foreach ($item in @($data)) { $items.Add($item) } }
-        elseif ($null -ne $resp.Body) { $items.Add($resp.Body) }   # bare single resource
+        # Probe for the data member's PRESENCE, not its value: PowerShell unrolls an empty
+        # array returned from Get-ImperionMember to $null, which mis-routed an empty
+        # {data:[]} envelope into the bare-resource branch (one garbage row per empty
+        # collection — seen live on a page with zero comments, #133).
+        $body = $resp.Body
+        if ($null -ne $body -and $null -ne $body.PSObject.Properties['data']) {
+            foreach ($item in @(Get-ImperionMember $body 'data')) { $items.Add($item) }
+        }
+        elseif ($null -ne $body) { $items.Add($body) }   # bare single resource
 
         $paging = Get-ImperionMember $resp.Body 'paging'
         $next = [string](Get-ImperionMember $paging 'next')

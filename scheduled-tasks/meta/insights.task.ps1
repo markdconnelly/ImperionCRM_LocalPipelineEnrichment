@@ -21,7 +21,9 @@ if (-not $pageId) {
 }
 
 try {
-    Get-ImperionMetaInsight -PageId $pageId | Set-ImperionMetaInsightToBronze
+    # Page-token hop per #133 (New Pages Experience) — see social.task.ps1.
+    $pageToken = Get-ImperionMetaPageToken -PageId $pageId
+    Get-ImperionMetaInsight -PageId $pageId -Token $pageToken | Set-ImperionMetaInsightToBronze
     Invoke-ImperionMetaMerge
 }
 catch {

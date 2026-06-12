@@ -31,6 +31,16 @@ Describe 'Invoke-ImperionMetaRequest' {
         }
     }
 
+    It 'yields NOTHING for an empty { data: [] } envelope — never the envelope itself (#133)' {
+        InModuleScope ImperionPipeline {
+            Mock Invoke-ImperionRestWithRetry {
+                [pscustomobject]@{ Body = [pscustomobject]@{ data = @() } }
+            }
+            $items = @(Invoke-ImperionMetaRequest -Token 't' -Uri '123_456/comments')
+            $items.Count | Should -Be 0
+        }
+    }
+
     It 'tolerates a bare single resource (no data wrapper)' {
         InModuleScope ImperionPipeline {
             Mock Invoke-ImperionRestWithRetry {
