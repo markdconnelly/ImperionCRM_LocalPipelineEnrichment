@@ -55,6 +55,8 @@ Register-ImperionTask -Name 'Imperion m365 Mail' `
 | **posture** | `posture/merge` | posture_policy + tenant_posture silver (all tenants) | **Daily, after secure-score + policies** | Classify the night's fresh bronze (ADR-0010) |
 | **kqm** | `kqm/proposals` | Quotes/proposals | **Daily** | 60/min + 20k/day budget; gated on the API key; secret-bearing URLs never logged |
 | **kaseya** | `kaseya/import` | Contracts/tickets/proposals | **Daily** | Legacy bulk reconcile |
+| **meta** | `meta/social` | FB posts/comments/DMs + IG media/comments + merge | **Daily** | Organic social is slow-moving; DM senders → leads via the merge (issue #126) |
+| **meta** | `meta/insights` | Page + IG insight snapshots + merge | **Daily** | period=day metrics yield one point/day; per-metric deprecation tolerance |
 
 > Cadence is the **target**; tune per source rate-limits in `docs/integrations/<source>.md`.
 > The authoritative as-built registry of *registered* tasks is
@@ -73,6 +75,9 @@ multi-table router post, issue #97), `kqm/proposals` (gated on the API key; veri
 live field names with `Get-ImperionKqmFieldName` first — issue #98), and the m365
 communications tasks `m365/mail`, `m365/teams-chat`, `m365/teams-meeting` (issue #100 —
 double-gated: env-var config + migration 0065 prod apply; Teams reads additionally need
-Microsoft's protected-API approval, see docs/integrations/m365-communications.md).
+Microsoft's protected-API approval, see docs/integrations/m365-communications.md), and
+the meta tasks `meta/social`, `meta/insights` (issue #126 — gated on
+IMPERION_META_PAGE_ID + the SecretStore token + migration 0075 prod apply; registration
+itself deferred to server bringup #102, see docs/integrations/meta.md).
 Still to land: `autotask/companies`, `autotask/contacts`, the remaining posture tasks,
 and `kaseya/import`.

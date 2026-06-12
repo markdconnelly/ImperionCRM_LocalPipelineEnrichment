@@ -9,7 +9,7 @@ Every source pull flattens to a `[PSCustomObject]` table carrying the same envel
 | Column | Meaning |
 | --- | --- |
 | `tenant_id` | owning customer tenant (per-tenant isolation, absolute) |
-| `source` | logical source key (`m365`, `autotask`, `itglue`, `apollo`, `kqm`, `docusign`, `website`, `azure`, `sentinel`) |
+| `source` | logical source key (`m365`, `autotask`, `itglue`, `apollo`, `kqm`, `docusign`, `website`, `azure`, `sentinel`, `facebook`, `instagram`, `meta`) |
 | `external_id` | stable id in the source |
 | `content_hash` | hash of the meaningful attributes (change detection) |
 | `collected_at` | pull timestamp |
