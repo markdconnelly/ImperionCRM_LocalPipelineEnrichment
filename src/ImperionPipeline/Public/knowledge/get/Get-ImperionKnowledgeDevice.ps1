@@ -12,7 +12,9 @@ function Get-ImperionKnowledgeDevice {
         (`itglue_devices.device_id` set) is excluded so devices never double-appear.
         Either arm degrades gracefully to nothing when its tables are empty.
 
-        Output rows are flat PSCustomObjects in the knowledge_object shape
+        Thin adapter over the knowledge-composer spine Invoke-ImperionKnowledgeCompose
+        (#106): the two-arm union read is a scriptblock -Query; the spine owns the
+        scaffold. Output rows are flat PSCustomObjects in the knowledge_object shape
         (entity_type='device', entity_ref = silver device id or IT Glue config id).
         Read-only; pass -Connection to reuse one DB connection across the knowledge sync.
     .PARAMETER Connection
@@ -32,14 +34,10 @@ function Get-ImperionKnowledgeDevice {
         [string] $TenantId
     )
 
-    if (-not $TenantId) { $TenantId = (Get-ImperionConfig).PartnerTenantId }
-
-    $ownsConnection = $false
-    $conn = $Connection
-    if (-not $conn) { $conn = New-ImperionDbConnection; $ownsConnection = $true }
-    try {
+    $twoArmDeviceQuery = {
+        param($activeConnection)
         # Arm 1 — silver `device` (typed, merge-linked; empty until device merges land).
-        $silverDevices = Invoke-ImperionDbQuery -Connection $conn -Sql @'
+        $silverDevices = Invoke-ImperionDbQuery -Connection $activeConnection -Sql @'
 SELECT d.id::text AS id, d.name, d.device_type, d.manufacturer, d.model, d.serial_number,
        d.os, d.status, d.last_seen_at::text AS last_seen, a.name AS account_name,
        'local-pipeline'::text AS origin
@@ -50,7 +48,7 @@ SELECT d.id::text AS id, d.name, d.device_type, d.manufacturer, d.model, d.seria
 
         # Arm 2 — not-yet-merged IT Glue configurations (the 450+ real configs), read
         # defensively from BOTH envelope shapes per migration 0053's flagged assumption.
-        $itglueConfigurations = Invoke-ImperionDbQuery -Connection $conn -Sql @'
+        $itglueConfigurations = Invoke-ImperionDbQuery -Connection $activeConnection -Sql @'
 SELECT cfg.external_id AS id, cfg.name,
        COALESCE(cfg.raw_payload->'attributes'->>'configuration-type-name',
                 cfg.raw_payload->>'configuration-type-name')   AS device_type,
@@ -76,56 +74,48 @@ SELECT cfg.external_id AS id, cfg.name,
        )
  ORDER BY cfg.name
 '@
-
-        $devices = @($silverDevices) + @($itglueConfigurations) | Where-Object { $_ }
-        if (-not $devices) {
-            Write-ImperionLog -Source 'knowledge' -Message 'knowledge devices: no silver devices or IT Glue configurations found.'
-            return @()
-        }
-
-        $rows = foreach ($device in $devices) {
-            $title = if ($device.name) { $device.name } else { "Device $($device.id)" }
-            $lines = [System.Collections.Generic.List[string]]::new()
-            $lines.Add("Device: $title")
-            if ($device.account_name) { $lines.Add("Account: $($device.account_name)") }
-            $facts = @(
-                if ($device.device_type)   { "type: $($device.device_type)" }
-                if ($device.manufacturer)  { "manufacturer: $($device.manufacturer)" }
-                if ($device.model)         { "model: $($device.model)" }
-                if ($device.serial_number) { "serial: $($device.serial_number)" }
-            )
-            if ($facts) { $lines.Add(($facts -join ' · ')) }
-            $state = @(
-                if ($device.os)        { "OS: $($device.os)" }
-                if ($device.status)    { "status: $($device.status)" }
-                if ($device.last_seen) { "last seen: $($device.last_seen)" }
-            )
-            if ($state) { $lines.Add(($state -join ' · ')) }
-            $lines.Add("Inventory origin: $(if ($device.origin -eq 'itglue') { 'IT Glue configuration (not yet merged to silver)' } else { 'unified silver device record' })")
-
-            $body = ($lines -join "`n").Trim()
-            $row = [pscustomobject]@{
-                tenant_id    = $TenantId
-                entity_type  = 'device'
-                entity_ref   = [string]$device.id
-                title        = $title
-                body         = $body
-                summary      = $null
-                source       = $device.origin
-                metadata     = (@{
-                    account = $device.account_name; device_type = $device.device_type
-                    status = $device.status; origin = $device.origin
-                } | ConvertTo-Json -Compress)
-                content_hash = $null
-            }
-            $row.content_hash = Get-ImperionContentHash -InputObject @{ title = $row.title; body = $row.body }
-            $row
-        }
-
-        Write-ImperionLog -Source 'knowledge' -Message 'knowledge devices composed.' -Data @{
-            devices = @($rows).Count; silver = @($silverDevices).Count; itglue = @($itglueConfigurations).Count
-        }
-        return @($rows)
+        @($silverDevices) + @($itglueConfigurations)
     }
-    finally { if ($ownsConnection) { $conn.Dispose() } }
+
+    Invoke-ImperionKnowledgeCompose -EntityType 'device' -Connection $Connection -TenantId $TenantId `
+        -EmptyMessage 'knowledge devices: no silver devices or IT Glue configurations found.' `
+        -Query $twoArmDeviceQuery `
+        -LogData {
+        param($deviceRows)
+        @{
+            silver = @($deviceRows | Where-Object { $_.origin -eq 'local-pipeline' }).Count
+            itglue = @($deviceRows | Where-Object { $_.origin -eq 'itglue' }).Count
+        }
+    } -Compose {
+        param($device)
+        $title = if ($device.name) { $device.name } else { "Device $($device.id)" }
+        $lines = [System.Collections.Generic.List[string]]::new()
+        $lines.Add("Device: $title")
+        if ($device.account_name) { $lines.Add("Account: $($device.account_name)") }
+        $facts = @(
+            if ($device.device_type)   { "type: $($device.device_type)" }
+            if ($device.manufacturer)  { "manufacturer: $($device.manufacturer)" }
+            if ($device.model)         { "model: $($device.model)" }
+            if ($device.serial_number) { "serial: $($device.serial_number)" }
+        )
+        if ($facts) { $lines.Add(($facts -join ' · ')) }
+        $state = @(
+            if ($device.os)        { "OS: $($device.os)" }
+            if ($device.status)    { "status: $($device.status)" }
+            if ($device.last_seen) { "last seen: $($device.last_seen)" }
+        )
+        if ($state) { $lines.Add(($state -join ' · ')) }
+        $lines.Add("Inventory origin: $(if ($device.origin -eq 'itglue') { 'IT Glue configuration (not yet merged to silver)' } else { 'unified silver device record' })")
+
+        [pscustomobject]@{
+            entity_ref = [string]$device.id
+            title      = $title
+            body       = ($lines -join "`n").Trim()
+            source     = $device.origin
+            metadata   = @{
+                account = $device.account_name; device_type = $device.device_type
+                status = $device.status; origin = $device.origin
+            }
+        }
+    }
 }
