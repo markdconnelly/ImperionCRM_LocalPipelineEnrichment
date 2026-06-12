@@ -10,6 +10,8 @@ function Get-ImperionKnowledgeAssessmentArtifact {
         records (migration 0043 / ADR-0040) for provenance. The artifact's own
         `summary_gold` — when the merge has produced one — is the body's centerpiece.
 
+        Thin adapter over the knowledge-composer spine Invoke-ImperionKnowledgeCompose
+        (#106): this declares the SQL + compose block; the spine owns the scaffold.
         Output rows are flat PSCustomObjects in the knowledge_object shape
         (entity_type='assessment', entity_ref = the assessment_artifact id). Read-only;
         pass -Connection to reuse one DB connection across the knowledge sync.
@@ -30,13 +32,10 @@ function Get-ImperionKnowledgeAssessmentArtifact {
         [string] $TenantId
     )
 
-    if (-not $TenantId) { $TenantId = (Get-ImperionConfig).PartnerTenantId }
-
-    $ownsConnection = $false
-    $conn = $Connection
-    if (-not $conn) { $conn = New-ImperionDbConnection; $ownsConnection = $true }
-    try {
-        $artifacts = Invoke-ImperionDbQuery -Connection $conn -Sql @'
+    Invoke-ImperionKnowledgeCompose -EntityType 'assessment' -Connection $Connection -TenantId $TenantId `
+        -LogLabel 'assessment artifacts' -CountName 'artifacts' `
+        -EmptyMessage 'knowledge assessment artifacts: no assessment_artifact rows found.' `
+        -Query @'
 SELECT aa.id::text AS id, aa.source::text AS source, aa.kind::text AS kind, aa.title,
        aa.dimension, aa.collected_at::text AS collected_at, aa.summary_gold, aa.external_ref,
        ass.name AS assessment_name, ass.status::text AS assessment_status,
@@ -46,52 +45,35 @@ SELECT aa.id::text AS id, aa.source::text AS source, aa.kind::text AS kind, aa.t
   LEFT JOIN assessment ass ON ass.id = aa.assessment_id
   LEFT JOIN account a ON a.id = ass.account_id
  ORDER BY aa.collected_at DESC
-'@
-        if (-not $artifacts) {
-            Write-ImperionLog -Source 'knowledge' -Message 'knowledge assessment artifacts: no assessment_artifact rows found.'
-            return @()
-        }
+'@ -Compose {
+        param($artifact)
+        $title = if ($artifact.title) { $artifact.title } else { "$($artifact.source) $($artifact.kind) $($artifact.id)" }
+        $lines = [System.Collections.Generic.List[string]]::new()
+        $lines.Add("Assessment artifact: $title")
+        $context = @(
+            if ($artifact.assessment_name) { "assessment: $($artifact.assessment_name)" }
+            if ($artifact.assessment_status) { "assessment status: $($artifact.assessment_status)" }
+            if ($artifact.account_name)   { "account: $($artifact.account_name)" }
+        )
+        if ($context) { $lines.Add(($context -join ' · ')) }
+        $facts = @(
+            if ($artifact.source)       { "source: $($artifact.source)" }
+            if ($artifact.kind)         { "kind: $($artifact.kind)" }
+            if ($artifact.dimension)    { "scorecard dimension: $($artifact.dimension)" }
+            if ($artifact.collected_at) { "collected: $($artifact.collected_at)" }
+        )
+        if ($facts) { $lines.Add(($facts -join ' · ')) }
+        if ($artifact.summary_gold) { $lines.Add(''); $lines.Add("Summary: $($artifact.summary_gold)") }
 
-        $rows = foreach ($artifact in $artifacts) {
-            $title = if ($artifact.title) { $artifact.title } else { "$($artifact.source) $($artifact.kind) $($artifact.id)" }
-            $lines = [System.Collections.Generic.List[string]]::new()
-            $lines.Add("Assessment artifact: $title")
-            $context = @(
-                if ($artifact.assessment_name) { "assessment: $($artifact.assessment_name)" }
-                if ($artifact.assessment_status) { "assessment status: $($artifact.assessment_status)" }
-                if ($artifact.account_name)   { "account: $($artifact.account_name)" }
-            )
-            if ($context) { $lines.Add(($context -join ' · ')) }
-            $facts = @(
-                if ($artifact.source)       { "source: $($artifact.source)" }
-                if ($artifact.kind)         { "kind: $($artifact.kind)" }
-                if ($artifact.dimension)    { "scorecard dimension: $($artifact.dimension)" }
-                if ($artifact.collected_at) { "collected: $($artifact.collected_at)" }
-            )
-            if ($facts) { $lines.Add(($facts -join ' · ')) }
-            if ($artifact.summary_gold) { $lines.Add(''); $lines.Add("Summary: $($artifact.summary_gold)") }
-
-            $body = ($lines -join "`n").Trim()
-            $row = [pscustomobject]@{
-                tenant_id    = $TenantId
-                entity_type  = 'assessment'
-                entity_ref   = [string]$artifact.id
-                title        = $title
-                body         = $body
-                summary      = $null
-                source       = $artifact.source
-                metadata     = (@{
-                    assessment = $artifact.assessment_name; account = $artifact.account_name
-                    kind = $artifact.kind; televy_reports = $artifact.televy_reports
-                } | ConvertTo-Json -Compress)
-                content_hash = $null
+        [pscustomobject]@{
+            entity_ref = [string]$artifact.id
+            title      = $title
+            body       = ($lines -join "`n").Trim()
+            source     = $artifact.source
+            metadata   = @{
+                assessment = $artifact.assessment_name; account = $artifact.account_name
+                kind = $artifact.kind; televy_reports = $artifact.televy_reports
             }
-            $row.content_hash = Get-ImperionContentHash -InputObject @{ title = $row.title; body = $row.body }
-            $row
         }
-
-        Write-ImperionLog -Source 'knowledge' -Message 'knowledge assessment artifacts composed.' -Data @{ artifacts = @($rows).Count }
-        return @($rows)
     }
-    finally { if ($ownsConnection) { $conn.Dispose() } }
 }

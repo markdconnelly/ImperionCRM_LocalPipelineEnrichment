@@ -14,6 +14,8 @@ function Get-ImperionKnowledgeCredentialExposure {
         ever read and no plaintext password ever reaches gold (the silver table holds
         none; the raw Dark Web ID payload stays in bronze).
 
+        Thin adapter over the knowledge-composer spine Invoke-ImperionKnowledgeCompose
+        (#106): this declares the SQL + compose block; the spine owns the scaffold.
         Output rows are flat PSCustomObjects in the knowledge_object shape
         (entity_type='exposure', entity_ref = the credential_exposure id). Read-only;
         pass -Connection to reuse one DB connection across the knowledge sync.
@@ -34,15 +36,11 @@ function Get-ImperionKnowledgeCredentialExposure {
         [string] $TenantId
     )
 
-    if (-not $TenantId) { $TenantId = (Get-ImperionConfig).PartnerTenantId }
-
-    $ownsConnection = $false
-    $conn = $Connection
-    if (-not $conn) { $conn = New-ImperionDbConnection; $ownsConnection = $true }
-    try {
-        # Facts only — never select payload_bronze (raw breach payloads can carry
-        # plaintext passwords; those stay in bronze, out of the embedded gold text).
-        $exposures = Invoke-ImperionDbQuery -Connection $conn -Sql @'
+    # Facts only — never select payload_bronze (raw breach payloads can carry
+    # plaintext passwords; those stay in bronze, out of the embedded gold text).
+    Invoke-ImperionKnowledgeCompose -EntityType 'exposure' -Connection $Connection -TenantId $TenantId `
+        -EmptyMessage 'knowledge exposures: no credential_exposure silver found.' `
+        -Query @'
 SELECT ce.id::text AS id, ce.email, ce.breach_source, ce.breach_date::text AS breach_date,
        array_to_string(ce.exposed_data, ', ') AS exposed_data, ce.password_status,
        ce.severity, ce.status, ce.first_seen_at::text AS first_seen_at,
@@ -53,59 +51,42 @@ SELECT ce.id::text AS id, ce.email, ce.breach_source, ce.breach_date::text AS br
   LEFT JOIN contact c ON c.id = ce.contact_id
   LEFT JOIN account a ON a.id = ce.account_id
  ORDER BY ce.last_seen_at DESC
-'@
-        if (-not $exposures) {
-            Write-ImperionLog -Source 'knowledge' -Message 'knowledge exposures: no credential_exposure silver found.'
-            return @()
-        }
+'@ -Compose {
+        param($exposure)
+        $title = "Credential exposure: $($exposure.email)$(if ($exposure.breach_source) { " — $($exposure.breach_source)" })"
+        $domain = if ($exposure.email -and $exposure.email -match '@(.+)$') { $Matches[1] } else { $null }
+        $lines = [System.Collections.Generic.List[string]]::new()
+        $lines.Add($title)
+        $who = @(
+            if ($exposure.contact_name) { "contact: $($exposure.contact_name)" }
+            if ($exposure.account_name) { "account: $($exposure.account_name)" }
+            if ($domain)                { "domain: $domain" }
+        )
+        if ($who) { $lines.Add(($who -join ' · ')) }
+        $facts = @(
+            if ($exposure.breach_source) { "source breach: $($exposure.breach_source)" }
+            if ($exposure.breach_date)   { "breach date: $($exposure.breach_date)" }
+            if ($exposure.severity)      { "severity: $($exposure.severity)" }
+            if ($exposure.status)        { "status: $($exposure.status)" }
+        )
+        if ($facts) { $lines.Add(($facts -join ' · ')) }
+        if ($exposure.exposed_data)    { $lines.Add("Exposed data classes: $($exposure.exposed_data)") }
+        if ($exposure.password_status) { $lines.Add("Password status: $($exposure.password_status) (the credential itself stays in bronze, never in gold)") }
+        $seen = @(
+            if ($exposure.first_seen_at) { "first seen: $($exposure.first_seen_at)" }
+            if ($exposure.last_seen_at)  { "last seen: $($exposure.last_seen_at)" }
+        )
+        if ($seen) { $lines.Add(($seen -join ' · ')) }
 
-        $rows = foreach ($exposure in $exposures) {
-            $title = "Credential exposure: $($exposure.email)$(if ($exposure.breach_source) { " — $($exposure.breach_source)" })"
-            $domain = if ($exposure.email -and $exposure.email -match '@(.+)$') { $Matches[1] } else { $null }
-            $lines = [System.Collections.Generic.List[string]]::new()
-            $lines.Add($title)
-            $who = @(
-                if ($exposure.contact_name) { "contact: $($exposure.contact_name)" }
-                if ($exposure.account_name) { "account: $($exposure.account_name)" }
-                if ($domain)                { "domain: $domain" }
-            )
-            if ($who) { $lines.Add(($who -join ' · ')) }
-            $facts = @(
-                if ($exposure.breach_source) { "source breach: $($exposure.breach_source)" }
-                if ($exposure.breach_date)   { "breach date: $($exposure.breach_date)" }
-                if ($exposure.severity)      { "severity: $($exposure.severity)" }
-                if ($exposure.status)        { "status: $($exposure.status)" }
-            )
-            if ($facts) { $lines.Add(($facts -join ' · ')) }
-            if ($exposure.exposed_data)    { $lines.Add("Exposed data classes: $($exposure.exposed_data)") }
-            if ($exposure.password_status) { $lines.Add("Password status: $($exposure.password_status) (the credential itself stays in bronze, never in gold)") }
-            $seen = @(
-                if ($exposure.first_seen_at) { "first seen: $($exposure.first_seen_at)" }
-                if ($exposure.last_seen_at)  { "last seen: $($exposure.last_seen_at)" }
-            )
-            if ($seen) { $lines.Add(($seen -join ' · ')) }
-
-            $body = ($lines -join "`n").Trim()
-            $row = [pscustomobject]@{
-                tenant_id    = $TenantId
-                entity_type  = 'exposure'
-                entity_ref   = [string]$exposure.id
-                title        = $title
-                body         = $body
-                summary      = $null
-                source       = 'darkwebid'
-                metadata     = (@{
-                    account = $exposure.account_name; status = $exposure.status
-                    severity = $exposure.severity; bronze_records = $exposure.bronze_records
-                } | ConvertTo-Json -Compress)
-                content_hash = $null
+        [pscustomobject]@{
+            entity_ref = [string]$exposure.id
+            title      = $title
+            body       = ($lines -join "`n").Trim()
+            source     = 'darkwebid'
+            metadata   = @{
+                account = $exposure.account_name; status = $exposure.status
+                severity = $exposure.severity; bronze_records = $exposure.bronze_records
             }
-            $row.content_hash = Get-ImperionContentHash -InputObject @{ title = $row.title; body = $row.body }
-            $row
         }
-
-        Write-ImperionLog -Source 'knowledge' -Message 'knowledge exposures composed.' -Data @{ exposures = @($rows).Count }
-        return @($rows)
     }
-    finally { if ($ownsConnection) { $conn.Dispose() } }
 }
