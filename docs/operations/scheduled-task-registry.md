@@ -20,6 +20,7 @@ task command is `pwsh -Command "Import-Module ImperionPipeline; Initialize-Imper
 | Autotask tickets | `scheduled-tasks/autotask/tickets.task.ps1` | every 15–30 min | bulk reconcile; webhooks (cloud Pipeline) handle real-time |
 | M365 users | `scheduled-tasks/m365/users.task.ps1` | daily | → `m365_contacts` (ADR-0039 shape); GDAP fan-out via `IMPERION_M365_TENANT_IDS` |
 | M365 devices | `scheduled-tasks/m365/devices.task.ps1` | daily | → `m365_devices` (ADR-0039 shape); GDAP fan-out via `IMPERION_M365_TENANT_IDS` |
+| Intune device compliance | `scheduled-tasks/m365/intune-devices.task.ps1` | daily | → `intune_managed_devices` (flat compliance columns, frontend ADR-0051 d6, issue #75); GATED — pending front-end bronze migration; single-tenant default, fan-out via `IMPERION_M365_TENANT_IDS` |
 | IT Glue organizations | `scheduled-tasks/itglue/organizations.task.ps1` | daily | → `itglue_companies` (ADR-0039 shape) |
 | IT Glue contacts | `scheduled-tasks/itglue/contacts.task.ps1` | daily | → `itglue_contacts` (ADR-0039 shape) |
 | IT Glue configurations | `scheduled-tasks/itglue/configurations.task.ps1` | daily | → `itglue_devices` (ADR-0039 shape) |

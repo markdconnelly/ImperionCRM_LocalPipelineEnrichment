@@ -33,6 +33,7 @@ Register-ImperionTask -Name 'Imperion m365 Mail' `
 | **m365** | `m365/teams-meeting` | Teams meetings (filtered) | **Every 4h** | Meetings are less frequent |
 | **m365** | `m365/users` | Users | **Daily** | Slow-changing |
 | **m365** | `m365/devices` | Devices | **Daily** | Slow-changing |
+| **m365** | `m365/intune-devices` | Intune device compliance | **Daily** | Per-device posture truth (ADR-0051 d6); gated on pending bronze migration |
 | **azure** | `azure/inventory` | Subs/RGs/resources | **Daily** | Inventory drift is slow |
 | **azure** | `azure/sentinel` | Sentinel rules/watchlists/workbooks | **Daily** | Config drift is slow; skips non-Sentinel workspaces |
 | **autotask** | `autotask/companies` | Companies | **Daily** | Slow-changing |

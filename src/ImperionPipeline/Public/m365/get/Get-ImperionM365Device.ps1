@@ -36,6 +36,9 @@ function Get-ImperionM365Device {
         serial_number        = 'serialNumber'
         imei                 = 'imei'
         wifi_mac_address     = 'wiFiMacAddress'
+        # Join key for the silver-device merge (issue #75 / front-end ADR-0051 decision 6:
+        # joined by serial / Entra device id).
+        azure_ad_device_id   = 'azureADDeviceId'
         user_principal_name  = 'userPrincipalName'
         user_display_name    = 'userDisplayName'
         email_address        = 'emailAddress'
