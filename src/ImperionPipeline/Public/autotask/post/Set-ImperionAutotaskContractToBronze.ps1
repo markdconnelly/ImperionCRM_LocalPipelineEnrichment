@@ -10,6 +10,8 @@ function Set-ImperionAutotaskContractToBronze {
         other source copies: get collects + flattens, post opens a short-lived Entra-token DB
         connection (ADR-0003), upserts, and emits a metric log line with the tally.
 
+        Thin adapter over Invoke-ImperionBronzePost, the shared post-writer scaffold (issue
+        #105) — it owns the gate/connection/upsert/log/tally; this declares table + shape.
         Idempotent and resumable (CLAUDE.md §8): re-running converges, never duplicates. Pass
         an open -Connection to share one connection across a batch/backfill; otherwise a
         connection is opened per call and disposed. Requires Initialize-ImperionContext.
@@ -34,6 +36,8 @@ function Set-ImperionAutotaskContractToBronze {
     #>
     [CmdletBinding(SupportsShouldProcess)]
     [OutputType([pscustomobject])]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSShouldProcess', '',
+        Justification = 'ShouldProcess is delegated to the shared scaffold Invoke-ImperionBronzePost via -CallerCmdlet $PSCmdlet (issue #105).')]
     param(
         [Parameter(ValueFromPipeline)][AllowNull()] $Row,
         $Connection,
@@ -47,24 +51,7 @@ function Set-ImperionAutotaskContractToBronze {
         foreach ($r in $Row) { if ($null -ne $r) { $collected.Add($r) } }
     }
     end {
-        if ($collected.Count -eq 0) {
-            Write-ImperionLog -Source 'autotask' -Message "${Table}: 0 rows to write."
-            return [pscustomobject]@{ scanned = 0; inserted = 0; updated = 0; unchanged = 0 }
-        }
-        if (-not $PSCmdlet.ShouldProcess("$Table ($($collected.Count) rows)", 'bronze upsert')) {
-            return [pscustomobject]@{ scanned = $collected.Count; inserted = 0; updated = 0; unchanged = 0 }
-        }
-
-        $ownsConnection = $false
-        $conn = $Connection
-        if (-not $conn) { $conn = New-ImperionDbConnection; $ownsConnection = $true }
-        try {
-            $tally = Invoke-ImperionBronzeUpsert -Connection $conn -Table $Table -Rows $collected.ToArray()
-            Write-ImperionLog -Level Metric -Source 'autotask' -Message "$Table written." -Data @{
-                table = $Table; scanned = $tally.scanned; inserted = $tally.inserted; updated = $tally.updated; unchanged = $tally.unchanged
-            }
-            return $tally
-        }
-        finally { if ($ownsConnection) { $conn.Dispose() } }
+        Invoke-ImperionBronzePost -CallerCmdlet $PSCmdlet -Connection $Connection `
+            -Rows $collected.ToArray() -Table $Table -LogSource 'autotask'
     }
 }

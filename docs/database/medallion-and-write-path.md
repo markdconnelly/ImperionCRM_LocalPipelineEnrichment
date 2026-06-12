@@ -39,6 +39,11 @@ delegated `ShouldProcess` gate, the own-vs-reuse connection lifecycle (ADR-0003)
 
 New collectors add a ~15-line adapter, never a new copy of the scaffold.
 
+The one structural exception is the multi-table router `Invoke-ImperionITGlueExportToBronze`:
+it keeps its own batch-level `ShouldProcess` gate, entity routing, and connection lifecycle,
+and calls the scaffold per routed table in **ungated router mode** (no `-CallerCmdlet` — the
+batch is already gated) for the upsert + metric log.
+
 ## Idempotency (mandatory)
 A re-run converges, never duplicates. Unchanged `content_hash` → no write, no re-embed.
 
