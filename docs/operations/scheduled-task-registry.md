@@ -10,7 +10,8 @@ task command is `pwsh -Command "Import-Module ImperionPipeline; Initialize-Imper
 | --- | --- | --- | --- |
 | Entra service principals → IT Glue | `Invoke-ImperionServicePrincipalSync` | daily | partner tenant; GDAP loop optional |
 | Azure + Sentinel inventory | `Invoke-ImperionAzureInventorySync` | daily | skips workspaces without Sentinel |
-| Azure inventory (per-entity get → post) | `scheduled-tasks/azure/inventory.task.ps1` | daily | subscriptions → resource groups → resources via `Set-ImperionAzure*ToBronze`; Sentinel/mgmt-groups stay with the sync cmdlet above until the Sentinel get lands |
+| Azure inventory (per-entity get → post) | `scheduled-tasks/azure/inventory.task.ps1` | daily | subscriptions → resource groups → resources via `Set-ImperionAzure*ToBronze`; mgmt-groups stay with the sync cmdlet above |
+| Sentinel objects (per-entity get → post) | `scheduled-tasks/azure/sentinel.task.ps1` | daily | `Get-ImperionSentinelObject` → `Set-ImperionSentinelToBronze` (multi-table router, sentinel_* set); existing Reader grant only (#97) |
 | Secure Score | `Invoke-ImperionSecureScoreSync` | daily | overall + control profiles |
 | Security-posture policies + drift | `Invoke-ImperionPolicySync` | daily | CA/Intune/device-config/Autopilot/Defender; drift vs golden |
 | **Posture silver merge (all tenants)** | `Invoke-ImperionPostureMerge` | daily 03:20 (after SecureScore + PolicySync) | classifies posture_policy + rolls up tenant_posture, unmapped tenants included (ADR-0010); **operator: re-run `Register-ImperionTask` once to register** |
