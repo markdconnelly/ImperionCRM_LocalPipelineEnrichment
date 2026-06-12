@@ -41,6 +41,12 @@ tasks land).
   `Get-ImperionPolicyDrift`). Each further entity (IT Glue/Azure docs) is one new
   composer + one line in the sync — coverage is the goal, tracked in the
   production-readiness plan.
+- **Composer spine (#106):** every `Get-ImperionKnowledge*` composer is a thin adapter
+  over the module-internal **`Invoke-ImperionKnowledgeCompose`** — it owns the shared
+  scaffold (tenant default, connection lifecycle, related-row lookup caches, the
+  `knowledge_object` row emit + `content_hash` over title+body, the metric log). A new
+  entity type is a SQL query + a `-Compose` scriptblock; the row shape and idempotency
+  contract live in ONE place.
 - **Pinned model (front-end ADR-0041 / backend ADR-0034):** **Voyage AI `voyage-3-large` at
   dimension 1024**, system-wide — Anthropic's recommended embeddings provider for Claude RAG.
   Stored as `embedding_model='voyage-3-large'`, `dimension=1024` on every row.
