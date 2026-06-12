@@ -12,6 +12,9 @@ function Set-ImperionAzureSubscriptionToBronze {
         state, sub_tenant_id) before the upsert; extra collector columns (e.g.
         authorization_source, quota_id, spending_limit) survive in raw_payload only.
 
+        Thin adapter over Invoke-ImperionBronzePost, the shared post-writer scaffold (issue
+        #105) — it owns the projection/gate/connection/upsert/log/tally; this declares
+        table + column set.
         Idempotent/resumable. Pass an open -Connection to share one across a batch; otherwise a
         connection is opened per call and disposed. Requires Initialize-ImperionContext.
     .PARAMETER Row
@@ -27,6 +30,8 @@ function Set-ImperionAzureSubscriptionToBronze {
     #>
     [CmdletBinding(SupportsShouldProcess)]
     [OutputType([pscustomobject])]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSShouldProcess', '',
+        Justification = 'ShouldProcess is delegated to the shared scaffold Invoke-ImperionBronzePost via -CallerCmdlet $PSCmdlet (issue #105).')]
     param(
         [Parameter(ValueFromPipeline)][AllowNull()] $Row,
         $Connection,
@@ -44,32 +49,10 @@ function Set-ImperionAzureSubscriptionToBronze {
         $collected = [System.Collections.Generic.List[object]]::new()
     }
     process {
-        foreach ($r in $Row) {
-            if ($null -eq $r) { continue }
-            $projected = [ordered]@{}
-            foreach ($column in $tableColumns) { $projected[$column] = Get-ImperionMember $r $column }
-            $collected.Add([pscustomobject]$projected)
-        }
+        foreach ($r in $Row) { if ($null -ne $r) { $collected.Add($r) } }
     }
     end {
-        if ($collected.Count -eq 0) {
-            Write-ImperionLog -Source 'azure' -Message "${Table}: 0 rows to write."
-            return [pscustomobject]@{ scanned = 0; inserted = 0; updated = 0; unchanged = 0 }
-        }
-        if (-not $PSCmdlet.ShouldProcess("$Table ($($collected.Count) rows)", 'bronze upsert')) {
-            return [pscustomobject]@{ scanned = $collected.Count; inserted = 0; updated = 0; unchanged = 0 }
-        }
-
-        $ownsConnection = $false
-        $conn = $Connection
-        if (-not $conn) { $conn = New-ImperionDbConnection; $ownsConnection = $true }
-        try {
-            $tally = Invoke-ImperionBronzeUpsert -Connection $conn -Table $Table -Rows $collected.ToArray()
-            Write-ImperionLog -Level Metric -Source 'azure' -Message "$Table written." -Data @{
-                table = $Table; scanned = $tally.scanned; inserted = $tally.inserted; updated = $tally.updated; unchanged = $tally.unchanged
-            }
-            return $tally
-        }
-        finally { if ($ownsConnection) { $conn.Dispose() } }
+        Invoke-ImperionBronzePost -CallerCmdlet $PSCmdlet -Connection $Connection `
+            -Rows $collected.ToArray() -Table $Table -LogSource 'azure' -ColumnSet $tableColumns
     }
 }

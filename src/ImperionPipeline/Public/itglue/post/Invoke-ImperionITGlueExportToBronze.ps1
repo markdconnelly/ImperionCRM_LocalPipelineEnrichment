@@ -17,6 +17,11 @@ function Invoke-ImperionITGlueExportToBronze {
         (itglue_export_relationship) are not written here — they stay with
         Invoke-ImperionITGlueExport's delete-then-insert pass, which owns the full snapshot.
 
+        Multi-table router (issue #105): it keeps its own batch-level ShouldProcess gate and
+        connection lifecycle, then delegates each routed table's upsert + metric log to the
+        shared scaffold Invoke-ImperionBronzePost in its ungated router mode (the batch is
+        already gated, so no -CallerCmdlet is passed).
+
         Idempotent/resumable. Pass an open -Connection to share one across the whole batch;
         otherwise a connection is opened per call and disposed. Requires
         Initialize-ImperionContext.
@@ -100,12 +105,8 @@ function Invoke-ImperionITGlueExportToBronze {
         try {
             $combined = [ordered]@{ scanned = 0; inserted = 0; updated = 0; unchanged = 0 }
             foreach ($entityName in $rowsByEntity.Keys) {
-                $table = "itglue_export_$entityName"
-                $tally = Invoke-ImperionBronzeUpsert -Connection $conn -Table $table `
-                    -Rows $rowsByEntity[$entityName].ToArray() -KeyColumns @('source', 'external_id')
-                Write-ImperionLog -Level Metric -Source 'itglue' -Message "$table written." -Data @{
-                    table = $table; scanned = $tally.scanned; inserted = $tally.inserted; updated = $tally.updated; unchanged = $tally.unchanged
-                }
+                $tally = Invoke-ImperionBronzePost -Connection $conn -Table "itglue_export_$entityName" `
+                    -Rows $rowsByEntity[$entityName].ToArray() -LogSource 'itglue' -KeyColumns @('source', 'external_id')
                 $combined.scanned += $tally.scanned; $combined.inserted += $tally.inserted
                 $combined.updated += $tally.updated; $combined.unchanged += $tally.unchanged
             }
