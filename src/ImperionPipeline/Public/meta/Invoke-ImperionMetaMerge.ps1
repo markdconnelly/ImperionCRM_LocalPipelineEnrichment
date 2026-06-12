@@ -70,7 +70,8 @@ SELECT 'facebook'::interaction_source, 'social_post', left(b.message, 140), 'out
        CASE WHEN b.created_time ~ '^\d{4}-\d{2}-\d{2}' THEN b.created_time::timestamptz
             ELSE b.collected_at::timestamptz END
   FROM facebook_posts b
- WHERE NOT EXISTS (SELECT 1 FROM interaction i
+ WHERE b.external_id <> ''   -- defense-in-depth vs envelope rows (#133)
+   AND NOT EXISTS (SELECT 1 FROM interaction i
                     WHERE i.source = 'facebook' AND i.external_ref = b.external_id)
 "@
             }
@@ -87,7 +88,8 @@ SELECT 'facebook'::interaction_source, 'social_comment', left(b.message, 140), '
        CASE WHEN b.created_time ~ '^\d{4}-\d{2}-\d{2}' THEN b.created_time::timestamptz
             ELSE b.collected_at::timestamptz END
   FROM facebook_comments b
- WHERE NOT EXISTS (SELECT 1 FROM interaction i
+ WHERE b.external_id <> ''   -- defense-in-depth vs envelope rows (#133)
+   AND NOT EXISTS (SELECT 1 FROM interaction i
                     WHERE i.source = 'facebook' AND i.external_ref = b.external_id)
 "@
             }
@@ -104,7 +106,8 @@ SELECT 'instagram'::interaction_source, 'social_post', left(b.caption, 140), 'ou
        CASE WHEN b.created_time ~ '^\d{4}-\d{2}-\d{2}' THEN b.created_time::timestamptz
             ELSE b.collected_at::timestamptz END
   FROM instagram_media b
- WHERE NOT EXISTS (SELECT 1 FROM interaction i
+ WHERE b.external_id <> ''   -- defense-in-depth vs envelope rows (#133)
+   AND NOT EXISTS (SELECT 1 FROM interaction i
                     WHERE i.source = 'instagram' AND i.external_ref = b.external_id)
 "@
             }
@@ -121,7 +124,8 @@ SELECT 'instagram'::interaction_source, 'social_comment', left(b.comment_text, 1
        CASE WHEN b.created_time ~ '^\d{4}-\d{2}-\d{2}' THEN b.created_time::timestamptz
             ELSE b.collected_at::timestamptz END
   FROM instagram_comments b
- WHERE NOT EXISTS (SELECT 1 FROM interaction i
+ WHERE b.external_id <> ''   -- defense-in-depth vs envelope rows (#133)
+   AND NOT EXISTS (SELECT 1 FROM interaction i
                     WHERE i.source = 'instagram' AND i.external_ref = b.external_id)
 "@
             }
@@ -139,7 +143,8 @@ SELECT 'facebook'::interaction_source, 'dm', left(b.message, 140),
        CASE WHEN b.created_time ~ '^\d{4}-\d{2}-\d{2}' THEN b.created_time::timestamptz
             ELSE b.collected_at::timestamptz END
   FROM facebook_messages b
- WHERE NOT EXISTS (SELECT 1 FROM interaction i
+ WHERE b.external_id <> ''   -- defense-in-depth vs envelope rows (#133)
+   AND NOT EXISTS (SELECT 1 FROM interaction i
                     WHERE i.source = 'facebook' AND i.external_ref = b.external_id)
 "@
             }

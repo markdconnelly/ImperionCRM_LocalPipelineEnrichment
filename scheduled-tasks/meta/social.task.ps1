@@ -28,17 +28,22 @@ $sinceDays = if ($env:IMPERION_META_SINCE_DAYS) { [int]$env:IMPERION_META_SINCE_
 $since = if ($sinceDays -le 0) { $null } else { (Get-Date).AddDays(-$sinceDays).ToUniversalTime().ToString('o') }
 
 try {
-    $postParameters = @{ PageId = $pageId }
+    # New Pages Experience rejects the system-user token for page-scoped reads
+    # (OAuthException 2069032, verified live 2026-06-12, #133): hop to the PAGE
+    # token once and pass it to every get. Held in memory only, never logged.
+    $pageToken = Get-ImperionMetaPageToken -PageId $pageId
+
+    $postParameters = @{ PageId = $pageId; Token = $pageToken }
     if ($since) { $postParameters.Since = $since }
     $posts = @(Get-ImperionMetaPagePost @postParameters)
     $posts | Set-ImperionMetaPostToBronze
-    $posts | Get-ImperionMetaPostComment | Set-ImperionMetaCommentToBronze
+    $posts | Get-ImperionMetaPostComment -Token $pageToken | Set-ImperionMetaCommentToBronze
 
-    Get-ImperionMetaConversation -PageId $pageId | Set-ImperionMetaMessageToBronze
+    Get-ImperionMetaConversation -PageId $pageId -PageToken $pageToken | Set-ImperionMetaMessageToBronze
 
-    $media = @(Get-ImperionInstagramMedia -PageId $pageId)
+    $media = @(Get-ImperionInstagramMedia -PageId $pageId -Token $pageToken)
     $media | Set-ImperionInstagramMediaToBronze
-    $media | Get-ImperionInstagramComment | Set-ImperionInstagramCommentToBronze
+    $media | Get-ImperionInstagramComment -Token $pageToken | Set-ImperionInstagramCommentToBronze
 
     Invoke-ImperionMetaMerge
 }

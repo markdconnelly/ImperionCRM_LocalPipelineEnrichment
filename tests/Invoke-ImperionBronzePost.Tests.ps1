@@ -178,6 +178,56 @@ Describe 'Invoke-ImperionBronzePost' {
         }
     }
 
+    It 'dedupes intra-batch duplicate conflict keys, last occurrence wins (#133)' {
+        InModuleScope ImperionPipeline {
+            $script:dedupeLog = $null
+            Mock Write-ImperionLog { if ($Message -like '*deduped*') { $script:dedupeLog = $Message } }
+            Mock New-ImperionDbConnection {
+                [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { }
+            }
+            $captured = $null
+            Mock Invoke-ImperionBronzeUpsert {
+                $script:captured = @($Rows)
+                [pscustomobject]@{ scanned = @($Rows).Count; inserted = @($Rows).Count; updated = 0; unchanged = 0 }
+            }
+
+            # The same comment id surfacing under two posts: identical (tenant, source,
+            # external_id), different payloads. The LAST row must win.
+            $rows = @(
+                [pscustomobject]@{ tenant_id = 't'; source = 'facebook'; external_id = 'c1'; post_external_id = 'p1'; content_hash = 'a' }
+                [pscustomobject]@{ tenant_id = 't'; source = 'facebook'; external_id = 'c2'; post_external_id = 'p1'; content_hash = 'b' }
+                [pscustomobject]@{ tenant_id = 't'; source = 'facebook'; external_id = 'c1'; post_external_id = 'p2'; content_hash = 'c' }
+            )
+            Invoke-ImperionBronzePost -Rows $rows -Table 'facebook_comments' -LogSource 'meta' | Out-Null
+
+            $script:captured.Count | Should -Be 2
+            ($script:captured | Where-Object external_id -eq 'c1').post_external_id | Should -Be 'p2'
+            $script:dedupeLog | Should -Be 'facebook_comments: deduped 1 intra-batch duplicate key(s).'
+        }
+    }
+
+    It 'dedupes on the projected external_ref key under -PerSourceShape' {
+        InModuleScope ImperionPipeline {
+            Mock Write-ImperionLog { }
+            Mock New-ImperionDbConnection {
+                [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { }
+            }
+            Mock Invoke-ImperionBronzeUpsert {
+                $script:captured = @($Rows)
+                [pscustomobject]@{ scanned = @($Rows).Count; inserted = @($Rows).Count; updated = 0; unchanged = 0 }
+            }
+
+            $rows = @(
+                [pscustomobject]@{ external_id = 'x1'; raw_payload = '{"v":1}' }
+                [pscustomobject]@{ external_id = 'x1'; raw_payload = '{"v":2}' }
+            )
+            Invoke-ImperionBronzePost -Rows $rows -Table 'televy_reports' -LogSource 'televy' -PerSourceShape | Out-Null
+
+            $script:captured.Count | Should -Be 1
+            $script:captured[0].payload_bronze | Should -Be '{"v":2}'
+        }
+    }
+
     It 'emits the metric log line with the table and full tally' {
         InModuleScope ImperionPipeline {
             $script:metricLog = $null
