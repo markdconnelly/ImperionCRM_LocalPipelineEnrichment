@@ -30,6 +30,20 @@ Postgres bronze. **Check for updates; if nothing changed, move on.**
 solution. Enumerate workspaces first; query Sentinel objects only for workspaces that have
 it. A workspace without Sentinel simply yields zero rules — log and move on, not an error.
 
+## Cmdlets (as built)
+
+Two producers exist for the same bronze tables (idempotent — both change-detect on
+`content_hash`, so overlap never duplicates):
+
+- **`Invoke-ImperionAzureInventorySync`** — the original monolithic sync (Azure estate +
+  Sentinel + management groups in one pass).
+- **Per-entity composition (issue #97):** `Get-ImperionSentinelObject` (one traversal:
+  subscriptions → workspaces → analytic/automation rules + watchlists, plus per-subscription
+  workbooks; rows carry an `entity` discriminator) piped to **`Set-ImperionSentinelToBronze`**
+  (multi-table router projecting each entity to its exact migration-0038 column set) — the
+  `scheduled-tasks/azure/sentinel.task.ps1` task. Permissions: the existing **Reader** grant
+  only (`*/read`); no new consent.
+
 ## Flattened fields (representative)
 - **Management group:** `id` · `name` · `displayName` · `tenantId` · `parent`.
 - **Subscription:** `subscriptionId` · `displayName` · `state` · `tenantId` · mgmt-group parent.

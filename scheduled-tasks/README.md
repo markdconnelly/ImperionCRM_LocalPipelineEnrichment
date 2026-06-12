@@ -33,7 +33,8 @@ Register-ImperionTask -Name 'Imperion m365 Mail' `
 | **m365** | `m365/teams-meeting` | Teams meetings (filtered) | **Every 4h** | Meetings are less frequent |
 | **m365** | `m365/users` | Users | **Daily** | Slow-changing |
 | **m365** | `m365/devices` | Devices | **Daily** | Slow-changing |
-| **azure** | `azure/inventory` | Subs/RGs/resources/Sentinel | **Daily** | Inventory drift is slow |
+| **azure** | `azure/inventory` | Subs/RGs/resources | **Daily** | Inventory drift is slow |
+| **azure** | `azure/sentinel` | Sentinel rules/watchlists/workbooks | **Daily** | Config drift is slow; skips non-Sentinel workspaces |
 | **autotask** | `autotask/companies` | Companies | **Daily** | Slow-changing |
 | **autotask** | `autotask/contacts` | Contacts | **Daily** | Slow-changing |
 | **autotask** | `autotask/contracts` | Contracts | **Daily** | Slow-changing |
@@ -62,8 +63,8 @@ connect → get → post → task). Landed: `posture/service-principals`, `autot
 `autotask/tickets`, `telivy/assessments`, `darkwebid/compromises`, `docusign/envelopes`
 (gated on the SecretStore secrets — see `docs/integrations/docusign.md`), `m365/users`,
 `m365/devices`, `itglue/organizations`, `itglue/contacts`, `itglue/configurations`,
-`itglue/export`, and `azure/inventory` (per-entity get → post composition; Sentinel +
-management groups stay with `Invoke-ImperionAzureInventorySync` until the Sentinel get
-lands). Still to land: the m365 communications tasks (`mail`, `teams-chat`,
-`teams-meeting`), `autotask/companies`, `autotask/contacts`, the remaining posture tasks,
-and `kaseya/import`.
+`itglue/export`, `azure/inventory` (per-entity get → post composition; management groups
+stay with `Invoke-ImperionAzureInventorySync`), and `azure/sentinel` (the Sentinel get →
+multi-table router post, issue #97). Still to land: the m365 communications tasks
+(`mail`, `teams-chat`, `teams-meeting`), `autotask/companies`, `autotask/contacts`, the
+remaining posture tasks, and `kaseya/import`.

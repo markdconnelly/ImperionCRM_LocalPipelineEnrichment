@@ -68,6 +68,7 @@
         'Get-ImperionAzureSubscription',
         'Get-ImperionAzureResourceGroup',
         'Get-ImperionAzureResource',
+        'Get-ImperionSentinelObject',
         'Get-ImperionITGlueOrganization',
         'Get-ImperionITGlueContact',
         'Get-ImperionITGlueConfiguration',
@@ -88,6 +89,7 @@
         'Set-ImperionAzureSubscriptionToBronze',
         'Set-ImperionAzureResourceGroupToBronze',
         'Set-ImperionAzureResourceToBronze',
+        'Set-ImperionSentinelToBronze',
         'Invoke-ImperionITGlueExportToBronze',
         # Gold knowledge + vectorization (ADR-0009; front-end migration 0045)
         'Get-ImperionKnowledgeAccount',
