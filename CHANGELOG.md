@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.6.0...v0.6.1) (2026-06-12)
+
+
+### Bug Fixes
+
+* **meta:** page-token hop, empty-envelope unwrap, intra-batch dedupe ([#133](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/133)) ([#134](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/134)) ([fc45032](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/fc4503229299c050cc8ec3b88fb8e5504302a31d))
+
 ## [0.6.0](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.5.0...v0.6.0) (2026-06-12)
 
 
