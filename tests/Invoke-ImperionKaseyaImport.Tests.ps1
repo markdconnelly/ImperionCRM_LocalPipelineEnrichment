@@ -10,8 +10,8 @@ Describe 'Invoke-ImperionKaseyaImport' {
     BeforeEach {
         InModuleScope ImperionPipeline {
             Mock Get-ImperionConfig { @{ PartnerTenantId = 't1' } }
-            Mock Get-ImperionSecretNames { @{ AutotaskUserName = 'autotask-username'; AutotaskIntegrationCode = 'autotask-integration-code'; AutotaskSecret = 'autotask-secret'; KqmBaseUri = 'kqm-base-uri'; KqmApiKey = 'kqm-api-key' } }
-            Mock Get-ImperionSecretValue { param($Name) if ($Name -eq 'kqm-base-uri') { 'https://kqm.example' } else { 'secret-value' } }
+            Mock Get-ImperionSecretNames { @{ AutotaskUserName = 'autotask-username'; AutotaskIntegrationCode = 'autotask-integration-code'; AutotaskSecret = 'autotask-secret'; KqmApiKey = 'kqm-api-key'; KqmApiKeyVaultSecret = 'KQM-API-Key' } }
+            Mock Get-ImperionSecretValue { 'secret-value' }
             Mock New-ImperionDbConnection { [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { } }
             Mock Write-ImperionLog { }
         }
@@ -31,13 +31,16 @@ Describe 'Invoke-ImperionKaseyaImport' {
         }
     }
 
-    It 'loads KQM proposals and does not throw when the body has no data wrapper' {
+    It 'loads KQM proposals through the verified collector path (issue #98 delegation)' {
         InModuleScope ImperionPipeline {
-            Mock Invoke-ImperionRestWithRetry { [pscustomobject]@{ Body = [pscustomobject]@{ id = 'q1'; name = 'Quote 1'; status = 'draft' } } }   # no 'data'
+            Mock Get-ImperionKeyVaultSecret { 'kv-kqm-key' }   # SecretStore not unlocked in tests -> KV original
+            Mock Invoke-ImperionKqmRequest { , @([pscustomobject]@{ id = 'q1'; name = 'Quote 1'; status = 'draft' }) }
             $tables = @{}
             Mock Invoke-ImperionBronzeUpsert { $tables[$Table] = $Rows; [pscustomobject]@{ scanned = 1; inserted = 1; updated = 0; unchanged = 0 } }
 
             { Invoke-ImperionKaseyaImport -Entity Proposals } | Should -Not -Throw
+            # The connect layer receives the key separately; the URI it is handed carries no apikey.
+            Should -Invoke Invoke-ImperionKqmRequest -Times 1 -ParameterFilter { $ApiKey -eq 'kv-kqm-key' -and $Uri -notmatch 'apikey' }
             $tables.ContainsKey('kqm_proposals') | Should -BeTrue
             $tables['kqm_proposals'][0].name | Should -Be 'Quote 1'
         }

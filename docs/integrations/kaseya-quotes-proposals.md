@@ -6,10 +6,30 @@ Postgres bronze. These are **pure CRM/support data**: they flatten **directly to
 and **skip the IT Glue hub** (ADR-0006).
 
 ## Sources & auth
-| Source | API | Auth (secrets from SecretStore) |
+| Source | API | Auth |
 | --- | --- | --- |
-| KQM (Quote Manager) | Quote Manager API | API key / token |
-| Autotask | REST API `https://webservicesN.autotask.net/atservicesrest/v1.0/` | `ApiIntegrationCode` + `UserName` + `Secret` headers |
+| KQM (Quote Manager) | read-only REST `https://api.kaseyaquotemanager.com/v1/` | API key as **`?apikey=` querystring** — SecretStore `kqm-api-key` (mirror), else Key Vault `KQM-API-Key` (original, kv-imperioncrm-prd) via the cert SP |
+| Autotask | REST API `https://webservicesN.autotask.net/atservicesrest/v1.0/` | `ApiIntegrationCode` + `UserName` + `Secret` headers (SecretStore) |
+
+### KQM — verified API facts (issue #98, 2026-06-12)
+- **Read-only / pull-only** (no webhooks); docs at api.dattocommerce.com/docs.
+- Endpoints confirmed in the public docs: `quote`, `salesorder`, `supplier`, `warehouse`.
+- **Auth: `?apikey=` querystring → every request URL is SECRET-BEARING.** The connect
+  layer (`Invoke-ImperionKqmRequest`) appends the key internally and the retry core
+  redacts apikey-style parameters from all logs/errors. Never log a full KQM URL.
+- **Paging:** `?page=N` from 1, max 100 results/page; the loop stops on a short page,
+  hard-capped by `-MaxPages` (default 190 ≈ 19k rows).
+- **Limits:** 60 calls/min and 20,000 calls/day; 429 + `Retry-After` handled by backoff.
+- **Incremental:** `modifiedAfter=<url-encoded ISO timestamp>` (recommended by the docs).
+
+### KQM — verify the live shape FIRST (the issue-#98 gate)
+The docs do **not** enumerate response fields, so the flat-column map in
+`Get-ImperionKqmProposal` is an **assumption chain** (each column tries several plausible
+names; misses land NULL while `raw_payload` keeps everything). Before trusting flat
+columns: run **`Get-ImperionKqmFieldName`** (one page; emits field NAMES/types/non-null
+tallies, **never values** — safe to paste into an issue), then correct the map in
+`Get-ImperionKqmProposal` and, if the real shape diverges from `kqm_proposals`
+(front-end migration 0038), propose a migration in the front-end repo.
 
 ## Entities & Postgres targets (bronze)
 | Entity | Source(s) | Bronze table (logical) |
@@ -69,5 +89,7 @@ real-time, internet-facing. This repo does the **scheduled bulk poll** of ticket
   `sql/kaseya_bronze_schema.sql` (the curated subset; full payload in `raw_payload`).
 
 ## Still assumptions (no live access yet)
-- KQM API surface and pagination (`kqm_proposals` columns).
+- KQM quote **response field names** (`kqm_proposals` flat columns) — auth, base URL,
+  paging, and limits are now VERIFIED (above); run `Get-ImperionKqmFieldName` on first
+  live access to settle the fields.
 - DocuSign contract retrieval path (envelopes API) and what counts as a "contract" record.
