@@ -89,6 +89,7 @@
         'Set-ImperionPlaudRecordingToBronze',
         'Set-ImperionM365UserToBronze',
         'Set-ImperionM365DeviceToBronze',
+        'Set-ImperionIntuneManagedDeviceToBronze',
         'Set-ImperionITGlueOrganizationToBronze',
         'Set-ImperionITGlueContactToBronze',
         'Set-ImperionITGlueConfigurationToBronze',
