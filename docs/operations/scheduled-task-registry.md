@@ -25,6 +25,7 @@ task command is `pwsh -Command "Import-Module ImperionPipeline; Initialize-Imper
 | IT Glue full export → Postgres | `scheduled-tasks/itglue/export.task.ps1` (`Invoke-ImperionITGlueExport`) | daily/12h | per-type + relationships; ad-hoc slices via `Invoke-ImperionITGlueExportToBronze` |
 | Telivy assessments | `scheduled-tasks/telivy/assessments.task.ps1` | daily | → `televy_reports` (ADR-0039 shape) |
 | Dark Web ID compromises | `scheduled-tasks/darkwebid/compromises.task.ps1` | daily | company credential from Key Vault (`conn-company-darkwebid`) |
+| DocuSign envelopes | `scheduled-tasks/docusign/envelopes.task.ps1` | daily | → `docusign_contracts` (standard envelope); GATED — logs+exits until `docusign-token`/`docusign-account-id` provisioned (docs/integrations/docusign.md) |
 | Kaseya proposals/contracts/tickets | `Invoke-ImperionKaseyaImport` | hourly–daily | bulk upsert, watermarked |
 | GDAP relationship health | (build-order task) | hourly | fail-closed surfacing |
 | **Gold knowledge + vectorization** | `Invoke-ImperionKnowledgeSync -Vectorize` | nightly 04:30 (after ingests) | composes knowledge_object from silver, chunks (v1), embeds via Voyage @ 1024; chunk-hash idempotent — no re-bill (ADR-0009) |

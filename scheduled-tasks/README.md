@@ -44,6 +44,7 @@ Register-ImperionTask -Name 'Imperion m365 Mail' `
 | **itglue** | `itglue/export` | Full dataset | **Daily** | Documentation snapshot |
 | **telivy** | `telivy/assessments` | Assessments | **Daily** | Assessments change slowly |
 | **darkwebid** | `darkwebid/compromises` | Compromises | **Daily** | Vendor refreshes ~daily |
+| **docusign** | `docusign/envelopes` | Envelopes (contracts) | **Daily** | Signing lifecycle is slow; gated on secrets |
 | **posture** | `posture/service-principals` | Service principals | **Daily** | Credential-expiry watch |
 | **posture** | `posture/secure-score` | Secure Score | **Daily** | One snapshot/day |
 | **posture** | `posture/policies` | CA/Intune/Defender + drift | **Daily** | Config drift |
@@ -58,7 +59,8 @@ Register-ImperionTask -Name 'Imperion m365 Mail' `
 
 Task files land as their `get`/`post` functions are built and tested (build order:
 connect → get → post → task). Landed: `posture/service-principals`, `autotask/contracts`,
-`autotask/tickets`, `telivy/assessments`, `darkwebid/compromises`, `m365/users`,
+`autotask/tickets`, `telivy/assessments`, `darkwebid/compromises`, `docusign/envelopes`
+(gated on the SecretStore secrets — see `docs/integrations/docusign.md`), `m365/users`,
 `m365/devices`, `itglue/organizations`, `itglue/contacts`, `itglue/configurations`,
 `itglue/export`, and `azure/inventory` (per-entity get → post composition; Sentinel +
 management groups stay with `Invoke-ImperionAzureInventorySync` until the Sentinel get

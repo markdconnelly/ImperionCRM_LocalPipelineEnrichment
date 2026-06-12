@@ -25,7 +25,11 @@
     KqmBaseUri              = 'kqm-base-uri'
 
     # Other CRM/enrichment sources — placeholders until provisioned.
+    # DocuSign (issue #99): the OAuth access token + the eSignature API account id (GUID
+    # from the OAuth userinfo endpoint). Tokens EXPIRE — see docs/integrations/docusign.md;
+    # the envelopes task logs + exits cleanly until both are provisioned.
     DocuSignToken           = 'docusign-token'
+    DocuSignAccountId       = 'docusign-account-id'
     ApolloApiKey            = 'apollo-api-key'
 
     # Voyage AI key for the vectorization stage (ADR-0009; pinned voyage-3-large @ 1024,
