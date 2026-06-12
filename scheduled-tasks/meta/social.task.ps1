@@ -3,8 +3,9 @@
 # instagram_comments, front-end migration 0075), then the local silver merge
 # (Invoke-ImperionMetaMerge: interaction + DM-sender lead capture). Cadence: Daily
 # (scheduled-tasks/README.md) - organic social is slow-moving; well inside Meta's
-# per-app rate budget. Credential: SecretStore 'meta-system-user-token' ONLY (no Key
-# Vault fallback - on-prem custody, ADR-0013). GATED: until IMPERION_META_PAGE_ID and
+# per-app rate budget. Credential (the KQM pattern, ADR-0013): SecretStore mirror
+# 'meta-system-user-token', else Key Vault original 'Meta-SystemUser-Token'.
+# GATED: until IMPERION_META_PAGE_ID and
 # the token are provisioned (and 0075 is applied to prod), the task logs the gap and
 # exits cleanly (never crashes the schedule). DM payloads are PII - never add logging
 # of row contents here. Registration deferred to server bringup (#102).

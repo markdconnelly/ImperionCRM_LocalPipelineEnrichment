@@ -3,9 +3,9 @@
 # meta_insights -> social_metric; the other merge steps are idempotent no-ops here).
 # Cadence: Daily (scheduled-tasks/README.md) - period=day metrics produce one point per
 # day; metrics are requested ONE AT A TIME so a deprecated metric warns and never aborts
-# the run. Credential: SecretStore 'meta-system-user-token' ONLY (no Key Vault fallback -
-# on-prem custody, ADR-0013). GATED like meta/social. Registration deferred to server
-# bringup (#102).
+# the run. Credential (the KQM pattern, ADR-0013): SecretStore mirror
+# 'meta-system-user-token', else Key Vault original 'Meta-SystemUser-Token'.
+# GATED like meta/social. Registration deferred to server bringup (#102).
 #
 #   Register-ImperionTask -Name 'Imperion meta insights' `
 #     -Command 'Import-Module ImperionPipeline; Initialize-ImperionContext; & "<repo>\scheduled-tasks\meta\insights.task.ps1"' `
