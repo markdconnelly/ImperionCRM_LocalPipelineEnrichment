@@ -23,6 +23,22 @@ Every source pull flattens to a `[PSCustomObject]` table carrying the same envel
   ADR-0039 / pipeline ADR-0009).
 - **Gold** — summaries + knowledge objects across **CRM and support**, feeding the agent.
 
+## The post-writer scaffold (one deep module)
+Every `Set-Imperion*ToBronze` post-layer writer is a thin adapter over the module-internal
+`Invoke-ImperionBronzePost` (issue #105): the adapter collects pipeline rows and declares
+**table + envelope shape + log source**; the scaffold owns the empty-input zero tally, the
+delegated `ShouldProcess` gate, the own-vs-reuse connection lifecycle (ADR-0003), the
+`Invoke-ImperionBronzeUpsert` call, and the metric log line. Three envelope shapes:
+- **Standard envelope** (default) — rows pass through as-is; change-detected upsert on
+  `(tenant_id, source, external_id)`.
+- **Per-source shape** (`-PerSourceShape`, front-end ADR-0039 tables) — rows project to
+  `{ external_ref ← external_id, payload_bronze ← raw_payload }`, upsert on `external_ref`
+  with `-NoChangeDetect` (no `content_hash` column; the merge resolves change).
+- **Column-set projection** (`-ColumnSet`, over-collecting collectors) — rows project to
+  exactly the migration-defined column set; extras survive only in `raw_payload`.
+
+New collectors add a ~15-line adapter, never a new copy of the scaffold.
+
 ## Idempotency (mandatory)
 A re-run converges, never duplicates. Unchanged `content_hash` → no write, no re-embed.
 
