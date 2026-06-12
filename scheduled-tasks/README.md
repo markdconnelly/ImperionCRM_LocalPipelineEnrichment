@@ -47,6 +47,7 @@ Register-ImperionTask -Name 'Imperion m365 Mail' `
 | **darkwebid** | `darkwebid/compromises` | Compromises | **Daily** | Vendor refreshes ~daily |
 | **docusign** | `docusign/envelopes` | Envelopes (contracts) | **Daily** | Signing lifecycle is slow; gated on secrets |
 | **unifi** | `unifi/devices` | Devices + config compliance | **Daily** | Per-customer credential; double-gated (credential + pending bronze migration) |
+| **plaud** | `plaud/recordings` | Recordings (note + transcript) | **Daily** | Per-user OAuth token; double-gated (token freshness + pending bronze migration) |
 | **posture** | `posture/service-principals` | Service principals | **Daily** | Credential-expiry watch |
 | **posture** | `posture/secure-score` | Secure Score | **Daily** | One snapshot/day |
 | **posture** | `posture/policies` | CA/Intune/Defender + drift | **Daily** | Config drift |

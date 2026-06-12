@@ -32,6 +32,11 @@
     DocuSignAccountId       = 'docusign-account-id'
     ApolloApiKey            = 'apollo-api-key'
 
+    # Plaud (issue #72): the per-user OAuth token Mark grants once in a browser — raw
+    # access token or a JSON blob { access_token, refresh_token, expires_at }. Refresh can
+    # break and need a human re-login; the recordings task logs + exits cleanly until then.
+    PlaudOAuthToken         = 'plaud-oauth-token'
+
     # Voyage AI key for the vectorization stage (ADR-0009; pinned voyage-3-large @ 1024,
     # front-end ADR-0041). Resolution order in Get-ImperionVoyageEmbedding:
     #   1. SecretStore title below (when the vault is unlocked this run) — mirror of the KV value
