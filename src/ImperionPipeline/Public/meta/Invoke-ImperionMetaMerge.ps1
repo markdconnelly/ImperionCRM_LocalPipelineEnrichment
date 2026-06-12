@@ -232,6 +232,7 @@ SELECT CASE WHEN b.entity_kind = 'page' THEN 'facebook' ELSE 'instagram' END,
             ELSE b.collected_at::timestamptz END
   FROM meta_insights b
  WHERE b.entity_kind IS NOT NULL AND b.entity_external_id IS NOT NULL AND b.metric IS NOT NULL
+   AND b.period IS NOT NULL  -- NULLs are distinct under the unique key: a NULL period would defeat ON CONFLICT and duplicate on re-run
 ON CONFLICT (platform, entity_kind, entity_external_id, metric, period, captured_at) DO NOTHING
 "@
 

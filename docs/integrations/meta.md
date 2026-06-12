@@ -17,11 +17,13 @@ locally (`Invoke-ImperionMetaMerge`, the posture-merge precedent).
 - **Scopes:** `pages_show_list`, `pages_read_engagement`, `pages_read_user_content`,
   `pages_messaging`, `pages_manage_metadata`, `read_insights`, `instagram_basic`,
   `instagram_manage_insights`, `business_management`.
-- **Custody: SecretStore ONLY** — secret title `meta-system-user-token` (config key
-  `MetaSystemUserToken`). There is deliberately **no Key Vault fallback**
-  (`Resolve-ImperionMetaToken`): the token is non-expiring and powerful, so it lives
-  exclusively in the on-prem, cert-unlocked vault (ADR-0002/ADR-0013). Provision:
-  `Set-Secret -Name meta-system-user-token -Vault <vault>`.
+- **Custody (the KQM pattern, ADR-0013):** `Resolve-ImperionMetaToken` resolves
+  explicit `-Token` → SecretStore mirror `meta-system-user-token` (config key
+  `MetaSystemUserToken`) → Key Vault original `Meta-SystemUser-Token` (config key
+  `MetaTokenVaultSecret`, read by the cert SP). The Key Vault original is the interim
+  path until the server's SecretStore bootstrap (#102) mirrors it on-prem
+  (`Set-Secret -Name meta-system-user-token -Vault <vault>`); after mirroring, the
+  Key Vault copy may be deleted to narrow custody of this non-expiring token.
 - **Transport:** the token rides the `Authorization: Bearer` header — never the
   querystring. Meta's `paging.next` URLs embed `access_token=`; the connect layer
   (`Invoke-ImperionMetaRequest`) strips it before following, so no secret-bearing URL

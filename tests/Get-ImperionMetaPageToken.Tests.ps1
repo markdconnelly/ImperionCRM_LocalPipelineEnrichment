@@ -62,12 +62,29 @@ Describe 'Resolve-ImperionMetaToken' {
         }
     }
 
-    It 'has NO Key Vault fallback: throws when the SecretStore cannot supply it' {
+    It 'falls back to the Key Vault original when the SecretStore cannot supply it (the KQM pattern)' {
         InModuleScope ImperionPipeline {
             Mock Get-ImperionSecretNames { @{ MetaSystemUserToken = 'meta-system-user-token' } }
-            Mock Get-ImperionKeyVaultSecret { 'kv-must-not-win' }
-            { Resolve-ImperionMetaToken } | Should -Throw '*no Key Vault fallback*'
-            Should -Invoke Get-ImperionKeyVaultSecret -Times 0
+            Mock Get-ImperionKeyVaultSecret { 'kv-token' }
+            Resolve-ImperionMetaToken | Should -Be 'kv-token'
+            Should -Invoke Get-ImperionKeyVaultSecret -Times 1 -ParameterFilter { $Name -eq 'Meta-SystemUser-Token' }
+        }
+    }
+
+    It 'honors the MetaTokenVaultSecret name override for the Key Vault fallback' {
+        InModuleScope ImperionPipeline {
+            Mock Get-ImperionSecretNames { @{ MetaTokenVaultSecret = 'Custom-Meta-Secret' } }
+            Mock Get-ImperionKeyVaultSecret { 'kv-token' }
+            Resolve-ImperionMetaToken | Should -Be 'kv-token'
+            Should -Invoke Get-ImperionKeyVaultSecret -Times 1 -ParameterFilter { $Name -eq 'Custom-Meta-Secret' }
+        }
+    }
+
+    It 'throws loudly when neither store can supply the token' {
+        InModuleScope ImperionPipeline {
+            Mock Get-ImperionSecretNames { @{ MetaSystemUserToken = 'meta-system-user-token' } }
+            Mock Get-ImperionKeyVaultSecret { $null }
+            { Resolve-ImperionMetaToken } | Should -Throw '*Meta system-user token unavailable*'
         }
     }
 }

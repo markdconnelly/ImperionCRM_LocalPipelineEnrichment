@@ -29,11 +29,13 @@
     KqmApiKeyVaultSecret    = 'KQM-API-Key'
 
     # Meta Business Manager (issue #126) — the Business Manager SYSTEM-USER token
-    # (non-expiring). ON-PREM CUSTODY ONLY: resolution in Resolve-ImperionMetaToken is
-    # explicit -Token, else this SecretStore title — there is deliberately NO Key Vault
-    # fallback (ADR-0013). The connect layer sends it as an Authorization: Bearer header
+    # (non-expiring). Resolution in Resolve-ImperionMetaToken mirrors the KQM pattern:
+    # explicit -Token, else the SecretStore mirror below, else the Key Vault original
+    # (operator-provisioned, the interim path until #102 bootstraps the SecretStore;
+    # ADR-0013). The connect layer sends it as an Authorization: Bearer header
     # (never the querystring) and strips access_token from Meta's paging URLs.
     MetaSystemUserToken     = 'meta-system-user-token'
+    MetaTokenVaultSecret    = 'Meta-SystemUser-Token'
 
     # Other CRM/enrichment sources — placeholders until provisioned.
     # DocuSign (issue #99): the OAuth access token + the eSignature API account id (GUID

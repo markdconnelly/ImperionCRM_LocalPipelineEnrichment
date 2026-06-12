@@ -48,19 +48,26 @@ inbound network surface.
    real-time complements, not a bulk backfill; standing up a public verified endpoint
    + app review for messaging webhooks is heavy. May be revisited as a future ADR for
    sub-minute DM reaction; bulk polling stays here regardless (ADR-0042 boundary).
-4. **Key Vault custody with SecretStore mirror (the KQM pattern).** Rejected: the
-   token is non-expiring and grants messaging read — putting a copy in the cloud
-   widens the blast radius for zero operational gain (only this node consumes it).
-   Hence Resolve-ImperionMetaToken has deliberately NO Key Vault fallback.
+4. **Key Vault custody with SecretStore mirror (the KQM pattern) — CHOSEN for the
+   token path.** A SecretStore-only stance was considered (a non-expiring,
+   messaging-read token gets no cloud copy), but rejected on run-path reality: the
+   SecretStore unattended bootstrap is part of server bringup (#102), and
+   bootstrapping it on the interim workstation would reconfigure that user's global
+   SecretStore password (breaking unrelated personal vaults). So the token follows
+   the established KQM/Voyage resolution exactly: explicit `-Token` → SecretStore
+   mirror → Key Vault original (`Meta-SystemUser-Token`, read by the cert SP, which
+   already holds Key Vault Secrets User). Once #102 mirrors the secret on-prem, the
+   Key Vault copy MAY be deleted to narrow custody — revisit at server bringup.
 
 ## Decision
 
 - **Auth:** BM system-user token with scopes `pages_show_list`,
   `pages_read_engagement`, `pages_read_user_content`, `pages_messaging`,
   `pages_manage_metadata`, `read_insights`, `instagram_basic`,
-  `instagram_manage_insights`, `business_management`. SecretStore secret
-  `meta-system-user-token` (config key `MetaSystemUserToken`); explicit `-Token`
-  override for ad-hoc runs; **no Key Vault fallback**. Bearer-header transport only;
+  `instagram_manage_insights`, `business_management`. Resolution (the KQM pattern):
+  explicit `-Token` → SecretStore mirror `meta-system-user-token` (config key
+  `MetaSystemUserToken`) → Key Vault original `Meta-SystemUser-Token` (config key
+  `MetaTokenVaultSecret`), the interim path until #102. Bearer-header transport only;
   `paging.next`'s embedded `access_token` is stripped before following. The page-token
   hop (`Get-ImperionMetaPageToken`) is fetched per run and never persisted.
 - **Collection:** connect/get/post spine under `Public/meta/` — posts, post comments,
