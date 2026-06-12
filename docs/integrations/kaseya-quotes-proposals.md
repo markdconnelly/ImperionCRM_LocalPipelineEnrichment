@@ -31,6 +31,29 @@ Standard pattern: flatten to `[PSCustomObject]` with the attributes we care abou
 - **Watermarking:** Autotask supports `lastActivityDate`/`lastModifiedDateTime` query
   filters; pull deltas, fall back to full load on first run.
 
+## Autotask rate limits — SHARED budget with the cloud pipeline (#109)
+
+Live threshold alert 2026-06-12 (entity Ticket); limits verified against the Autotask
+developer docs ([thread limiting](https://www.autotask.net/help/developerhelp/Content/APIs/General/ThreadLimiting.htm),
+[REST thresholds](https://www.autotask.net/help/developerhelp/Content/APIs/REST/General_Topics/REST_Thresholds_Limits.htm)):
+
+- **Thread threshold: 3 concurrent threads per object endpoint per integration code.**
+  Exceeding → **429** + an email alert to the API user; latency penalties from 3
+  concurrent (+0.25 s/request) up to 10+ (+1 s).
+- **Hourly threshold: 10,000 requests/hour per database**, with usage-based latency from
+  5,000 (+0.5 s) and 7,500 (+1 s).
+- **One integration code serves BOTH planes.** The cloud pipeline (webhook full-fetches,
+  on-demand refresh) caps itself at **2 concurrent requests per instance**
+  (`ImperionCRM_Pipeline` #54), leaving this loader **1 guaranteed thread**. Therefore:
+  - **Keep this repo's Autotask calls sequential** (they are today — paged
+    `Invoke-ImperionAutotaskRequest` loops). No `ForEach-Object -Parallel`,
+    `Start-ThreadJob`, or runspace fan-out against Autotask without revisiting the
+    budget split across both repos first.
+  - Don't schedule multiple Autotask (source, entity) tasks at the same minute —
+    stagger them; concurrent tasks are concurrent threads.
+  - On a 429, back off honoring `Retry-After`, then resume; a converging idempotent
+    re-run is the recovery path.
+
 ## Webhook boundary
 Autotask **ticket** *webhooks* stay in the **cloud Pipeline** (ADR-0001) — those are
 real-time, internet-facing. This repo does the **scheduled bulk poll** of tickets/contracts
