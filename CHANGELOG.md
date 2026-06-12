@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.5.0...v0.6.0) (2026-06-12)
+
+
+### Features
+
+* **meta:** Facebook/Instagram Business Manager collector + local silver merge ([#126](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/126)) ([#128](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/128)) ([d8243a9](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/d8243a9d6ef8b812d9b7fed265ba9c3d12bc7eb0))
+
 ## [0.5.0](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.4.0...v0.5.0) (2026-06-12)
 
 
