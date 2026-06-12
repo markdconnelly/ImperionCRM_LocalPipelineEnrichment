@@ -55,6 +55,7 @@
         'Invoke-ImperionTelivyRequest',
         'Invoke-ImperionDarkWebIdRequest',
         'Invoke-ImperionDocuSignRequest',
+        'Invoke-ImperionUniFiRequest',
         # Per-object get layer (collect -> flatten to PSObject; no writes)
         'Get-ImperionAutotaskCompany',
         'Get-ImperionAutotaskContact',
@@ -75,12 +76,14 @@
         'Get-ImperionTelivyReport',
         'Get-ImperionDarkWebIdCompromise',
         'Get-ImperionDocuSignEnvelope',
+        'Get-ImperionUniFiDevice',
         # Per-object post layer (write flattened rows -> bronze; change-detected upsert)
         'Set-ImperionAutotaskContractToBronze',
         'Set-ImperionAutotaskTicketToBronze',
         'Set-ImperionTelivyReportToBronze',
         'Set-ImperionDarkWebIdCompromiseToBronze',
         'Set-ImperionDocuSignContractToBronze',
+        'Set-ImperionUniFiDeviceToBronze',
         'Set-ImperionM365UserToBronze',
         'Set-ImperionM365DeviceToBronze',
         'Set-ImperionITGlueOrganizationToBronze',
