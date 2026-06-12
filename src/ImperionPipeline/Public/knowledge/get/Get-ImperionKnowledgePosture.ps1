@@ -13,8 +13,13 @@ function Get-ImperionKnowledgePosture {
 
         Unlike the CRM composers, the tenant axis is the data itself: with no -TenantId the
         composer enumerates every tenant observed across the posture tables and stamps each
-        row with ITS tenant (per-tenant isolation, CLAUDE.md §3).
+        row with ITS tenant (per-tenant isolation, CLAUDE.md §3) — the spine's
+        -PerRowTenant mode.
 
+        Thin adapter over the knowledge-composer spine Invoke-ImperionKnowledgeCompose
+        (#106): tenant enumeration is the primary query, the latest-score lookup is a
+        related query, and the drift classification runs per tenant in the compose block
+        via the spine's $context.Connection.
         Output rows are flat PSCustomObjects in the knowledge_object shape
         (entity_type='posture', entity_ref = the tenant id). Read-only;
         pass -Connection to reuse one DB connection across the knowledge sync.
@@ -38,11 +43,15 @@ function Get-ImperionKnowledgePosture {
         [ValidateRange(0, 200)][int] $NotableGapLimit = 25
     )
 
-    $ownsConnection = $false
-    $conn = $Connection
-    if (-not $conn) { $conn = New-ImperionDbConnection; $ownsConnection = $true }
-    try {
-        $tenantRows = Invoke-ImperionDbQuery -Connection $conn -Sql @'
+    # Captured under names the spine's parameters cannot shadow when the scriptblocks
+    # resolve variables dynamically through the spine's scope (and so the analyzer sees
+    # the parameters consumed outside the scriptblocks).
+    $requestedTenantId = $TenantId
+    $gapLimit = $NotableGapLimit
+
+    $postureTenantQuery = {
+        param($activeConnection)
+        $tenantRows = Invoke-ImperionDbQuery -Connection $activeConnection -Sql @'
 SELECT DISTINCT tenant_id FROM (
           SELECT tenant_id FROM secure_scores
     UNION SELECT tenant_id FROM entra_conditional_access_policies
@@ -53,108 +62,101 @@ SELECT DISTINCT tenant_id FROM (
 ) posture_tenants
  ORDER BY tenant_id
 '@
-        $tenants = @($tenantRows | ForEach-Object { $_.tenant_id })
-        if ($TenantId) { $tenants = @($tenants | Where-Object { $_ -eq $TenantId }) }
-        if (-not $tenants) {
-            Write-ImperionLog -Source 'knowledge' -Message 'knowledge posture: no posture bronze found for any tenant.'
-            return @()
-        }
+        if ($requestedTenantId) { $tenantRows = @($tenantRows | Where-Object { $_.tenant_id -eq $requestedTenantId }) }
+        $tenantRows
+    }
 
-        # Latest Secure Score snapshot per tenant (created_date_time is ISO-8601 text — sorts).
-        $scoresByTenant = @{}
-        Invoke-ImperionDbQuery -Connection $conn -Sql @'
+    # Latest Secure Score snapshot per tenant (created_date_time is ISO-8601 text — sorts).
+    $relatedQueries = @{
+        scores = @{ KeyColumn = 'tenant_id'; Sql = @'
 SELECT DISTINCT ON (tenant_id) tenant_id, current_score, max_score, created_date_time
   FROM secure_scores
  ORDER BY tenant_id, created_date_time DESC
-'@ | ForEach-Object { $scoresByTenant[$_.tenant_id] = $_ }
+'@ }
+    }
 
-        $rows = foreach ($tenant in $tenants) {
-            $driftRows = @(Get-ImperionPolicyDrift -TenantId $tenant -Connection $conn)
+    Invoke-ImperionKnowledgeCompose -EntityType 'posture' -Connection $Connection -PerRowTenant `
+        -LogLabel 'posture' -CountName 'tenants' `
+        -EmptyMessage 'knowledge posture: no posture bronze found for any tenant.' `
+        -Query $postureTenantQuery -RelatedQueries $relatedQueries `
+        -Compose {
+        param($tenantRow, $related, $composeContext)
+        $tenant = $tenantRow.tenant_id
+        $driftRows = @(Get-ImperionPolicyDrift -TenantId $tenant -Connection $composeContext.Connection)
 
-            $lines = [System.Collections.Generic.List[string]]::new()
-            $title = "Security posture: tenant $tenant"
-            $lines.Add($title)
+        $lines = [System.Collections.Generic.List[string]]::new()
+        $title = "Security posture: tenant $tenant"
+        $lines.Add($title)
 
-            $score = if ($scoresByTenant.ContainsKey($tenant)) { $scoresByTenant[$tenant] } else { $null }
-            if ($score) {
-                $currentScore = 0.0
-                $maxScore = 0.0
-                $scoreLine = "Secure Score: $($score.current_score) of $($score.max_score)"
-                if ([double]::TryParse([string]$score.current_score, [System.Globalization.NumberStyles]::Float, [cultureinfo]::InvariantCulture, [ref]$currentScore) -and
-                    [double]::TryParse([string]$score.max_score, [System.Globalization.NumberStyles]::Float, [cultureinfo]::InvariantCulture, [ref]$maxScore) -and
-                    $maxScore -gt 0) {
-                    $scoreLine += " ($([math]::Round(($currentScore / $maxScore) * 100, 1))%)"
-                }
-                if ($score.created_date_time) { $scoreLine += " — snapshot $($score.created_date_time)" }
-                $lines.Add($scoreLine)
+        $score = if ($related['scores'].ContainsKey($tenant)) { $related['scores'][$tenant][0] } else { $null }
+        if ($score) {
+            $currentScore = 0.0
+            $maxScore = 0.0
+            $scoreLine = "Secure Score: $($score.current_score) of $($score.max_score)"
+            if ([double]::TryParse([string]$score.current_score, [System.Globalization.NumberStyles]::Float, [cultureinfo]::InvariantCulture, [ref]$currentScore) -and
+                [double]::TryParse([string]$score.max_score, [System.Globalization.NumberStyles]::Float, [cultureinfo]::InvariantCulture, [ref]$maxScore) -and
+                $maxScore -gt 0) {
+                $scoreLine += " ($([math]::Round(($currentScore / $maxScore) * 100, 1))%)"
             }
-            else {
-                $lines.Add('Secure Score: no snapshot collected yet.')
-            }
-
-            $statusTotals = [ordered]@{ compliant = 0; drift = 0; ungoverned = 0; missing = 0 }
-            if (@($driftRows).Count -gt 0) {
-                $lines.Add('')
-                $lines.Add('Policy posture by type (observed vs approved golden baseline):')
-                foreach ($typeGroup in ($driftRows | Group-Object policy_type | Sort-Object Name)) {
-                    $byStatus = @{}
-                    foreach ($statusGroup in ($typeGroup.Group | Group-Object status)) { $byStatus[$statusGroup.Name] = $statusGroup.Count }
-                    foreach ($statusKey in @($statusTotals.Keys)) {
-                        if ($byStatus.ContainsKey($statusKey)) { $statusTotals[$statusKey] += $byStatus[$statusKey] }
-                    }
-                    $counts = foreach ($statusKey in 'compliant', 'drift', 'ungoverned', 'missing') {
-                        if ($byStatus.ContainsKey($statusKey)) { "$statusKey $($byStatus[$statusKey])" }
-                    }
-                    $lines.Add("- $($typeGroup.Name): $($typeGroup.Count) policies — $($counts -join ' · ')")
-                }
-
-                $gaps = @($driftRows | Where-Object { $_.status -ne 'compliant' })
-                if (@($gaps).Count -gt 0) {
-                    $lines.Add('')
-                    $lines.Add("Notable gaps ($(@($gaps).Count) policies not compliant with baseline):")
-                    $explanations = @{
-                        drift      = 'configuration differs from the approved baseline'
-                        ungoverned = 'no approved baseline yet'
-                        missing    = 'baseline approved but policy gone from the tenant'
-                    }
-                    foreach ($gap in (@($gaps) | Select-Object -First $NotableGapLimit)) {
-                        $gapName = if ($gap.policy_name) { $gap.policy_name } else { $gap.policy_id }
-                        $lines.Add("- [$($gap.policy_type)] $gapName — $($gap.status) ($($explanations[$gap.status]))")
-                    }
-                    if (@($gaps).Count -gt $NotableGapLimit) {
-                        $lines.Add("- … and $(@($gaps).Count - $NotableGapLimit) more.")
-                    }
-                }
-            }
-            else {
-                $lines.Add('')
-                $lines.Add('No security-posture policies observed for this tenant yet.')
-            }
-
-            $body = ($lines -join "`n").Trim()
-            $row = [pscustomobject]@{
-                tenant_id    = $tenant
-                entity_type  = 'posture'
-                entity_ref   = $tenant
-                title        = $title
-                body         = $body
-                summary      = $null
-                source       = 'local-pipeline'
-                metadata     = (@{
-                    secure_score = $(if ($score) { $score.current_score } else { $null })
-                    secure_score_max = $(if ($score) { $score.max_score } else { $null })
-                    policies = @($driftRows).Count
-                    compliant = $statusTotals['compliant']; drift = $statusTotals['drift']
-                    ungoverned = $statusTotals['ungoverned']; missing = $statusTotals['missing']
-                } | ConvertTo-Json -Compress)
-                content_hash = $null
-            }
-            $row.content_hash = Get-ImperionContentHash -InputObject @{ title = $row.title; body = $row.body }
-            $row
+            if ($score.created_date_time) { $scoreLine += " — snapshot $($score.created_date_time)" }
+            $lines.Add($scoreLine)
+        }
+        else {
+            $lines.Add('Secure Score: no snapshot collected yet.')
         }
 
-        Write-ImperionLog -Source 'knowledge' -Message 'knowledge posture composed.' -Data @{ tenants = @($rows).Count }
-        return @($rows)
+        $statusTotals = [ordered]@{ compliant = 0; drift = 0; ungoverned = 0; missing = 0 }
+        if (@($driftRows).Count -gt 0) {
+            $lines.Add('')
+            $lines.Add('Policy posture by type (observed vs approved golden baseline):')
+            foreach ($typeGroup in ($driftRows | Group-Object policy_type | Sort-Object Name)) {
+                $byStatus = @{}
+                foreach ($statusGroup in ($typeGroup.Group | Group-Object status)) { $byStatus[$statusGroup.Name] = $statusGroup.Count }
+                foreach ($statusKey in @($statusTotals.Keys)) {
+                    if ($byStatus.ContainsKey($statusKey)) { $statusTotals[$statusKey] += $byStatus[$statusKey] }
+                }
+                $counts = foreach ($statusKey in 'compliant', 'drift', 'ungoverned', 'missing') {
+                    if ($byStatus.ContainsKey($statusKey)) { "$statusKey $($byStatus[$statusKey])" }
+                }
+                $lines.Add("- $($typeGroup.Name): $($typeGroup.Count) policies — $($counts -join ' · ')")
+            }
+
+            $gaps = @($driftRows | Where-Object { $_.status -ne 'compliant' })
+            if (@($gaps).Count -gt 0) {
+                $lines.Add('')
+                $lines.Add("Notable gaps ($(@($gaps).Count) policies not compliant with baseline):")
+                $explanations = @{
+                    drift      = 'configuration differs from the approved baseline'
+                    ungoverned = 'no approved baseline yet'
+                    missing    = 'baseline approved but policy gone from the tenant'
+                }
+                foreach ($gap in (@($gaps) | Select-Object -First $gapLimit)) {
+                    $gapName = if ($gap.policy_name) { $gap.policy_name } else { $gap.policy_id }
+                    $lines.Add("- [$($gap.policy_type)] $gapName — $($gap.status) ($($explanations[$gap.status]))")
+                }
+                if (@($gaps).Count -gt $gapLimit) {
+                    $lines.Add("- … and $(@($gaps).Count - $gapLimit) more.")
+                }
+            }
+        }
+        else {
+            $lines.Add('')
+            $lines.Add('No security-posture policies observed for this tenant yet.')
+        }
+
+        [pscustomobject]@{
+            tenant_id  = $tenant
+            entity_ref = $tenant
+            title      = $title
+            body       = ($lines -join "`n").Trim()
+            source     = 'local-pipeline'
+            metadata   = @{
+                secure_score = $(if ($score) { $score.current_score } else { $null })
+                secure_score_max = $(if ($score) { $score.max_score } else { $null })
+                policies = @($driftRows).Count
+                compliant = $statusTotals['compliant']; drift = $statusTotals['drift']
+                ungoverned = $statusTotals['ungoverned']; missing = $statusTotals['missing']
+            }
+        }
     }
-    finally { if ($ownsConnection) { $conn.Dispose() } }
 }
