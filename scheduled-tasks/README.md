@@ -69,7 +69,10 @@ connect → get → post → task). Landed: `posture/service-principals`, `autot
 `m365/devices`, `itglue/organizations`, `itglue/contacts`, `itglue/configurations`,
 `itglue/export`, `azure/inventory` (per-entity get → post composition; management groups
 stay with `Invoke-ImperionAzureInventorySync`), `azure/sentinel` (the Sentinel get →
-multi-table router post, issue #97), and `kqm/proposals` (gated on the API key; verify
-live field names with `Get-ImperionKqmFieldName` first — issue #98). Still to land: the m365 communications tasks
-(`mail`, `teams-chat`, `teams-meeting`), `autotask/companies`, `autotask/contacts`, the
-remaining posture tasks, and `kaseya/import`.
+multi-table router post, issue #97), `kqm/proposals` (gated on the API key; verify
+live field names with `Get-ImperionKqmFieldName` first — issue #98), and the m365
+communications tasks `m365/mail`, `m365/teams-chat`, `m365/teams-meeting` (issue #100 —
+double-gated: env-var config + migration 0065 prod apply; Teams reads additionally need
+Microsoft's protected-API approval, see docs/integrations/m365-communications.md).
+Still to land: `autotask/companies`, `autotask/contacts`, the remaining posture tasks,
+and `kaseya/import`.
