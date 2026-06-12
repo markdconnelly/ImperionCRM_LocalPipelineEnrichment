@@ -92,15 +92,14 @@ function Invoke-ImperionKaseyaImport {
             })
         }
         if ($Entity -in 'All', 'Proposals') {
-            # KQM (Kaseya Quote Manager) — shape is an ASSUMPTION (no live access yet).
-            $kqmBase = Get-ImperionSecretValue -Name $names.KqmBaseUri
-            $kqmKey = Get-ImperionSecretValue -Name $names.KqmApiKey
-            $resp = Invoke-ImperionRestWithRetry -Uri "$($kqmBase.TrimEnd('/'))/quotes" -Headers @{ Authorization = "Bearer $kqmKey" } -Method GET
-            $kqmData = Get-ImperionMember $resp.Body 'data'
-            $proposals = if ($null -ne $kqmData) { $kqmData } else { $resp.Body }
-            Save-Kaseya -Items $proposals -Source 'kqm' -Table 'kqm_proposals' -Map ([ordered]@{
-                name = 'name'; status = 'status'; total = 'total'; account_ref = 'accountId'; created_at = 'createdAt'; updated_at = 'updatedAt'
-            })
+            # KQM (Kaseya Quote Manager) — delegated to the verified-auth collector (issue #98):
+            # apikey querystring (secret-bearing URLs, never logged), page=N paging,
+            # modifiedAfter incremental window. The old Bearer/kqm-base-uri path is retired.
+            $kqmParameters = @{}
+            if ($SinceDays -gt 0) {
+                $kqmParameters.ModifiedAfter = (Get-Date).AddDays(-$SinceDays).ToUniversalTime().ToString('o')
+            }
+            Get-ImperionKqmProposal @kqmParameters | Set-ImperionKqmProposalToBronze -Connection $conn | Out-Null
         }
     }
     finally { $conn.Dispose() }

@@ -53,6 +53,7 @@ Register-ImperionTask -Name 'Imperion m365 Mail' `
 | **posture** | `posture/secure-score` | Secure Score | **Daily** | One snapshot/day |
 | **posture** | `posture/policies` | CA/Intune/Defender + drift | **Daily** | Config drift |
 | **posture** | `posture/merge` | posture_policy + tenant_posture silver (all tenants) | **Daily, after secure-score + policies** | Classify the night's fresh bronze (ADR-0010) |
+| **kqm** | `kqm/proposals` | Quotes/proposals | **Daily** | 60/min + 20k/day budget; gated on the API key; secret-bearing URLs never logged |
 | **kaseya** | `kaseya/import` | Contracts/tickets/proposals | **Daily** | Legacy bulk reconcile |
 
 > Cadence is the **target**; tune per source rate-limits in `docs/integrations/<source>.md`.
@@ -67,7 +68,8 @@ connect → get → post → task). Landed: `posture/service-principals`, `autot
 (gated on the SecretStore secrets — see `docs/integrations/docusign.md`), `m365/users`,
 `m365/devices`, `itglue/organizations`, `itglue/contacts`, `itglue/configurations`,
 `itglue/export`, `azure/inventory` (per-entity get → post composition; management groups
-stay with `Invoke-ImperionAzureInventorySync`), and `azure/sentinel` (the Sentinel get →
-multi-table router post, issue #97). Still to land: the m365 communications tasks
+stay with `Invoke-ImperionAzureInventorySync`), `azure/sentinel` (the Sentinel get →
+multi-table router post, issue #97), and `kqm/proposals` (gated on the API key; verify
+live field names with `Get-ImperionKqmFieldName` first — issue #98). Still to land: the m365 communications tasks
 (`mail`, `teams-chat`, `teams-meeting`), `autotask/companies`, `autotask/contacts`, the
 remaining posture tasks, and `kaseya/import`.

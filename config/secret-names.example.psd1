@@ -20,9 +20,13 @@
     # Telivy — single API key sent as the x-api-key header (the Postgres source value is 'televy').
     TelivyApiKey            = 'Telivy-API-Key'
 
-    # Kaseya Quote Manager (KQM) — shape still an assumption; placeholders until provisioned.
+    # Kaseya Quote Manager (KQM, issue #98) — read-only REST, key as ?apikey= querystring
+    # (URLs are secret-bearing; the retry core redacts them from logs). Resolution order in
+    # Resolve-ImperionKqmApiKey:
+    #   1. SecretStore title below (when the vault is unlocked this run) — mirror of the KV value
+    #   2. Key Vault secret below, read by the cert SP (the ORIGINAL, live in kv-imperioncrm-prd)
     KqmApiKey               = 'kqm-api-key'
-    KqmBaseUri              = 'kqm-base-uri'
+    KqmApiKeyVaultSecret    = 'KQM-API-Key'
 
     # Other CRM/enrichment sources — placeholders until provisioned.
     # DocuSign (issue #99): the OAuth access token + the eSignature API account id (GUID

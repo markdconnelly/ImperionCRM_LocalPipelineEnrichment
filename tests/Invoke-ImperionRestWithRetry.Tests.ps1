@@ -58,6 +58,34 @@ Describe 'Invoke-ImperionRestWithRetry' {
         }
     }
 
+    It 'redacts apikey-style querystring secrets from error text (issue #98 secret-bearing URLs)' {
+        InModuleScope ImperionPipeline {
+            Mock Invoke-ImperionHttp { [pscustomobject]@{ Body = $null; Status = 404; Headers = @{} } }
+            $thrown = $null
+            try { Invoke-ImperionRestWithRetry -Uri 'https://x/v1/quote?page=1&apikey=SuperSecret123' }
+            catch { $thrown = $_.Exception.Message }
+            $thrown | Should -Not -Match 'SuperSecret123'
+            $thrown | Should -Match 'apikey=REDACTED'
+        }
+    }
+
+    It 'redacts the secret from throttle log lines too' {
+        InModuleScope ImperionPipeline {
+            Mock Start-Sleep { }
+            $script:loggedMessages = [System.Collections.Generic.List[string]]::new()
+            Mock Write-ImperionLog { $script:loggedMessages.Add($Message) }
+            $script:r = 0
+            Mock Invoke-ImperionHttp {
+                $script:r++
+                if ($script:r -eq 1) { [pscustomobject]@{ Body = $null; Status = 429; Headers = @{ 'Retry-After' = @('1') } } }
+                else { [pscustomobject]@{ Body = 'ok'; Status = 200; Headers = @{} } }
+            }
+            Invoke-ImperionRestWithRetry -Uri 'https://x/v1/quote?apikey=SuperSecret123' | Out-Null
+            ($script:loggedMessages -join "`n") | Should -Not -Match 'SuperSecret123'
+            ($script:loggedMessages -join "`n") | Should -Match 'apikey=REDACTED'
+        }
+    }
+
     It 'retries up to MaxAttempts then throws the final HTTP status on persistent 503' {
         InModuleScope ImperionPipeline {
             Mock Start-Sleep { }
