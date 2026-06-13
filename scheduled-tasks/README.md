@@ -61,7 +61,7 @@ Register-ImperionTask -Name 'Imperion m365 Mail' `
 | **posture** | `posture/secure-score` | Secure Score | **Daily** | One snapshot/day |
 | **posture** | `posture/policies` | CA/Intune/Defender + drift | **Daily** | Config drift |
 | **posture** | `posture/merge` | posture_policy + tenant_posture silver (all tenants) | **Daily, after secure-score + policies** | Classify the night's fresh bronze (ADR-0010) |
-| **kqm** | `kqm/proposals` | Quotes/proposals | **Daily** | 60/min + 20k/day budget; gated on the API key; secret-bearing URLs never logged |
+| **kqm** | `kqm/opportunities` | Opportunity header → won-quote detail | **Daily** | Chains header (`kqm_opportunities`) → won-only detail (sections/lines/sales orders, #161); 60/min + 20k/day budget; gated on the API key; secret-bearing URLs never logged |
 | **kaseya** | `kaseya/import` | Contracts/tickets/proposals | **Daily** | Legacy bulk reconcile |
 | **qbo** | `qbo/bill-payments` | Vendor bill-payments | **Daily** | Payment fact (frontend ADR-0082); low volume; double-gated on QBO app reg + front-end `qbo_bill_payments` migration; read-only, amount/vendor never logged |
 | **meta** | `meta/social` | FB posts/comments/DMs + IG media/comments + merge | **Daily** | Organic social is slow-moving; DM senders → leads via the merge (issue #126) |
@@ -80,8 +80,9 @@ connect → get → post → task). Landed: `posture/service-principals`, `autot
 `m365/devices`, `itglue/organizations`, `itglue/contacts`, `itglue/configurations`,
 `itglue/export`, `azure/inventory` (per-entity get → post composition; management groups
 stay with `Invoke-ImperionAzureInventorySync`), `azure/sentinel` (the Sentinel get →
-multi-table router post, issue #97), `kqm/proposals` (gated on the API key; verify
-live field names with `Get-ImperionKqmFieldName` first — issue #98), and the m365
+multi-table router post, issue #97), `kqm/opportunities` (header #160 + won-quote detail
+#161 chained; gated on the API key; verify live field names with `Get-ImperionKqmFieldName`
+first — issue #98), and the m365
 communications tasks `m365/mail`, `m365/teams-chat`, `m365/teams-meeting` (issue #100 —
 double-gated: env-var config + migration 0065 prod apply; Teams reads additionally need
 Microsoft's protected-API approval, see docs/integrations/m365-communications.md), and
