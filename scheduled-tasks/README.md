@@ -41,6 +41,7 @@ Register-ImperionTask -Name 'Imperion m365 Mail' `
 | **m365** | `m365/entra-group-members` | Group membership edges | **Daily** | Membership is slow-changing; one members call per group; reaches the silver contact (0079 applied) |
 | **azure** | `azure/inventory` | Subs/RGs/resources | **Daily** | Inventory drift is slow |
 | **azure** | `azure/sentinel` | Sentinel rules/watchlists/workbooks | **Daily** | Config drift is slow; skips non-Sentinel workspaces |
+| **azure** | `azure/dns-zones` | DNS zones + recordsets + write-probe (ADR-0063) | **Daily** | DNS drift is slow; Reader-only + permissions read-probe; gated on 0080 prod apply |
 | **autotask** | `autotask/companies` | Companies | **Daily** | Slow-changing |
 | **autotask** | `autotask/contacts` | Contacts | **Daily** | Slow-changing |
 | **autotask** | `autotask/contracts` | Contracts | **Daily** | Slow-changing |
