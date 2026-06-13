@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.7.0...v0.8.0) (2026-06-13)
+
+
+### Features
+
+* **sharepoint:** site inventory collector ([#137](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/137)) ([#148](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/148)) ([42f2507](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/42f2507228a8372e78215a41dda4944111becdc9))
+
 ## [0.7.0](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.6.1...v0.7.0) (2026-06-13)
 
 
