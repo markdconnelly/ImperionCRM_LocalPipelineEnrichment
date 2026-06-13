@@ -1,9 +1,16 @@
-# Integration — Kaseya stack: quotes, proposals, contracts, tickets (bulk load)
+# Integration — Kaseya stack: quotes/opportunities, contracts, tickets (bulk load)
 
-**Purpose.** Bulk-load CRM/support records from the Kaseya stack — **quotes/proposals**
-(Kaseya Quote Manager, "KQM"), **contracts** and **tickets** (Autotask) — straight into
-Postgres bronze. These are **pure CRM/support data**: they flatten **directly to Postgres**
-and **skip the IT Glue hub** (ADR-0006).
+**Purpose.** Bulk-load CRM/support records from the Kaseya stack — **quotes**
+(Kaseya Quote Manager, "KQM") as a bronze source of the **opportunity**, plus **contracts**
+and **tickets** (Autotask) — straight into Postgres bronze. These are **pure CRM/support
+data**: they flatten **directly to Postgres** and **skip the IT Glue hub** (ADR-0006).
+
+> **KQM is an opportunity source, not a standalone proposal (front-end migration 0083,
+> ADR-0080/0039).** The mis-modeled `kqm_proposals` (0038) is **dropped**. KQM quote
+> headers land in `kqm_opportunities`; the three sources (KQM, Autotask, website) merge
+> into the silver `opportunity`. Won-quote DETAIL (sections/lines/sales orders) is a
+> separate collector set (issue #161); this doc + `Get-ImperionKqmOpportunity` cover the
+> **header**.
 
 ## Sources & auth
 | Source | API | Auth |
@@ -22,23 +29,34 @@ and **skip the IT Glue hub** (ADR-0006).
 - **Limits:** 60 calls/min and 20,000 calls/day; 429 + `Retry-After` handled by backoff.
 - **Incremental:** `modifiedAfter=<url-encoded ISO timestamp>` (recommended by the docs).
 
-### KQM — verify the live shape FIRST (the issue-#98 gate)
-The docs do **not** enumerate response fields, so the flat-column map in
-`Get-ImperionKqmProposal` is an **assumption chain** (each column tries several plausible
-names; misses land NULL while `raw_payload` keeps everything). Before trusting flat
-columns: run **`Get-ImperionKqmFieldName`** (one page; emits field NAMES/types/non-null
-tallies, **never values** — safe to paste into an issue), then correct the map in
-`Get-ImperionKqmProposal` and, if the real shape diverges from `kqm_proposals`
-(front-end migration 0038), propose a migration in the front-end repo.
+### KQM — VERIFIED live shape (spike #427, 2026-06-13)
+Ran `Get-ImperionKqmFieldName` + read-only probes against live KQM. Settled facts:
+- **`status` is an INT enum code** (1 open / 2 sent / **3 WON** / 90 dead), not text;
+  bronze keeps it as text, silver interprets 3 = won.
+- **`salesOrderId` is present ⇔ status 3** — the won marker (drives the #161 detail pull).
+- The header has **no `name`** (use `title`/`quoteNumber`) and **no `total`** — silver sums
+  selected lines from the detail tables.
+- **Autotask FKs are populated**: `autotaskOpportunityID`, `autotaskOrganizationID`,
+  `autotaskQuoteID` — the sale→delivery seam (no mapping table needed).
+
+The flat-column map in `Get-ImperionKqmOpportunity` leads with these verified names and
+keeps a short fallback chain (casing drift tolerated; misses land NULL, `raw_payload` keeps
+everything). `Get-ImperionKqmFieldName` remains the re-probe tool (emits field NAMES/types/
+non-null tallies, **never values** — safe to paste into an issue).
 
 ## Entities & Postgres targets (bronze)
 | Entity | Source(s) | Bronze table (logical) |
 | --- | --- | --- |
-| Proposals/Quotes | `kqm`, `website` | `kqm_proposals`, `website_proposals` |
+| Opportunity (quote header) | `kqm`, `autotask`, `website` | `kqm_opportunities`, `autotask_opportunities`, `website_opportunities` (migration 0083) |
+| Opportunity detail (won) | `kqm` | `kqm_opportunity_sections`, `kqm_opportunity_lines`, `kqm_sales_orders`, `kqm_sales_order_lines` (issue #161) |
 | Contracts | `autotask`, `docusign` | `autotask_contracts`, `docusign_contracts` |
 | Tickets | `autotask` | `autotask_tickets` |
 
-(Autotask entities: `Quotes`, `Contracts`, `Tickets`. KQM: quotes/proposals.)
+`kqm_opportunities` columns (migration 0083): `quote_number, code, title, status,
+sales_order_id, customer_id, autotask_opportunity_id, autotask_organization_id,
+autotask_quote_id, contact_name, contact_email, owner_employee_id, created_date,
+modified_date, expiry_date` + the standard envelope. `Invoke-ImperionKaseyaImport -Entity
+Opportunities` (or the daily `scheduled-tasks/kqm/opportunities.task.ps1`) drives the pull.
 
 ## Flatten
 Standard pattern: flatten to `[PSCustomObject]` with the attributes we care about +
@@ -89,7 +107,6 @@ real-time, internet-facing. This repo does the **scheduled bulk poll** of ticket
   `sql/kaseya_bronze_schema.sql` (the curated subset; full payload in `raw_payload`).
 
 ## Still assumptions (no live access yet)
-- KQM quote **response field names** (`kqm_proposals` flat columns) — auth, base URL,
-  paging, and limits are now VERIFIED (above); run `Get-ImperionKqmFieldName` on first
-  live access to settle the fields.
+- KQM detail endpoints (`quoteline`/`quotesection`/`salesorderline`) `modifiedAfter`
+  support — verify on first detail run (issue #161); else full pull + content-hash skip.
 - DocuSign contract retrieval path (envelopes API) and what counts as a "contract" record.

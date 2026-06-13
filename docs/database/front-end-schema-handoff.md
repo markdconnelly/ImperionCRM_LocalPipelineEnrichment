@@ -91,8 +91,10 @@ SecretStore + CMS unlock, fill `%ProgramData%\Imperion\pipeline.config.psd1`
 - `autotask_contracts`, `autotask_tickets` — **columns confirmed against the live Autotask
   field-metadata API** (note: Autotask keys companies via `companyID`; contracts sync on
   `lastModifiedDateTime`, tickets on `lastActivityDate`).
-- `kqm_proposals`, `website_proposals`, `docusign_contracts` — columns are **assumptions**
-  (no live access yet); confirm on first pull.
+- `kqm_opportunities` (quote header, migration 0083) — columns **verified live** (spike
+  #427); KQM is a bronze source of the silver `opportunity` (supersedes the dropped
+  `kqm_proposals`). Won-quote detail tables = issue #161.
+- `docusign_contracts` — columns are **assumptions** (no live access yet); confirm on first pull.
 
 ### d. Security posture (Secure Score + golden states) — [`sql/security_posture_schema.sql`](../../sql/security_posture_schema.sql)
 - `secure_scores`, `secure_score_control_profiles`.

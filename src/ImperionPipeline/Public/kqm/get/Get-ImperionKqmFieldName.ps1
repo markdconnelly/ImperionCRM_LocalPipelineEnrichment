@@ -10,9 +10,9 @@ function Get-ImperionKqmFieldName {
         never emitted, logged, or written anywhere — quotes contain client commercial
         data and the probe output is safe to paste into an issue.
 
-        Operator loop: run the probe → compare against the assumed map in
-        Get-ImperionKqmProposal (and the kqm_proposals columns, front-end migration
-        0038) → correct the map / propose a migration in the front-end repo if the real
+        Operator loop: run the probe → compare against the verified map in
+        Get-ImperionKqmOpportunity (and the kqm_opportunities columns, front-end migration
+        0083) → correct the map / propose a migration in the front-end repo if the real
         shape diverges. Requires Initialize-ImperionContext.
     .PARAMETER Endpoint
         KQM resource to probe: quote (default), salesorder, supplier, or warehouse.
