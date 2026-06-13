@@ -35,6 +35,7 @@ Register-ImperionTask -Name 'Imperion m365 Mail' `
 | **m365** | `m365/devices` | Devices | **Daily** | Slow-changing |
 | **m365** | `m365/intune-devices` | Intune device compliance | **Daily** | Per-device posture truth (ADR-0051 d6); gated on pending bronze migration |
 | **m365** | `m365/defender` | Defender XDR incidents + alerts | **Hourly** | Operationally timely; change-detected upsert keeps re-runs cheap; gated on 0076 prod apply |
+| **m365** | `m365/auth-methods` | Per-user MFA registration | **Daily** | Registration state is slow-changing (ADR-0051 posture); gated on 0077 prod apply |
 | **azure** | `azure/inventory` | Subs/RGs/resources | **Daily** | Inventory drift is slow |
 | **azure** | `azure/sentinel` | Sentinel rules/watchlists/workbooks | **Daily** | Config drift is slow; skips non-Sentinel workspaces |
 | **autotask** | `autotask/companies` | Companies | **Daily** | Slow-changing |
@@ -81,6 +82,8 @@ the meta tasks `meta/social`, `meta/insights` (issue #126 — gated on
 IMPERION_META_PAGE_ID + the SecretStore token + migration 0075 prod apply; registration
 itself deferred to server bringup #102, see docs/integrations/meta.md), and
 `m365/defender` (issue #138 — Defender XDR incidents + alerts, gated on migration 0076
-prod apply; registration deferred to #102, see docs/integrations/defender-xdr.md).
+prod apply; registration deferred to #102, see docs/integrations/defender-xdr.md), and
+`m365/auth-methods` (issue #140 — per-user MFA registration, gated on migration 0077
+prod apply; registration deferred to #102, see docs/integrations/entra-auth-methods.md).
 Still to land: `autotask/companies`, `autotask/contacts`, the remaining posture tasks,
 and `kaseya/import`.
