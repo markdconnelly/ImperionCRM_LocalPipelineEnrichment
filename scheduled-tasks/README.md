@@ -42,6 +42,7 @@ Register-ImperionTask -Name 'Imperion m365 Mail' `
 | **azure** | `azure/inventory` | Subs/RGs/resources | **Daily** | Inventory drift is slow |
 | **azure** | `azure/sentinel` | Sentinel rules/watchlists/workbooks | **Daily** | Config drift is slow; skips non-Sentinel workspaces |
 | **azure** | `azure/dns-zones` | DNS zones + recordsets + write-probe (ADR-0063) | **Daily** | DNS drift is slow; Reader-only + permissions read-probe; gated on 0080 prod apply |
+| **azure** | `azure/dns-resolve` | Public DNS resolution per account_domain (ADR-0063) | **Daily** | Ground-truth plane; no Microsoft auth (OS resolver + DoH); gated on 0081 account_domain |
 | **autotask** | `autotask/companies` | Companies | **Daily** | Slow-changing |
 | **autotask** | `autotask/contacts` | Contacts | **Daily** | Slow-changing |
 | **autotask** | `autotask/contracts` | Contracts | **Daily** | Slow-changing |

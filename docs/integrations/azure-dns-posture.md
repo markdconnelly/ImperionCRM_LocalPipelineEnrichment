@@ -54,7 +54,30 @@ migration 0080 prod apply**: until applied the post fails loudly and the task's 
 Warn and exits cleanly. Registration is deferred to server bringup (#102). Per-tenant
 isolation: every row carries the tenant authenticated against.
 
+## Public ground-truth plane (azure/dns-resolve, #156)
+
+The sibling collector that captures **what the world sees** — the only signal for domains
+not hosted in Azure DNS.
+
+| | |
+|---|---|
+| **Get** | `Get-ImperionDnsResolveObject -Domain <d> -AccountId <id>` |
+| **Post** | `Set-ImperionDnsRecordToBronze` (single-table -> `dns_records`, `plane='public'`) |
+| **Task** | `scheduled-tasks/azure/dns-resolve.task.ps1` — **Daily** |
+
+No Microsoft auth — pure public resolution via `Resolve-ImperionDnsRecord` (OS resolver
+with a **DNS-over-HTTPS** fallback to `dns.google`), so there is no GDAP/per-client
+dependency. Per domain it resolves apex A / TXT (SPF) / MX / NS / CAA, DMARC (`_dmarc` TXT),
+and the common M365 DKIM selector CNAMEs (`selector1/2._domainkey`).
+
+**Domain source = `account_domain`** (the GUI-managed per-account list, migration 0081 /
+ADR-0063 amendment #334). The task reads it (`Invoke-ImperionDbQuery`) and resolves per
+`(account, domain)`. Domains are **account-scoped**: the owning account is the row isolation
+key, so `tenant_id` carries the account id for public rows and `account_id` is stamped
+explicitly for the silver merge (#157). `external_id = '<domain>|public|<type>|<name>'` —
+never collides with the azure plane. Gated on migration 0081; an empty list is a no-op.
+
 ## Provenance
 
-Rows stamped `source='dns'` / `collected_at`; full ARM payload in `raw_payload` (lossless);
+Rows stamped `source='dns'` / `collected_at`; full payload in `raw_payload` (lossless);
 `content_hash` drives change detection. No secrets logged.
