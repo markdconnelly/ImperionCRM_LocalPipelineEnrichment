@@ -105,7 +105,7 @@ $env:IMPERION_META_PAGE_ID = '<page-id>'
 The flat-column field maps follow Meta's v23.0 published references, but Meta prunes
 fields silently by permission tier and version. Unreadable fields land NULL in the
 flat columns and survive losslessly in `raw_payload` — **verify the flat columns
-against the first live run before trusting them** (the `Get-ImperionKqmProposal`
+against the first live run before trusting them** (the `Get-ImperionKqmOpportunity`
 precedent). Known tolerances: IG comment `from` is permission-gated (username still
 identifies the commenter); `shares.count` is absent on share-disabled posts.
 

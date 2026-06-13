@@ -11,7 +11,7 @@ function Get-ImperionMetaPagePost {
         via Invoke-ImperionMetaMerge (local merge ownership, ADR-0013). Returns rows;
         does not write. Requires Initialize-ImperionContext.
 
-        ASSUMED-FIELD-NAMES caveat (the Get-ImperionKqmProposal precedent): the field
+        ASSUMED-FIELD-NAMES caveat (the Get-ImperionKqmOpportunity precedent): the field
         list below follows Meta's published Page-feed reference, but Meta versions and
         permission tiers prune fields silently — a field the token cannot read simply
         comes back absent and its flat column lands NULL; nothing is lost (full payload

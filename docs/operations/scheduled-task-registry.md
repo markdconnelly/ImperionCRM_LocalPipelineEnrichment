@@ -34,7 +34,7 @@ task command is `pwsh -Command "Import-Module ImperionPipeline; Initialize-Imper
 | UniFi devices | `scheduled-tasks/unifi/devices.task.ps1` | daily | → `unifi_devices`; DOUBLE-GATED — Key Vault `conn-company-unifi` + pending front-end bronze migration (docs/integrations/unifi.md) |
 | Plaud recordings | `scheduled-tasks/plaud/recordings.task.ps1` | daily | → `plaud_recordings`; DOUBLE-GATED — `plaud-oauth-token` freshness (fail-loudly re-auth rule) + pending front-end bronze migration (docs/integrations/plaud.md) |
 | Kaseya proposals/contracts/tickets | `Invoke-ImperionKaseyaImport` | hourly–daily | bulk upsert, watermarked; Proposals branch delegates to the KQM collector (#98) |
-| KQM proposals | `scheduled-tasks/kqm/proposals.task.ps1` | daily | → `kqm_proposals`; GATED — logs+exits until `kqm-api-key`/Key Vault `KQM-API-Key` reachable; URLs are secret-bearing (?apikey=), never logged; verify live shape with `Get-ImperionKqmFieldName` (#98) |
+| KQM opportunities | `scheduled-tasks/kqm/opportunities.task.ps1` | daily | → `kqm_opportunities` (quote header, migration 0083); GATED — logs+exits until `kqm-api-key`/Key Vault `KQM-API-Key` reachable; URLs are secret-bearing (?apikey=), never logged; shape verified (spike #427). Won-quote detail = #161 |
 | GDAP relationship health | (build-order task) | hourly | fail-closed surfacing |
 | **Gold knowledge + vectorization** | `Invoke-ImperionKnowledgeSync -Vectorize` | nightly 04:30 (after ingests) | composes knowledge_object from silver, chunks (v1), embeds via Voyage @ 1024; chunk-hash idempotent — no re-bill (ADR-0009) |
 

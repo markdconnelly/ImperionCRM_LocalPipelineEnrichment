@@ -31,18 +31,19 @@ Describe 'Invoke-ImperionKaseyaImport' {
         }
     }
 
-    It 'loads KQM proposals through the verified collector path (issue #98 delegation)' {
+    It 'loads KQM opportunities through the verified collector path (kqm_opportunities, migration 0083)' {
         InModuleScope ImperionPipeline {
             Mock Get-ImperionKeyVaultSecret { 'kv-kqm-key' }   # SecretStore not unlocked in tests -> KV original
-            Mock Invoke-ImperionKqmRequest { , @([pscustomobject]@{ id = 'q1'; name = 'Quote 1'; status = 'draft' }) }
+            Mock Invoke-ImperionKqmRequest { , @([pscustomobject]@{ id = 'q1'; title = 'Quote 1'; status = 3; autotaskOpportunityID = 'ato-1' }) }
             $tables = @{}
             Mock Invoke-ImperionBronzeUpsert { $tables[$Table] = $Rows; [pscustomobject]@{ scanned = 1; inserted = 1; updated = 0; unchanged = 0 } }
 
-            { Invoke-ImperionKaseyaImport -Entity Proposals } | Should -Not -Throw
+            { Invoke-ImperionKaseyaImport -Entity Opportunities } | Should -Not -Throw
             # The connect layer receives the key separately; the URI it is handed carries no apikey.
             Should -Invoke Invoke-ImperionKqmRequest -Times 1 -ParameterFilter { $ApiKey -eq 'kv-kqm-key' -and $Uri -notmatch 'apikey' }
-            $tables.ContainsKey('kqm_proposals') | Should -BeTrue
-            $tables['kqm_proposals'][0].name | Should -Be 'Quote 1'
+            $tables.ContainsKey('kqm_opportunities') | Should -BeTrue
+            $tables['kqm_opportunities'][0].title | Should -Be 'Quote 1'
+            $tables['kqm_opportunities'][0].autotask_opportunity_id | Should -Be 'ato-1'
         }
     }
 }

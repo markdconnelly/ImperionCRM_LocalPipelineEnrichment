@@ -1,7 +1,7 @@
 function Invoke-ImperionKaseyaImport {
     <#
     .SYNOPSIS
-        Bulk-load Kaseya-stack records (Autotask contracts + tickets, KQM proposals) into Postgres bronze.
+        Bulk-load Kaseya-stack records (Autotask contracts + tickets, KQM opportunities) into Postgres bronze.
     .DESCRIPTION
         Pure CRM/support data: flattens straight to Postgres, skipping the IT Glue hub
         (ADR-0006), with change-detecting upserts. Autotask field names are CONFIRMED against
@@ -11,7 +11,7 @@ function Invoke-ImperionKaseyaImport {
         ticket webhooks stay in the cloud Pipeline (ADR-0001); this is the scheduled bulk poll.
         Requires Initialize-ImperionContext.
     .PARAMETER Entity
-        All (default), Proposals, Contracts, or Tickets.
+        All (default), Opportunities, Contracts, or Tickets.
     .PARAMETER SinceDays
         Incremental window where supported. Default 0 = full load.
     .EXAMPLE
@@ -21,7 +21,7 @@ function Invoke-ImperionKaseyaImport {
         Justification = 'SinceDays is consumed by the nested Get-AutotaskRecords function via PowerShell scope; the analyzer cannot see the dynamic-scope read.')]
     [CmdletBinding()]
     param(
-        [ValidateSet('All', 'Proposals', 'Contracts', 'Tickets')][string] $Entity = 'All',
+        [ValidateSet('All', 'Opportunities', 'Contracts', 'Tickets')][string] $Entity = 'All',
         [int] $SinceDays = 0
     )
 
@@ -91,15 +91,16 @@ function Invoke-ImperionKaseyaImport {
                 resolution = 'resolution'; ticket_source = 'source'
             })
         }
-        if ($Entity -in 'All', 'Proposals') {
-            # KQM (Kaseya Quote Manager) — delegated to the verified-auth collector (issue #98):
-            # apikey querystring (secret-bearing URLs, never logged), page=N paging,
-            # modifiedAfter incremental window. The old Bearer/kqm-base-uri path is retired.
+        if ($Entity -in 'All', 'Opportunities') {
+            # KQM (Kaseya Quote Manager) — quote HEADER → kqm_opportunities bronze (front-end
+            # migration 0083, ADR-0080/0039). apikey querystring (secret-bearing URLs, never
+            # logged), page=N paging, modifiedAfter incremental window. Won-quote detail is a
+            # separate collector set (issue #161).
             $kqmParameters = @{}
             if ($SinceDays -gt 0) {
                 $kqmParameters.ModifiedAfter = (Get-Date).AddDays(-$SinceDays).ToUniversalTime().ToString('o')
             }
-            Get-ImperionKqmProposal @kqmParameters | Set-ImperionKqmProposalToBronze -Connection $conn | Out-Null
+            Get-ImperionKqmOpportunity @kqmParameters | Set-ImperionKqmOpportunityToBronze -Connection $conn | Out-Null
         }
     }
     finally { $conn.Dispose() }

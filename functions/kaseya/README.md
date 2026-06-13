@@ -13,7 +13,7 @@ Pure CRM/support data from the Kaseya stack (Autotask + Kaseya Quote Manager) th
 > for the reusable [`autotask/`](../autotask) `connect` layer; as that layer + per-object `get`
 > functions land, this importer is superseded by the per-(source,entity) tasks.
 
-See [`docs/integrations/kaseya-quotes-proposals.md`](../../docs/integrations/kaseya-quotes-proposals.md).
+See [`docs/integrations/kaseya-quotes-opportunities.md`](../../docs/integrations/kaseya-quotes-opportunities.md).
 
 ## Cadence
 Daily bulk reconcile. See [`../../scheduled-tasks/`](../../scheduled-tasks).
