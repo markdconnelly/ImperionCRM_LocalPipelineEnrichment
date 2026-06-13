@@ -38,6 +38,7 @@ Register-ImperionTask -Name 'Imperion m365 Mail' `
 | **m365** | `m365/auth-methods` | Per-user MFA registration | **Daily** | Registration state is slow-changing (ADR-0051 posture); gated on 0077 prod apply |
 | **m365** | `m365/sharepoint-sites` | SharePoint site inventory (metadata only) | **Daily** | Site inventory is slow-changing; NO file content (Files.Read.All pruned); gated on 0078 prod apply |
 | **m365** | `m365/entra-groups` | Entra/M365 group inventory | **Daily** | Group inventory is slow-changing; change-detected upsert keeps re-runs cheap (0079 applied) |
+| **m365** | `m365/entra-group-members` | Group membership edges | **Daily** | Membership is slow-changing; one members call per group; reaches the silver contact (0079 applied) |
 | **azure** | `azure/inventory` | Subs/RGs/resources | **Daily** | Inventory drift is slow |
 | **azure** | `azure/sentinel` | Sentinel rules/watchlists/workbooks | **Daily** | Config drift is slow; skips non-Sentinel workspaces |
 | **autotask** | `autotask/companies` | Companies | **Daily** | Slow-changing |
@@ -91,7 +92,8 @@ and `m365/sharepoint-sites` (issue #137 — SharePoint site inventory, metadata 
 never file content, gated on migration 0078 prod apply; registration deferred to #102,
 see docs/integrations/sharepoint-sites.md), and `m365/entra-groups` (issue #150, split
 from #139 — Entra/M365 group inventory, migration 0079 applied; registration deferred to
-#102, see docs/integrations/entra-groups.md). The membership-edge task
-(`m365/entra-group-members`) lands with #139.
+#102, see docs/integrations/entra-groups.md), and `m365/entra-group-members` (issue #139 -
+group membership edges reaching the silver contact via member_external_id, migration 0079
+applied; registration deferred to #102, see docs/integrations/entra-groups.md).
 Still to land: `autotask/companies`, `autotask/contacts`, the remaining posture tasks,
 and `kaseya/import`.
