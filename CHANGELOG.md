@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.0](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.6.1...v0.7.0) (2026-06-13)
+
+
+### Features
+
+* **posture:** auth methods / MFA registration collector ([#140](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/140)) ([#147](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/147)) ([01a1f80](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/01a1f803a385597625131a126eae1571425a79bd))
+* **security:** defender incidents + alerts collector ([#138](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/138)) ([#145](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/145)) ([e0b8efb](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/e0b8efb4ca7c72074eea2f1ea3f871c4d10098e4))
+
 ## [0.6.1](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.6.0...v0.6.1) (2026-06-12)
 
 
