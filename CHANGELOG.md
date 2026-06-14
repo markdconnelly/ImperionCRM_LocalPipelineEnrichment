@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.9.0](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.8.0...v0.9.0) (2026-06-14)
+
+
+### Features
+
+* **autotask:** scheduled TimeEntry bulk pull -&gt; autotask_time_entry bronze ([#171](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/171)) ([#172](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/172)) ([99cb0ed](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/99cb0ed229e8c44d10cd8b99ee261a71fc4c60ad))
+* Azure DNS-zone collector + write-access probe ([#155](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/155)) ([#158](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/158)) ([cca3b88](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/cca3b8836ae520c5d2971ca6c2a607261a6a0ded))
+* **entra:** group membership collector -&gt; m365_group_members bronze ([#139](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/139)) ([#153](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/153)) ([62693f2](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/62693f21a5f85576b1173f820b3f9255394389e7))
+* **entra:** groups collector -&gt; m365_groups bronze ([#150](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/150)) ([#151](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/151)) ([6145185](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/614518513efe745f81d3931894e759eead492598))
+* **kqm:** opportunity header ingest -&gt; kqm_opportunities bronze ([#160](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/160)) ([#162](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/162)) ([e55116a](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/e55116a3da21966e6b037c4ea7ca9b2557265156))
+* public-resolve DNS collector (ground-truth plane) ([#156](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/156)) ([#159](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/159)) ([1f0a8c5](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/1f0a8c5bf4920fe77eafc72559f1ce7cfb1adf9e))
+* **qbo:** scheduled vendor bill-payment bulk pull -&gt; qbo_bill_payments bronze ([#170](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/170)) ([#173](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/173)) ([428aeb1](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/428aeb169342347d6d0112a594337c9385485761))
+
 ## [0.8.0](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.7.0...v0.8.0) (2026-06-13)
 
 
