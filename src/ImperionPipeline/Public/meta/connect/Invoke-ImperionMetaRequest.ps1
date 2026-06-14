@@ -14,8 +14,10 @@ function Invoke-ImperionMetaRequest {
         paging.next until absent, capped by -MaxPages. Meta embeds the access token in
         the paging.next URL it returns; this helper STRIPS that parameter before
         following (the bearer header re-authenticates), so no secret-bearing URL is ever
-        held, retried, or loggable. Throttling (429/Retry-After) is handled by the
-        retry core (Invoke-ImperionRestWithRetry).
+        held, retried, or loggable. Meta also REWRITES the version segment in paging.next
+        (observed v23.0 -> v25.0, #135); this helper re-pins the path back to the pinned
+        version so the whole call stays on one tested API version. Throttling
+        (429/Retry-After) is handled by the retry core (Invoke-ImperionRestWithRetry).
     .PARAMETER Token
         Meta access token (system-user or page token), sent as the bearer header.
         Held only in memory; never logged.
@@ -35,7 +37,9 @@ function Invoke-ImperionMetaRequest {
         [ValidateRange(1, 1000)][int] $MaxPages = 100
     )
 
-    if ($Uri -notmatch '^https?://') { $Uri = "https://graph.facebook.com/v23.0/$($Uri.TrimStart('/'))" }
+    # Single source of truth for the pinned Graph API version (#135).
+    $pinnedApiVersion = 'v23.0'
+    if ($Uri -notmatch '^https?://') { $Uri = "https://graph.facebook.com/$pinnedApiVersion/$($Uri.TrimStart('/'))" }
     $headers = @{ Authorization = "Bearer $Token"; Accept = 'application/json' }
 
     $items = [System.Collections.Generic.List[object]]::new()
@@ -62,6 +66,10 @@ function Invoke-ImperionMetaRequest {
             $keptParameters = @($builder.Query.TrimStart('?') -split '&' |
                     Where-Object { $_ -and $_ -notmatch '^(?i)access_token=' })
             $builder.Query = $keptParameters -join '&'
+            # Re-pin the version segment: Meta rewrites paging.next to a newer version
+            # (v23.0 -> v25.0, #135), which silently drifts the rest of the call off the
+            # tested version. Force the leading /vNN.N/ path segment back to the pin.
+            $builder.Path = $builder.Path -replace '^/v\d+\.\d+/', "/$pinnedApiVersion/"
             $next = $builder.Uri.AbsoluteUri
         }
     }

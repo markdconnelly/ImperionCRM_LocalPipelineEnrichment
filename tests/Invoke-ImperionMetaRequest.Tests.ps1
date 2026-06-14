@@ -74,6 +74,27 @@ Describe 'Invoke-ImperionMetaRequest' {
         }
     }
 
+    It 're-pins the version segment when Meta rewrites paging.next to a newer version (#135)' {
+        InModuleScope ImperionPipeline {
+            Mock Invoke-ImperionRestWithRetry {
+                if ($Uri -notmatch 'after=') {
+                    [pscustomobject]@{ Body = [pscustomobject]@{
+                            data   = @([pscustomobject]@{ id = 'p1' })
+                            paging = [pscustomobject]@{ next = 'https://graph.facebook.com/v25.0/123/posts?access_token=LEAKED&after=cursor1' }
+                        }
+                    }
+                }
+                else {
+                    [pscustomobject]@{ Body = [pscustomobject]@{ data = @([pscustomobject]@{ id = 'p2' }) } }
+                }
+            }
+            Invoke-ImperionMetaRequest -Token 't' -Uri '123/posts' | Out-Null
+            Should -Invoke Invoke-ImperionRestWithRetry -Times 1 -ParameterFilter {
+                $Uri -match '/v23\.0/123/posts' -and $Uri -notmatch '/v25\.0/' -and $Uri -match 'after=cursor1'
+            }
+        }
+    }
+
     It 'stops when paging.next is absent' {
         InModuleScope ImperionPipeline {
             Mock Invoke-ImperionRestWithRetry {

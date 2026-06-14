@@ -75,6 +75,23 @@ by `Invoke-ImperionRestWithRetry`. Daily cadence at our volumes is far inside bu
 A TIME, so a dead metric (#100 error) logs a warning and the run continues — trim
 retired names from `-PageMetric`/`-IgMetric` as Meta retires them.
 
+### Verified metric defaults (after the first live run #132/#133, fixed in #135)
+
+- **Page (`-PageMetric`)** = `page_impressions_unique`, `page_post_engagements`,
+  `page_views_total`. **Dropped as deprecated:** `page_impressions` and `page_fans`
+  (both #100 on this page).
+- **IG time-series (`-IgMetric`)** = empty by default. `reach` was removed — it returns
+  a since-window #100 complaint on the paged call; re-add only with a verified window.
+- **IG total-value (`-IgTotalValueMetric`)** = `profile_views`, `accounts_engaged`.
+  These metrics now **require `metric_type=total_value`** and return a single
+  `{total_value:{value}}` aggregate (no `values[]` series); the collector requests them
+  with that parameter and dates the single point to today (UTC) for one idempotent row
+  per day.
+- **API version is pinned** to `v23.0` end to end. Meta rewrites the version segment in
+  the `paging.next` URL it returns (observed `v23.0` -> `v25.0`); `Invoke-ImperionMetaRequest`
+  re-pins the followed URL's `/vNN.N/` path segment back to the pin so a multi-page call
+  never silently drifts onto an untested version (#135).
+
 ## Cadence & tasks
 
 | Task | Entities | Cadence |
