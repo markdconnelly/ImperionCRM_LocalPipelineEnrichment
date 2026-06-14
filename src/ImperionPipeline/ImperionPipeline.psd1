@@ -65,6 +65,7 @@
         'Get-ImperionAutotaskContact',
         'Get-ImperionAutotaskContract',
         'Get-ImperionAutotaskTicket',
+        'Get-ImperionAutotaskTimeEntry',
         'Get-ImperionM365User',
         'Get-ImperionM365Device',
         'Get-ImperionM365Mail',
@@ -100,6 +101,7 @@
         # Per-object post layer (write flattened rows -> bronze; change-detected upsert)
         'Set-ImperionAutotaskContractToBronze',
         'Set-ImperionAutotaskTicketToBronze',
+        'Set-ImperionAutotaskTimeEntryToBronze',
         'Set-ImperionTelivyReportToBronze',
         'Set-ImperionDarkWebIdCompromiseToBronze',
         'Set-ImperionDocuSignContractToBronze',

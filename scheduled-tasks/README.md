@@ -47,6 +47,7 @@ Register-ImperionTask -Name 'Imperion m365 Mail' `
 | **autotask** | `autotask/contacts` | Contacts | **Daily** | Slow-changing |
 | **autotask** | `autotask/contracts` | Contracts | **Daily** | Slow-changing |
 | **autotask** | `autotask/tickets` | Tickets | **Every 15–30 min** | Bulk reconcile; webhooks (cloud) handle real-time |
+| **autotask** | `autotask/time-entries` | TimeEntries | **Hourly** | Authoritative bulk pull for time tracking (ADR-0082); cloud PL-2 does on-demand refresh; gated on AT credential |
 | **itglue** | `itglue/organizations` | Organizations | **Daily** | Slow-changing |
 | **itglue** | `itglue/contacts` | Contacts | **Daily** | Slow-changing |
 | **itglue** | `itglue/configurations` | Configurations (devices) | **Daily** | Slow-changing |
