@@ -34,6 +34,12 @@ when reporting information to me be extremley concise and sacrifice grammar for 
 > PostgreSQL + pgvector tables but **never owns migrations** — propose schema changes
 > there and reference the new migration's ADR. Read the front-end
 > `docs/database/data-model.md` ERD as the contract. **Do not invent tables here.**
+> The same repo owns the silver **meaning** — the OKF semantic-layer bundle
+> (`docs/database/semantic-layer/`, ADR-0086). Since this repo does the bronze→silver→gold
+> shaping and ALL vectorization, a change to a silver entity's shape / source-of-record /
+> joins updates the matching concept file + `coverage-matrix.md` there (propose in the
+> front-end), same as a schema change (system CLAUDE.md §11). The enrichment agent that
+> will auto-sync the bundle is this repo's #175.
 
 ---
 
