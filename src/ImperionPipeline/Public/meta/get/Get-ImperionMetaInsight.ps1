@@ -20,15 +20,29 @@ function Get-ImperionMetaInsight {
         continues; it never aborts. Trim retired names from -PageMetric/-IgMetric as
         Meta retires them. ASSUMED-FIELD-NAMES caveat: defaults follow the v23.0
         insights reference; verify against a live first run.
+
+        DEFAULTS UPDATED (#135, after the first live run #132/#133): the deprecated
+        page metrics page_impressions + page_fans were dropped (both #100 on this
+        page); page_impressions_unique / page_post_engagements / page_views_total are
+        the verified-working page set. The IG total-value metrics (profile_views,
+        accounts_engaged) now require the metric_type=total_value parameter and return
+        a {total_value:{value}} shape rather than {values:[...]}; -IgTotalValueMetric
+        carries that set and the collector parses the total_value shape into a single
+        dated point. IG 'reach' was removed from the day-series default (since-window
+        #100 on the paged call); re-add it only with a verified window.
     .PARAMETER PageId
         Facebook Page id to pull page insights for (and to resolve the IG user from).
     .PARAMETER IgUserId
         Instagram business-account id override — skips the Page hop. IG insights are
         skipped when neither this resolves nor a linked account exists.
     .PARAMETER PageMetric
-        Page metrics requested at period=day.
+        Page metrics requested at period=day. Deprecated names (page_impressions,
+        page_fans) were dropped after the #132/#133 live run (#135).
     .PARAMETER IgMetric
-        IG-user metrics requested at period=day.
+        IG-user time-series metrics requested at period=day (values[] shape).
+    .PARAMETER IgTotalValueMetric
+        IG-user metrics that require metric_type=total_value and return the
+        {total_value:{value}} shape (e.g. profile_views, accounts_engaged) — #135.
     .PARAMETER Period
         Insights period for the metric series. Default 'day'.
     .PARAMETER TenantId
@@ -43,8 +57,9 @@ function Get-ImperionMetaInsight {
     param(
         [string] $PageId,
         [string] $IgUserId,
-        [string[]] $PageMetric = @('page_impressions', 'page_impressions_unique', 'page_post_engagements', 'page_fans', 'page_views_total'),
-        [string[]] $IgMetric = @('reach', 'profile_views', 'accounts_engaged'),
+        [string[]] $PageMetric = @('page_impressions_unique', 'page_post_engagements', 'page_views_total'),
+        [string[]] $IgMetric = @(),
+        [string[]] $IgTotalValueMetric = @('profile_views', 'accounts_engaged'),
         [string] $Period = 'day',
         [string] $TenantId,
         [string] $Token
@@ -59,10 +74,14 @@ function Get-ImperionMetaInsight {
     $Token = Resolve-ImperionMetaToken -Token $Token
 
     # One metric per request so a deprecated metric (#100) costs ONE warning, not the run.
+    # -MetricType: '' for the classic values[] time-series shape; 'total_value' for the
+    # newer IG metrics (profile_views, accounts_engaged) that require metric_type=total_value
+    # and return a single {total_value:{value}} aggregate instead of a values[] series (#135).
     $collectInsightPoints = {
-        param([string] $entityKind, [string] $entityId, [string[]] $metrics, [string] $metricPeriod)
+        param([string] $entityKind, [string] $entityId, [string[]] $metrics, [string] $metricPeriod, [string] $metricType = '')
         foreach ($metric in $metrics) {
             $uri = '{0}/insights?metric={1}&period={2}' -f [uri]::EscapeDataString($entityId), $metric, $metricPeriod
+            if ($metricType) { $uri += '&metric_type={0}' -f $metricType }
             try { $series = @(Invoke-ImperionMetaRequest -Token $Token -Uri $uri) }
             catch {
                 Write-ImperionLog -Level Warn -Source 'meta' `
@@ -72,6 +91,26 @@ function Get-ImperionMetaInsight {
             foreach ($insight in $series) {
                 $seriesName = [string](Get-ImperionMember $insight 'name')
                 $seriesPeriod = [string](Get-ImperionMember $insight 'period')
+
+                # total_value metrics return {total_value:{value}} (no values[] series).
+                # Date the single point to today (UTC) so one idempotent row lands per day.
+                $totalValue = Get-ImperionMember $insight 'total_value'
+                if ($metricType -eq 'total_value' -or $null -ne $totalValue) {
+                    $aggregate = if ($null -ne $totalValue) { Get-ImperionMember $totalValue 'value' } else { $null }
+                    if ($null -eq $aggregate) { continue }
+                    $endTime = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd')
+                    [pscustomobject]@{
+                        name                = $seriesName
+                        period              = $seriesPeriod
+                        end_time            = $endTime
+                        value               = $aggregate
+                        _imperionEntityKind = $entityKind
+                        _imperionEntityId   = $entityId
+                        _imperionExternalId = ('{0}:{1}:{2}:{3}:{4}' -f $entityKind, $entityId, $seriesName, $seriesPeriod, $endTime)
+                    }
+                    continue
+                }
+
                 foreach ($point in @(Get-ImperionMember $insight 'values')) {
                     if ($null -eq $point) { continue }
                     $endTime = [string](Get-ImperionMember $point 'end_time')
@@ -106,6 +145,7 @@ function Get-ImperionMetaInsight {
 
     if ($IgUserId) {
         foreach ($point in @(& $collectInsightPoints 'ig_user' $IgUserId $IgMetric $Period)) { $points.Add($point) }
+        foreach ($point in @(& $collectInsightPoints 'ig_user' $IgUserId $IgTotalValueMetric $Period 'total_value')) { $points.Add($point) }
 
         # followers_count is not an insights metric — snapshot it as a 'lifetime' row,
         # dated so one row lands per day (idempotent external_id).

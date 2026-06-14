@@ -98,4 +98,41 @@ Describe 'Get-ImperionMetaInsight' {
             { Get-ImperionMetaInsight -Token 't' } | Should -Throw '*-PageId*'
         }
     }
+
+    It 'page-metric defaults drop the deprecated names (#135)' {
+        InModuleScope ImperionPipeline {
+            $ast = (Get-Command Get-ImperionMetaInsight).ScriptBlock.Ast
+            $param = $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.ParameterAst] -and $n.Name.VariablePath.UserPath -eq 'PageMetric' }, $true)[0]
+            $defaults = $param.DefaultValue.Extent.Text
+            $defaults | Should -Not -Match 'page_impressions(?!_unique)'
+            $defaults | Should -Not -Match 'page_fans'
+            $defaults | Should -Match 'page_impressions_unique'
+            $defaults | Should -Match 'page_post_engagements'
+            $defaults | Should -Match 'page_views_total'
+        }
+    }
+
+    It 'requests IG total_value metrics with metric_type=total_value and parses the total_value shape (#135)' {
+        InModuleScope ImperionPipeline {
+            Mock Invoke-ImperionMetaRequest {
+                if ($Uri -match 'ig9/insights\?metric=profile_views&period=day&metric_type=total_value') {
+                    @([pscustomobject]@{ name = 'profile_views'; period = 'day'
+                            total_value = [pscustomobject]@{ value = 88 }
+                        })
+                }
+                elseif ($Uri -match 'followers_count') { @([pscustomobject]@{ followers_count = 5 }) }
+                else { @() }
+            }
+            $rows = @(Get-ImperionMetaInsight -IgUserId 'ig9' -Token 't' -PageMetric @() -IgMetric @() -IgTotalValueMetric 'profile_views')
+            Should -Invoke Invoke-ImperionMetaRequest -Times 1 -ParameterFilter {
+                $Uri -eq 'ig9/insights?metric=profile_views&period=day&metric_type=total_value'
+            }
+            $pv = $rows | Where-Object metric -EQ 'profile_views'
+            $pv | Should -Not -BeNullOrEmpty
+            $pv.value | Should -Be '88'
+            $pv.period | Should -Be 'day'
+            $pv.entity_kind | Should -Be 'ig_user'
+            $pv.external_id | Should -Match '^ig_user:ig9:profile_views:day:\d{4}-\d{2}-\d{2}$'
+        }
+    }
 }
