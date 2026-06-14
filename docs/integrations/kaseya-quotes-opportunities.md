@@ -8,9 +8,11 @@ data**: they flatten **directly to Postgres** and **skip the IT Glue hub** (ADR-
 > **KQM is an opportunity source, not a standalone proposal (front-end migration 0083,
 > ADR-0080/0039).** The mis-modeled `kqm_proposals` (0038) is **dropped**. KQM quote
 > headers land in `kqm_opportunities`; the three sources (KQM, Autotask, website) merge
-> into the silver `opportunity`. Won-quote DETAIL (sections/lines/sales orders) is a
-> separate collector set (issue #161); this doc + `Get-ImperionKqmOpportunity` cover the
-> **header**.
+> into the silver `opportunity`. The **header** (`Get-ImperionKqmOpportunity`, issue #160)
+> and the **won-quote DETAIL** — sections/lines/sales orders (`Get-ImperionKqmOpportunityDetail`,
+> issue #161) — are both built; the daily task chains header → won-detail. Detail **value**
+> (Σ selected/non-optional lines, MRR vs one-off by `is_recurring`) is computed in the
+> silver opportunity merge (pipeline #95), not here.
 
 ## Sources & auth
 | Source | API | Auth |
@@ -57,6 +59,28 @@ sales_order_id, customer_id, autotask_opportunity_id, autotask_organization_id,
 autotask_quote_id, contact_name, contact_email, owner_employee_id, created_date,
 modified_date, expiry_date` + the standard envelope. `Invoke-ImperionKaseyaImport -Entity
 Opportunities` (or the daily `scheduled-tasks/kqm/opportunities.task.ps1`) drives the pull.
+
+### Won-quote detail (issue #161, `Get-ImperionKqmOpportunityDetail`)
+The detail endpoints are **NOT server-filterable by quote** (`?quoteID=` is ignored — the
+full collection comes back), so the collector pulls each full collection and **keeps only
+rows belonging to a won quote** (the won quote-id set passed from the header pass), joined
+client-side along:
+`quoteline.quoteSectionID → quotesection.id → quotesection.quoteID → quote.id` and
+`salesorderline.salesOrderID → salesorder.id → salesorder.quoteID → quote.id`.
+
+| Endpoint | Bronze table | Key FK kept on |
+| --- | --- | --- |
+| `quotesection` | `kqm_opportunity_sections` | `quoteID` ∈ won quotes |
+| `quoteline` | `kqm_opportunity_lines` | `quoteSectionID` ∈ won sections |
+| `salesorder` | `kqm_sales_orders` | `quoteID` ∈ won quotes |
+| `salesorderline` | `kqm_sales_order_lines` | `salesOrderID` ∈ won sales orders |
+
+`modifiedAfter` is **unverified** on the line/section endpoints (#427), so the collector
+defaults to a **full pull** and relies on the bronze **content-hash skip** for idempotency
+(no re-bill on unchanged rows); the `-ModifiedAfter` parameter is exposed for when it's
+confirmed. Won-quote volume is small, so the full read stays far inside the 60/min · 20k/day
+budget. `Set-ImperionKqmOpportunityDetailToBronze` writes all four tables over one
+short-lived-token connection.
 
 ## Flatten
 Standard pattern: flatten to `[PSCustomObject]` with the attributes we care about +
@@ -108,5 +132,6 @@ real-time, internet-facing. This repo does the **scheduled bulk poll** of ticket
 
 ## Still assumptions (no live access yet)
 - KQM detail endpoints (`quoteline`/`quotesection`/`salesorderline`) `modifiedAfter`
-  support — verify on first detail run (issue #161); else full pull + content-hash skip.
+  support — verify on first detail run; until then the detail collector does a full pull +
+  content-hash skip (issue #161, the conservative default already wired).
 - DocuSign contract retrieval path (envelopes API) and what counts as a "contract" record.
