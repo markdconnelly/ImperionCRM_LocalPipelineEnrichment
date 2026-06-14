@@ -58,6 +58,7 @@
         'Invoke-ImperionUniFiRequest',
         'Invoke-ImperionPlaudRequest',
         'Invoke-ImperionKqmRequest',
+        'Invoke-ImperionQboRequest',
         'Invoke-ImperionMetaRequest',
         'Get-ImperionMetaPageToken',
         # Per-object get layer (collect -> flatten to PSObject; no writes)
@@ -92,6 +93,7 @@
         'Get-ImperionPlaudRecording',
         'Get-ImperionKqmOpportunity',
         'Get-ImperionKqmFieldName',
+        'Get-ImperionQboBillPayment',
         'Get-ImperionMetaPagePost',
         'Get-ImperionMetaPostComment',
         'Get-ImperionMetaConversation',
@@ -108,6 +110,7 @@
         'Set-ImperionUniFiDeviceToBronze',
         'Set-ImperionPlaudRecordingToBronze',
         'Set-ImperionKqmOpportunityToBronze',
+        'Set-ImperionQboBillPaymentToBronze',
         'Set-ImperionM365UserToBronze',
         'Set-ImperionM365DeviceToBronze',
         'Set-ImperionM365MailToBronze',

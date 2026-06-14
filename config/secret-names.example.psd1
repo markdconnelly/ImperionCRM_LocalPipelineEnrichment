@@ -50,6 +50,14 @@
     # break and need a human re-login; the recordings task logs + exits cleanly until then.
     PlaudOAuthToken         = 'plaud-oauth-token'
 
+    # QuickBooks Online (issue #170, time-tracking LP-1 QBO half) — the OAuth2 access token +
+    # the realm (company) id. The token EXPIRES (~1h) and the refresh token rotates; the
+    # bill-payments task logs + exits cleanly until both are provisioned (the standing QBO app-
+    # registration gate, same blocker as backend #104). Read-only — authoritative payment fact
+    # only; the app never pays. See docs/integrations/quickbooks-online.md.
+    QboAccessToken          = 'qbo-access-token'
+    QboRealmId              = 'qbo-realm-id'
+
     # Voyage AI key for the vectorization stage (ADR-0009; pinned voyage-3-large @ 1024,
     # front-end ADR-0041). Resolution order in Get-ImperionVoyageEmbedding:
     #   1. SecretStore title below (when the vault is unlocked this run) — mirror of the KV value
