@@ -34,6 +34,7 @@ Register-ImperionTask -Name 'Imperion m365 Mail' `
 | **m365** | `m365/users` | Users | **Daily** | Slow-changing |
 | **m365** | `m365/devices` | Devices | **Daily** | Slow-changing |
 | **m365** | `m365/intune-devices` | Intune device compliance | **Daily** | Per-device posture truth (ADR-0051 d6); gated on pending bronze migration |
+| **m365** | `m365/intune-apps` | Intune managed apps | **Daily** | Drillable app inventory (issue #143 / frontend #261); gated on DeviceManagementApps.Read.All grant + pending bronze migration |
 | **m365** | `m365/defender` | Defender XDR incidents + alerts | **Hourly** | Operationally timely; change-detected upsert keeps re-runs cheap; gated on 0076 prod apply |
 | **m365** | `m365/auth-methods` | Per-user MFA registration | **Daily** | Registration state is slow-changing (ADR-0051 posture); gated on 0077 prod apply |
 | **m365** | `m365/sharepoint-sites` | SharePoint site inventory (metadata only) | **Daily** | Site inventory is slow-changing; NO file content (Files.Read.All pruned); gated on 0078 prod apply |
