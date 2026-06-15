@@ -27,6 +27,7 @@
         'Invoke-ImperionITGlueExport',
         'Invoke-ImperionKaseyaImport',
         'Invoke-ImperionKnowledgeSync',
+        'Invoke-ImperionReceiptLifecycle',
         # Golden state / drift
         'Set-ImperionPolicyGoldenState',
         'Get-ImperionPolicyDrift',
@@ -46,6 +47,7 @@
         'Invoke-ImperionBronzeUpsert',
         'Invoke-ImperionGraphRequest',
         'Invoke-ImperionArmRequest',
+        'Remove-ImperionStorageBlob',
         'Get-ImperionKeyVaultSecret',
         'Invoke-ImperionITGlueRequest',
         'Set-ImperionITGlueFlexibleAsset',

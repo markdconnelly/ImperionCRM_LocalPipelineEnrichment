@@ -43,6 +43,15 @@ function Get-ImperionKeyVaultToken {
     Get-ImperionAccessToken -Resource 'https://vault.azure.net/.default' -TenantId $TenantId -ClientId $cfg.ClientId -CertThumbprint $cfg.CertThumbprint
 }
 
+function Get-ImperionStorageToken {
+    param([string] $TenantId)
+    # Azure Storage data-plane token (the agreed Storage WRITE grant, CLAUDE.md §2) — used by the
+    # receipt 90-day lifecycle to delete a verified-in-Autotask blob (ADR-0015).
+    $cfg = Get-ImperionConfig
+    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    Get-ImperionAccessToken -Resource 'https://storage.azure.com/.default' -TenantId $TenantId -ClientId $cfg.ClientId -CertThumbprint $cfg.CertThumbprint
+}
+
 function New-ImperionDbConnection {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Opens a transient DB connection object; it changes no persistent system state, so ShouldProcess is not warranted.')]
