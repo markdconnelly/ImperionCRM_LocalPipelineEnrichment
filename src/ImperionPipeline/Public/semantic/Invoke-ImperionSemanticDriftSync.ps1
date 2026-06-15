@@ -63,7 +63,8 @@ function Invoke-ImperionSemanticDriftSync {
 
         $proposal = New-ImperionSemanticDriftProposal -Drift $drift -Execute:$Execute
         if ($proposal.Concepts.Count -gt 0) {
-            Write-ImperionLog -Level Metric -Source 'semantic' -Message ('Semantic-drift proposal {0}.' -f ($(if ($proposal.Opened) { 'opened' } elseif ($Execute) { 'NOT opened (fail-closed)' } else { 'built (dry-run)' }))) -Data @{ concepts = ($proposal.Concepts -join ','); opened = $proposal.Opened }
+            $state = if ($proposal.Opened) { "opened ($($proposal.Mode))" } elseif ($Execute) { 'NOT opened (fail-closed)' } else { 'built (dry-run)' }
+            Write-ImperionLog -Level Metric -Source 'semantic' -Message ('Semantic-drift proposal {0}.' -f $state) -Data @{ concepts = ($proposal.Concepts -join ','); opened = $proposal.Opened; mode = $proposal.Mode; url = $proposal.Url }
         }
 
         return $drift

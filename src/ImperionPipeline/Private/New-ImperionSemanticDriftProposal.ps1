@@ -19,19 +19,24 @@ function New-ImperionSemanticDriftProposal {
             external — the default, safe in CI and on a cold node.
           - With -Execute, it requires a GitHub token in $env:IMPERION_GH_TOKEN. If absent it
             LOGS a Warn and EXITS cleanly (fail-closed; never prompts, never stores/prints a token).
-          - The actual `gh`/REST PR-push is a documented STUB (see NOTE below) tracked as a
-            follow-up; today -Execute files an ISSUE on the front-end repo via `gh` so the drift is
-            visible and human-actionable without the agent ever holding push rights.
+          - With -Execute + token, it opens a cross-repo **PR** with the affected concept files
+            already edited on a branch (New-ImperionSemanticDriftPullRequest, issue #190): column-name
+            deltas applied to each '## Schema' table, frontmatter timestamps bumped, coverage-matrix
+            timestamp bumped. The agent NEVER merges. (Issue #190 promoted the earlier issue-filing
+            stub to this PR-opener.) When the only drift is 'missing-concept' / 'orphaned-concept'
+            (no mechanical edit to make — those need human authoring/reconciliation) it falls back to
+            filing an ISSUE so the drift is still visible and human-actionable.
     .PARAMETER Drift
         Drift rows from Get-ImperionSemanticDrift (only non-'in-sync' rows are acted on).
     .PARAMETER Execute
-        Opt in to live execution (open an issue on the front-end repo). Default: dry-run only.
+        Opt in to live execution (open a PR — or, for author-only drift, an issue — on the front-end
+        repo). Default: dry-run only.
     .PARAMETER TargetRepo
         owner/repo of the front-end canon. Default markdconnelly/ImperionCRM.
     .EXAMPLE
         $p = New-ImperionSemanticDriftProposal -Drift $drift           # dry-run; inspect $p.Body
     .EXAMPLE
-        New-ImperionSemanticDriftProposal -Drift $drift -Execute       # gated: opens an issue
+        New-ImperionSemanticDriftProposal -Drift $drift -Execute       # gated: opens a cross-repo PR
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', '',
         Justification = 'Reads a token from an env var by reference only; never declared as a parameter, never logged.')]
@@ -81,37 +86,52 @@ function New-ImperionSemanticDriftProposal {
         }
         [void]$sb.AppendLine('')
     }
-    [void]$sb.AppendLine('_Column names only — verify shape/meaning against the live read-only DB (CLAUDE.md §8) before merging. Refs ADR-0086, LocalPipelineEnrichment #175._')
+    [void]$sb.AppendLine('_Column names only — verify shape/meaning against the live read-only DB (CLAUDE.md §8) before merging. The agent opened this for review; it does **not** merge. Refs ADR-0086, LocalPipelineEnrichment #175/#190._')
 
     $title = ('docs(semantic-layer): sync OKF bundle to silver drift ({0} concept(s))' -f $actionable.Count)
     $body = $sb.ToString()
 
+    # Rows carrying a mechanical column delta (added/removed) can be auto-edited onto a branch → PR.
+    # missing-concept / orphaned-concept need human authoring/reconciliation, so they only ever
+    # produce an issue.
+    $editable = @($actionable | Where-Object { $_.status -eq 'drift' })
+
     $opened = $false
+    $url = $null
+    $mode = 'dry-run'
     if ($Execute) {
         # Fail-closed: live execution needs a token. Never prompt; never store/print it.
         if (-not $env:IMPERION_GH_TOKEN) {
-            Write-ImperionLog -Level Warn -Source 'semantic' -Message 'Semantic-drift proposal NOT opened: IMPERION_GH_TOKEN unset (fail-closed). Re-run with the token to open the cross-repo issue.'
-            return [pscustomobject]@{ Title = $title; Body = $body; Concepts = @($actionable.concept); Opened = $false }
+            Write-ImperionLog -Level Warn -Source 'semantic' -Message 'Semantic-drift proposal NOT opened: IMPERION_GH_TOKEN unset (fail-closed). Re-run with the token to open the cross-repo PR.'
+            return [pscustomobject]@{ Title = $title; Body = $body; Concepts = @($actionable.concept); Opened = $false; Url = $null; Mode = 'fail-closed' }
         }
 
-        # NOTE (follow-up): the full design opens a cross-repo PR with the concept files already
-        # edited on a branch in the front-end repo. That requires a clone+branch+push of
-        # markdconnelly/ImperionCRM and is deferred to a follow-up issue. Until then -Execute files
-        # an ISSUE on the front-end repo (human-actionable, agent holds no push rights). This stub
-        # is intentionally the conservative half of issue #175's scope.
-        try {
-            $env:GH_TOKEN = $env:IMPERION_GH_TOKEN   # gh reads GH_TOKEN; scoped to this process only.
-            & gh issue create --repo $TargetRepo --title $title --body $body --label 'needs-triage' | Out-Null
-            $opened = $LASTEXITCODE -eq 0
-            if (-not $opened) { Write-ImperionLog -Level Error -Source 'semantic' -Message "gh issue create failed (exit $LASTEXITCODE)." }
+        if ($editable.Count -gt 0) {
+            # Promote (issue #190): open a cross-repo PR with the concept files already edited on a branch.
+            $mode = 'pr'
+            $pr = New-ImperionSemanticDriftPullRequest -Drift $editable -Title $title -Body $body -TargetRepo $TargetRepo
+            $opened = [bool]$pr.Opened
+            $url = $pr.Url
+            if ($opened) { Write-ImperionLog -Level Metric -Source 'semantic' -Message 'Semantic-drift PR opened (no merge).' -Data @{ url = $url; concepts = ($pr.EditedConcepts -join ',') } }
         }
-        catch {
-            Write-ImperionLog -Level Error -Source 'semantic' -Message "Semantic-drift proposal failed to open: $($_.Exception.Message)"
-        }
-        finally {
-            Remove-Item Env:\GH_TOKEN -ErrorAction SilentlyContinue   # do not leave the token in the environment.
+        else {
+            # Only author-required drift (missing/orphaned): no file to edit → file an issue instead.
+            $mode = 'issue'
+            try {
+                $env:GH_TOKEN = $env:IMPERION_GH_TOKEN   # gh reads GH_TOKEN; scoped to this process only.
+                $issueUrl = & gh issue create --repo $TargetRepo --title $title --body $body --label 'needs-triage' 2>$null
+                $opened = $LASTEXITCODE -eq 0
+                if ($opened) { $url = ("$issueUrl").Trim() }
+                else { Write-ImperionLog -Level Error -Source 'semantic' -Message "gh issue create failed (exit $LASTEXITCODE)." }
+            }
+            catch {
+                Write-ImperionLog -Level Error -Source 'semantic' -Message "Semantic-drift proposal failed to open: $($_.Exception.Message)"
+            }
+            finally {
+                Remove-Item Env:\GH_TOKEN -ErrorAction SilentlyContinue   # do not leave the token in the environment.
+            }
         }
     }
 
-    [pscustomobject]@{ Title = $title; Body = $body; Concepts = @($actionable.concept); Opened = $opened }
+    [pscustomobject]@{ Title = $title; Body = $body; Concepts = @($actionable.concept); Opened = $opened; Url = $url; Mode = $mode }
 }
