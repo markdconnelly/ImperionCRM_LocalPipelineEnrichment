@@ -9,8 +9,8 @@ only *queries*, backend ADR-0034).
 
 ```mermaid
 flowchart LR
-    SILVER[("silver account/contact/device/<br/>credential_exposure/assessment_artifact/proposal +<br/>autotask/itglue/posture bronze")]
-    SILVER --> COMPOSE["Get-ImperionKnowledge*<br/>(account · contact · contract · ticket ·<br/>device · exposure · assessment · proposal · posture · social)"]
+    SILVER[("silver account/contact/device/<br/>credential_exposure/assessment_artifact/proposal +<br/>autotask/itglue/posture bronze + conversation_segment")]
+    SILVER --> COMPOSE["Get-ImperionKnowledge*<br/>(account · contact · contract · ticket ·<br/>device · exposure · assessment · proposal · posture · social ·<br/>conversation_segment)"]
     COMPOSE --> KO[("knowledge_object<br/>Set-ImperionKnowledgeObject<br/>(upsert, content_hash gated)")]
     KO --> CHUNK["Split-ImperionTextChunk (v1)"]
     CHUNK -->|changed objects only| VOYAGE["Get-ImperionVoyageEmbedding<br/>voyage-3-large @ 1024"]
@@ -40,9 +40,25 @@ tasks land).
   tenant: latest Secure Score + per-type policy drift counts and named gaps via
   `Get-ImperionPolicyDrift`), and **social** (`'social'` — one per FB/IG silver
   `interaction` of kind social_post/social_comment/dm: author, text, engagement,
-  permalink, and the resolved contact for DM-sender leads; #127). Each further entity (IT Glue/Azure docs) is one new
+  permalink, and the resolved contact for DM-sender leads; #127), and **conversation
+  segments** (`entity_type='conversation_segment'` — one per silver `conversation_segment`
+  diarized turn from ACS calls / Teams meetings / uploads: speaker + turn text framed with
+  the channel, account, and recording offsets; front-end ADR-0068, #200. The segment is
+  the embedding unit pinned by ADR-0068; a retrieved vector traces back to its source
+  conversation + turn through the **`conversation_segment_citation`** view — see below).
+  Each further entity (IT Glue/Azure docs) is one new
   composer + one line in the sync — coverage is the goal, tracked in the
   production-readiness plan.
+- **Citation view (conversation segments, ADR-0068):** a retrieved
+  `knowledge_embedding` resolves to its source conversation + diarized turn through
+  **`conversation_segment_citation`** (a front-end view — DDL source-of-record in this
+  repo's [`sql/conversation_segment_citation_schema.sql`](../../sql/conversation_segment_citation_schema.sql),
+  a pending front-end migration; see `front-end-schema-handoff.md`). It joins the gold
+  object (`entity_type='conversation_segment'`, `entity_ref` = the segment id) to silver
+  `conversation_segment` → `conversation`, exposing channel/account/speaker/offsets/text so
+  the backend can render an attributed citation. Purged conversations are excluded both in
+  the composer query and the view. The composer needs `SELECT` on `conversation` +
+  `conversation_segment` for the `imperion-localpipeline` role (same migration request).
 - **Composer spine (#106):** every `Get-ImperionKnowledge*` composer is a thin adapter
   over the module-internal **`Invoke-ImperionKnowledgeCompose`** — it owns the shared
   scaffold (tenant default, connection lifecycle, related-row lookup caches, the
