@@ -1,4 +1,4 @@
-# ADR-NNNN: OKF semantic-layer drift agent (on-prem, propose-only)
+# ADR-0016: OKF semantic-layer drift agent (on-prem, propose-only)
 
 | Field | Value |
 |---|---|

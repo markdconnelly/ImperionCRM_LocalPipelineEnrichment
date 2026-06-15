@@ -88,4 +88,4 @@ map), `Get-ImperionSilverSchema` (column-name introspection), `Get-ImperionOkfCo
   grows (front-end #536).
 
 > Part of the system-wide `/docs` standard. See [../../CLAUDE.md](../../CLAUDE.md) and
-> [the ADR](../decision-records/ADR-NNNN-okf-semantic-drift-agent.md).
+> [the ADR](../decision-records/ADR-0016-okf-semantic-drift-agent.md).
