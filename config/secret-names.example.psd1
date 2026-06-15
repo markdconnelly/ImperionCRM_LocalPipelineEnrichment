@@ -69,6 +69,19 @@
     QboAccessToken          = 'qbo-access-token'
     QboRealmId              = 'qbo-realm-id'
 
+    # MileIQ (issue #167, expense-tracking ADR-0083) - PER-EMPLOYEE read-only OAuth mileage.
+    # The BACKEND owns the OAuth handshake and custodies each employee's refresh token in Key
+    # Vault (backend MileIQ OAuth issue); this repo only READS the short-lived per-employee
+    # ACCESS token. Tokens are keyed by the employee's MileIQ user id, so these are PREFIXES,
+    # not single titles: Resolve-ImperionMileIqAccessToken reads `<prefix><mileiqUserId>` from
+    # the SecretStore mirror first, else `<vaultPrefix><mileiqUserId>` from Key Vault (the
+    # backend-custodied original). A missing secret = that employee is unconnected -> skipped
+    # cleanly (dormant-per-employee, fail closed). GATED until the MileIQ External API
+    # credentials (markdconnelly/ImperionCRM#495) + backend OAuth custody are live; personal
+    # drives never enter, no comp data. See docs/integrations/mileiq.md.
+    MileIqTokenPrefix       = 'mileiq-token-'
+    MileIqTokenVaultPrefix  = 'MileIQ-Token-'
+
     # Voyage AI key for the vectorization stage (ADR-0009; pinned voyage-3-large @ 1024,
     # front-end ADR-0041). Resolution order in Get-ImperionVoyageEmbedding:
     #   1. SecretStore title below (when the vault is unlocked this run) — mirror of the KV value
