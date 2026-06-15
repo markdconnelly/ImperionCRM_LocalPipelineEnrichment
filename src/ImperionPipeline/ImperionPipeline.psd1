@@ -34,6 +34,9 @@
         'Invoke-ImperionPostureMerge',
         'Invoke-ImperionPostureSnapshot',
         'Get-ImperionSecureScore',
+        # Semantic-layer (OKF) drift agent (issue #175 / ADR-0086)
+        'Get-ImperionSemanticDrift',
+        'Invoke-ImperionSemanticDriftSync',
         # Building blocks (reusable helpers)
         'Write-ImperionLog',
         'Get-ImperionContentHash',
