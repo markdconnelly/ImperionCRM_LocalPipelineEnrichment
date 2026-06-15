@@ -79,8 +79,7 @@ map), `Get-ImperionSilverSchema` (column-name introspection), `Get-ImperionOkfCo
 
 - The **PR-opening step is a documented stub**: `-Execute` files an **issue** on the
   front-end repo today. Opening a PR with the concept files already edited on a branch
-  requires a clone+branch+push of `markdconnelly/ImperionCRM` and is deferred — see the
-  follow-up issue linked from #175.
+  requires a clone+branch+push of `markdconnelly/ImperionCRM` and is deferred to **#190**.
 - The agent proposes column-name deltas; it does **not** author the prose
   (definition / source-of-record / joins). It flags what to update and links ADR-0086;
   the maintainer writes the meaning. (A future enhancement could draft prose from the
