@@ -65,6 +65,7 @@
         'Invoke-ImperionKqmRequest',
         'Invoke-ImperionEasyDmarcRequest',
         'Invoke-ImperionQboRequest',
+        'Invoke-ImperionMileIqRequest',
         'Invoke-ImperionMetaRequest',
         'Get-ImperionMetaPageToken',
         # Per-object get layer (collect -> flatten to PSObject; no writes)
@@ -107,6 +108,7 @@
         'Get-ImperionKqmFieldName',
         'Get-ImperionEasyDmarcDomain',
         'Get-ImperionQboBillPayment',
+        'Get-ImperionMileIqDrive',
         'Get-ImperionMetaPagePost',
         'Get-ImperionMetaPostComment',
         'Get-ImperionMetaConversation',
@@ -125,6 +127,7 @@
         'Set-ImperionKqmOpportunityToBronze',
         'Set-ImperionEasyDmarcDomainToBronze',
         'Set-ImperionQboBillPaymentToBronze',
+        'Set-ImperionMileIqDriveToBronze',
         'Set-ImperionM365UserToBronze',
         'Set-ImperionM365DeviceToBronze',
         'Set-ImperionM365MailToBronze',
