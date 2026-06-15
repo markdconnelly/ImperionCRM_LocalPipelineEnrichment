@@ -9,12 +9,13 @@ in Postgres bronze.
 - **Cert-based app-only** token (`Get-MsalToken -ClientCertificate`) for Microsoft Graph,
   scope `https://graph.microsoft.com/.default`.
 - **Graph permission required:** `Application.Read.All` *or* `Directory.Read.All`
-  (application permission, read-only). This is part of the read-only-by-default grant
-  (ADR-0002).
-- **Tenant scope:** the **partner tenant** by default. To inventory **customer** tenants,
-  acquire a per-customer Graph token via the GDAP relationship (CLAUDE.md §3) and loop —
-  one IT Glue organization per customer tenant. *(GDAP multi-tenant loop is the documented
-  extension; the first cut targets the partner tenant.)*
+  (application permission, read-only). This is part of the onboarding app's
+  read-only-by-default grant (pipeline ADR-0018).
+- **Tenant scope:** Imperion's own tenant by default. To inventory **client** tenants,
+  acquire a client-credentials Graph token as the consented onboarding app **in each
+  client tenant** (CLAUDE.md §3) and loop — one IT Glue organization per client tenant.
+  *(The per-client-app multi-tenant loop is the documented extension; the first cut
+  targets Imperion's own tenant.)*
 
 ## Source endpoint
 `GET https://graph.microsoft.com/v1.0/servicePrincipals` (paged via `@odata.nextLink`).
@@ -49,7 +50,7 @@ Graph throttles per-tenant; honor `Retry-After` on 429 with exponential backoff.
 politely. Log record counts + duration.
 
 ## Assumptions to confirm on first live run
-- The cert app has `Application.Read.All`/`Directory.Read.All` consented in the partner
-  tenant (and via GDAP roles for customer tenants).
+- The onboarding app has `Application.Read.All`/`Directory.Read.All` admin-consented in
+  Imperion's own tenant (and per client tenant for client inventory).
 - IT Glue organization mapping: how a tenant id maps to an IT Glue organization (by name,
   by an org trait, or a maintained map).

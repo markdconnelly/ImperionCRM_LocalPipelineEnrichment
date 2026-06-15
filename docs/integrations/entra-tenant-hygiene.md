@@ -19,11 +19,12 @@ the IT Glue hub documents — CLAUDE.md §6).
   - `Domain.Read.All` — `/domains`
   - `Application.Read.All` — `/applications`
   - `RoleManagement.Read.Directory` — `/roleManagement/directory/roleAssignments`
-  - All three are part of the **read-only-by-default** grant (ADR-0002); none is a write
-    or data-plane grant. Adding/consenting them is a human-approval gate (CLAUDE.md §8).
-- **Tenant scope:** the **partner tenant** by default. Customer tenants fan out over GDAP
-  via `IMPERION_M365_TENANT_IDS` (CLAUDE.md §3); each row is stamped with its owning
-  tenant (per-tenant isolation).
+  - All three are part of the onboarding app's **read-only-by-default** grant (pipeline
+    ADR-0018); none is a write or data-plane grant. Adding/consenting them is a
+    human-approval gate (CLAUDE.md §8).
+- **Tenant scope:** Imperion's own tenant by default. Client tenants fan out via the
+  per-client onboarding app (`IMPERION_M365_TENANT_IDS`, CLAUDE.md §3); each row is
+  stamped with its owning tenant (per-tenant isolation).
 
 ## Source endpoints (paged via `@odata.nextLink`)
 | Object | Endpoint | Notes |
@@ -75,9 +76,9 @@ Graph throttles per-tenant; honor `Retry-After` on 429 with exponential backoff 
 `Invoke-ImperionRestWithRetry`). Page politely. Log record counts + duration per run.
 
 ## Assumptions to confirm on first live run
-- The cert app has `Domain.Read.All`, `Application.Read.All`, and
-  `RoleManagement.Read.Directory` consented in the partner tenant (and via GDAP roles for
-  customer tenants).
+- The onboarding app has `Domain.Read.All`, `Application.Read.All`, and
+  `RoleManagement.Read.Directory` admin-consented in Imperion's own tenant (and per client
+  tenant for client fan-out).
 - The front-end `entra_domains` / `entra_app_registrations` / `entra_role_assignments`
   bronze migration (ImperionCRM#260) is applied to prod and the local-pipeline SP has the
   write grant on them (follow-up grant migration, same as the 0036/0079 tables — see the

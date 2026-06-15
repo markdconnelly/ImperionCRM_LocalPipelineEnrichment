@@ -66,8 +66,8 @@ not hosted in Azure DNS.
 | **Task** | `scheduled-tasks/azure/dns-resolve.task.ps1` — **Daily** |
 
 No Microsoft auth — pure public resolution via `Resolve-ImperionDnsRecord` (OS resolver
-with a **DNS-over-HTTPS** fallback to `dns.google`), so there is no GDAP/per-client
-dependency. Per domain it resolves apex A / TXT (SPF) / MX / NS / CAA, DMARC (`_dmarc` TXT),
+with a **DNS-over-HTTPS** fallback to `dns.google`), so there is no per-client
+onboarding-app / tenant-access dependency. Per domain it resolves apex A / TXT (SPF) / MX / NS / CAA, DMARC (`_dmarc` TXT),
 and the common M365 DKIM selector CNAMEs (`selector1/2._domainkey`).
 
 **Domain source = `account_domain`** (the GUI-managed per-account list, migration 0081 /

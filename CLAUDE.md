@@ -5,13 +5,18 @@ making changes.** This is the **fourth repo** in the Imperion CRM system; it doe
 stand alone. When a decision here conflicts with a quick instinct, this file wins unless
 the human (Mark) says otherwise.
 
+> **Heads-up (2026-06-12):** GDAP is **scrapped** — client M365 access is the per-client
+> onboarding app (pipeline ADR-0018). If you find lingering "GDAP-primary" wording or a
+> `$activeGdapRelationships`-style code path, it is stale; the onboarding-app model in §3
+> is authoritative.
+
 /handoff commits files to C:\Development\GitHub\handoff-memory\filename instead of system settings.
 when reporting information to me be extremley concise and sacrifice grammar for the sake of concision.
 
 > **Four-repo system — read the siblings first.**
 > - **`ImperionCRM`** (front end) — the **live** web app (`imperioncrm.azurewebsites.net`,
 >   Entra SSO). **Owns the database schema and all migrations** (`db/migrations`, ADR-0017).
->   Authoritative UI. Surfaces client connection / GDAP relationship health. Token model:
+>   Authoritative UI. Surfaces client connection / onboarding-app access health. Token model:
 >   per-connection secrets live in **Key Vault, never the database**.
 > - **`ImperionCRM_Backend`** (Azure Functions) — *every process*: OAuth handshakes, real
 >   outbound sends, credential storage, the orchestrator agent + sub-agents, semantic
@@ -20,7 +25,8 @@ when reporting information to me be extremley concise and sacrifice grammar for 
 >   public endpoint, no VNet (backend ADR-0035).
 > - **`ImperionCRM_Pipeline`** (Azure Functions) — the *live-data plane* (pipeline
 >   ADR-0011, 2026-06-09): **inbound webhook receivers** (Autotask tickets, Graph change
->   notifications), the **gdap-health** fail-closed sweep, the bronze→silver
+>   notifications), the per-client onboarding-app access model (pipeline ADR-0018; the
+>   legacy GDAP fail-closed sweep is dormant code), the bronze→silver
 >   **merge-sources** transform, and a caller-auth-gated **`POST /api/refresh`** for
 >   targeted on-demand syncs. Its bulk-poll timers are RETIRED — this repo owns all
 >   scheduled bulk ingestion — and it carries **no AI code at all**.
@@ -146,7 +152,8 @@ grants it holds are the three the pipeline genuinely needs:
 | **Shared PostgreSQL** | Postgres Entra role, table-scoped (§6) | write bronze/silver/gold + vectors |
 | **Azure Key Vault** | `Key Vault Secrets User` | read the secrets / references it needs |
 
-Everything else is **`Reader`** on the Azure plane and **read-only via GDAP** on 365 (§3).
+Everything else is **`Reader`** on the Azure plane and **read-only via the per-client
+onboarding app** on 365 (§3).
 **Any new write capability is an explicit, documented, human-approved grant (§8)** — never
 added for convenience. (This replaces the earlier Owner-over-the-RG idea, which was far
 broader than ingestion needs: a stolen home-server cert must not equal control of the prod
@@ -155,28 +162,37 @@ security event.
 
 ---
 
-## 3. Client tenant access — GDAP, read-only (same model as the cloud Pipeline)
+## 3. Client tenant access — the per-client onboarding app (pipeline ADR-0018)
 
-Imperion is operated by an MSP holding **GDAP (Granular Delegated Admin Privileges)
-relationships with all clients.** GDAP is the **primary and preferred** path to client
-M365 data — least-privileged, time-bound, per-customer, Zero-Trust by design. This repo
-follows the cloud Pipeline's model exactly (see `ImperionCRM_Pipeline/CLAUDE.md §2`):
+**Client M365 data is reached via the per-client, admin-consented onboarding app — the
+ONLY access model.** GDAP (partner-tenant delegated admin) is **scrapped**: the old
+GDAP-primary framing is superseded by pipeline ADR-0018, and Partner Center provisioning
+will not happen for v1. The **Imperion Client Onboarding** app is already registered
+(read-only Graph application permissions, admin-consented per client tenant). This repo
+follows the cloud Pipeline's model exactly (see `ImperionCRM_Pipeline/CLAUDE.md §2` and
+`ImperionCRM_Pipeline` ADR-0018 — the source of truth for mechanics):
 
-- The certificate-backed Entra app authenticates **in the partner (CSP) tenant** and
-  reads each **customer tenant's Microsoft Graph through the delegated relationship**.
-  No per-client app consent.
-- **Least privilege via minimal GDAP roles** — request the fewest delegated roles that
-  satisfy read needs; document the exact roles per source in `docs/integrations/`.
-- **Relationships expire → fail closed.** A scheduled task monitors relationship state
-  and surfaces expiring/expired relationships (to the front-end Integrations UI and to
-  Mark). Expired access **stops that tenant's sync cleanly** — never silently retries.
+- The certificate-backed Entra app authenticates **as the consented onboarding app in
+  each client tenant** (client-credentials token in that tenant) and reads that
+  tenant's Microsoft Graph. No partner-tenant delegated path is used.
+- **Least privilege is the onboarding app's read-only granted permission set** — request
+  the fewest Graph application permissions that satisfy read needs; document the exact
+  permission grants per source in `docs/integrations/`.
+- **Access is per-tenant credentials → fail closed.** A tenant that is not registered /
+  consented (no onboarding-app credential pair) is **never touched** — removing the
+  credentials severs access instantly. A scheduled task surfaces credential / consent
+  expiry (to the front-end Integrations UI and to Mark) so a sync never silently runs
+  against dead access.
 - **Per-tenant isolation is absolute** — every ingested row is tagged with its owning
   customer tenant; **no cross-tenant reads** in any query path.
-- **Fallback:** a client unreachable via GDAP → a read-only, admin-consented app
-  registration for that one tenant, treated as the documented exception. GDAP first.
 
-**Granting / widening / renewing GDAP roles is a security event** and a human-approval
-gate (§8).
+Residual GDAP machinery (the fail-closed sweep / health checks) is **dormant code**: it
+skips cleanly because no partner app is configured and reports zero usable tenants. Do
+not build against it; do not treat it as a live fallback (its retirement is tracked as a
+separate follow-up).
+
+**Onboarding / widening / renewing a client's onboarding-app access is a security event**
+and a human-approval gate (§8).
 
 ---
 
@@ -197,7 +213,7 @@ gate (§8).
 - **Comment-based help** (`.SYNOPSIS`/`.PARAMETER`/`.EXAMPLE`) on every public function.
   `[CmdletBinding()]`, typed params, `ShouldProcess` on anything that writes.
 - **Human-readable, PSObject-first, flat tables.** Code reads like what it does — full,
-  descriptive variable names that track the work (`$activeGdapRelationships`,
+  descriptive variable names that track the work (`$consentedClientTenants`,
   `$flattenedDeviceRecords` — never `$x`, no terse aliases in committed code). Every source
   pull **flattens the source JSON into `[PSCustomObject]` rows holding only the attributes
   we actually care about** — a flat, table-shaped result (the shape you'd see in
@@ -266,8 +282,9 @@ Notes that bind to the existing system:
   schema (`kqm_proposal`, `docusign_contract`, `autotask_contract`, `autotask_ticket`,
   the `*_devices` set) and need front-end migrations first. Track this as an ADR + a
   cross-repo checklist.
-- **Read-only sources, GDAP where applicable.** `m365_*` flows through GDAP (§3).
-  Autotask / IT Glue / Apollo / KQM / DocuSign use their own API keys from the vault.
+- **Read-only sources via the per-client onboarding app where applicable.** `m365_*`
+  flows through the per-client onboarding app (§3). Autotask / IT Glue / Apollo / KQM /
+  DocuSign use their own API keys from the vault.
 
 ---
 
@@ -376,16 +393,18 @@ Inherits the system-wide posture (front-end `CLAUDE.md §5`, §9) and the cloud 
   cloud Pipeline's job). It makes **outbound** calls only.
 - **Certificate is the crown jewel** (§2). Compromise = vault + Entra app. Non-exportable
   key, ACL'd to the task identity, monitored. Plan cert rotation as a runbook.
-- **Least privilege.** Read-only via minimal GDAP roles into 365; **read-only by default
-  across Azure** (`Reader`), with write only to Storage / Postgres / Key Vault (§2). The
-  Postgres role is scoped to exactly the tables this repo touches. New write = explicit,
-  approved grant.
+- **Least privilege.** Read-only via the onboarding app's minimal Graph permission set
+  into 365; **read-only by default across Azure** (`Reader`), with write only to Storage /
+  Postgres / Key Vault (§2). The Postgres role is scoped to exactly the tables this repo
+  touches. New write = explicit, approved grant.
 - **No secrets in repo or in plaintext on disk.** SecretStore only; CMS-protected unlock.
-- **GDAP is time-bound — fail closed** (§3). Never operate against an expired relationship.
+- **Access is per-client onboarding-app credentials — fail closed** (§3). Never operate
+  against a tenant with no current consent / credential pair.
 - **Audit + cost telemetry from day one** (§4, §7): every run, every external call, every
-  embedding batch logged with counts, cost, and which tenant/GDAP relationship it used.
+  embedding batch logged with counts, cost, and which tenant it used.
 - **Idempotent + resumable** (§6): a failed/re-run task converges, never duplicates.
-- **Human-approval gates (system-wide):** granting/widening/renewing GDAP roles, widening
+- **Human-approval gates (system-wide):** onboarding/widening/renewing a client's
+  onboarding-app access, widening
   the Azure grant, touching billing, rotating the cert, or anything that could exfiltrate
   client data must surface for approval before running. Public-source enrichment
   (Apollo/website) stays inside the system's **lawful-basis + provenance** guardrail —
@@ -403,7 +422,7 @@ Code without docs is incomplete (front-end `CLAUDE.md §8`). Maintain in this re
    (the coexistence boundary, §1).
 2. **"Certificate-rooted unattended execution + read-only-by-default grant"** — gMSA +
    cert + CMS-unlocked SecretStore (§2), and the agreed grant model (broad `Reader` +
-   read-only GDAP; write only to Storage / Postgres / Key Vault).
+   read-only via the per-client onboarding app; write only to Storage / Postgres / Key Vault).
 3. **"Short-lived Entra token for Postgres (no stored DB password)"** — `pgaadauth` via
    the cert SP, table-scoped role, firewall/IP runbook (§6).
 4. **"Vectorization: local orchestration with a pinned, pluggable embedding provider"**
@@ -414,7 +433,8 @@ Code without docs is incomplete (front-end `CLAUDE.md §8`). Maintain in this re
    flatten→IT Glue→Postgres pattern, which sources use it, and the scoped/gated write
    posture.
 
-Also maintain: `docs/integrations/` (one doc per source: auth, exact GDAP roles, rate
+Also maintain: `docs/integrations/` (one doc per source: auth, exact onboarding-app Graph
+permission grants, rate
 limits, cadence, fields, provenance, retry); `docs/operations/` (scheduled-task registry,
 cert rotation runbook, Azure PG firewall/IP runbook, secret rotation); `docs/database/`
 (cross-link the front-end ERD; document the bronze filter, medallion flow, and the vector
@@ -425,8 +445,8 @@ Cross-reference sibling ADRs by **repo name** — ADR numbers are per-repo, not 
 
 ## 10. Build order (suggested first tasks)
 
-Confirm with Mark before wiring any scheduled task, requesting any GDAP role, or touching
-the prod database.
+Confirm with Mark before wiring any scheduled task, onboarding a client tenant's
+onboarding-app access, or touching the prod database.
 
 1. **Scaffold** the PowerShell module + `scripts/` entry points + `tests/` (Pester) +
    `PSScriptAnalyzer` config + CI (lint/test + docs check). Add the `/docs` tree and the
@@ -436,9 +456,9 @@ the prod database.
    `Get-MsalToken -ClientCertificate` work from a scheduled task with no human present.
 3. **DB connectivity** — pull PG creds from the vault, connect over TLS, prove a scoped
    read/write against a throwaway test row. Sort the Azure PG firewall/IP story.
-4. **GDAP token + relationship health** — partner-tenant auth, reach one customer tenant's
-   Graph read-only, stand up the relationship-expiry surfacing task. Prove per-tenant
-   isolation.
+4. **Onboarding-app token + access health** — acquire a client-credentials token as the
+   consented onboarding app in one client tenant, reach that tenant's Graph read-only,
+   stand up the credential/consent-expiry surfacing task. Prove per-tenant isolation.
 5. **First source end-to-end** — pick one (e.g. `autotask_bronze` companies): scheduled
    poll → bronze (full payload + filter) → silver upsert. Establish the idempotency +
    logging + cost-telemetry helpers everything else reuses.
@@ -449,7 +469,7 @@ the prod database.
    queries the vectors. Document the vector lifecycle.
 
 Before each task, restate the plan briefly and flag anything conflicting with §2 (cert /
-least privilege), §3 (GDAP), the schema-ownership rule (§5/§6), or the security posture
+least privilege), §3 (per-client onboarding-app access), the schema-ownership rule (§5/§6), or the security posture
 (§8).
 
 ## Agent skills

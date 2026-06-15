@@ -29,7 +29,8 @@ Same cert-SP app-only token as every other m365 collector (`Get-ImperionGraphTok
 ADR-0002 cert custody; per-client app model per pipeline ADR-0018), single-tenant against
 the Imperion company tenant by default; fan-out via `IMPERION_M365_TENANT_IDS`.
 Application permission **DeviceManagementApps.Read.All** — read-only; a **new grant** on
-the Onboarding app (admin consent required before LIVE). Customer tenants read via GDAP (§3).
+the Onboarding app (admin consent required before LIVE). Client tenants read via the
+per-client onboarding app (§3).
 
 ## Endpoints, paging, rate limits
 - `GET /v1.0/deviceAppManagement/mobileApps`; paging follows `@odata.nextLink`

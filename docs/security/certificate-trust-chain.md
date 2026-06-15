@@ -11,7 +11,7 @@ Scheduled Task  (runs as a dedicated gMSA / service account — never an interac
        │       SecretStore yields: source API keys, embedding/LLM provider keys
        └─ (b) Is the Entra app credential
                Get-MsalToken -ClientCertificate  ──▶ app-only tokens:
-                 • Microsoft Graph  (read-only: Application.Read.All / Directory.Read.All, + GDAP per customer)
+                 • Microsoft Graph  (read-only: Application.Read.All / Directory.Read.All; per-client onboarding app per client tenant, ADR-0018)
                  • Azure ARM        (read-only: Reader; write only to Storage/PG/KeyVault)
                  • Azure PostgreSQL (short-lived token, no stored password — ADR-0003)
 ```
