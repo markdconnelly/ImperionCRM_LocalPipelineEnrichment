@@ -65,6 +65,7 @@ Register-ImperionTask -Name 'Imperion m365 Mail' `
 | **posture** | `posture/merge` | posture_policy + tenant_posture silver (all tenants) | **Daily, after secure-score + policies** | Classify the night's fresh bronze (ADR-0010) |
 | **kqm** | `kqm/proposals` | Quotes/proposals | **Daily** | 60/min + 20k/day budget; gated on the API key; secret-bearing URLs never logged |
 | **kaseya** | `kaseya/import` | Contracts/tickets/proposals | **Daily** | Legacy bulk reconcile |
+| **easydmarc** | `easydmarc/domains` | Domain DMARC/SPF/DKIM/BIMI posture | **Daily** | Domain posture is slow-changing; company key, Bearer header (URLs not secret-bearing); double-gated on the API key + the proposed `easydmarc_domains` front-end migration (issue #122) |
 | **qbo** | `qbo/bill-payments` | Vendor bill-payments | **Daily** | Payment fact (frontend ADR-0082); low volume; double-gated on QBO app reg + front-end `qbo_bill_payments` migration; read-only, amount/vendor never logged |
 | **meta** | `meta/social` | FB posts/comments/DMs + IG media/comments + merge | **Daily** | Organic social is slow-moving; DM senders → leads via the merge (issue #126) |
 | **meta** | `meta/insights` | Page + IG insight snapshots + merge | **Daily** | period=day metrics yield one point/day; per-metric deprecation tolerance |
@@ -100,6 +101,9 @@ see docs/integrations/sharepoint-sites.md), and `m365/entra-groups` (issue #150,
 from #139 — Entra/M365 group inventory, migration 0079 applied; registration deferred to
 #102, see docs/integrations/entra-groups.md), and `m365/entra-group-members` (issue #139 -
 group membership edges reaching the silver contact via member_external_id, migration 0079
-applied; registration deferred to #102, see docs/integrations/entra-groups.md).
+applied; registration deferred to #102, see docs/integrations/entra-groups.md), and
+`easydmarc/domains` (issue #122 — domain/DMARC posture, double-gated on the EasyDMARC API
+key + the proposed `easydmarc_domains` front-end bronze migration; registration deferred to
+#102, see docs/integrations/easydmarc.md).
 Still to land: `autotask/companies`, `autotask/contacts`, the remaining posture tasks,
 and `kaseya/import`.
