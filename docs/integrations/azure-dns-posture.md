@@ -77,6 +77,50 @@ key, so `tenant_id` carries the account id for public rows and `account_id` is s
 explicitly for the silver merge (#157). `external_id = '<domain>|public|<type>|<name>'` —
 never collides with the azure plane. Gated on migration 0081; an empty list is a no-op.
 
+## Silver merge — golden state + drift rollup (local #157)
+
+The silver half. Three cmdlets close the loop against migration-0080 `dns_golden` /
+`dns_domain` (keyed `(tenant_id, domain)`, `account_id` carried for the account-scoped
+read):
+
+| | |
+|---|---|
+| **Approve baseline** | `Set-ImperionDnsGoldenState -Domain <d> -ApprovedBy <who>` (or `-All`) — **human-gated** |
+| **Classify** | `Get-ImperionDnsDrift [-Domain <d>]` — read-only, returns per-domain verdict + counts + score |
+| **Persist** | `Invoke-ImperionDnsMerge [-Domain <d>]` — upserts `dns_domain` (idempotent) |
+| **Task** | `scheduled-tasks/azure/dns-merge.task.ps1` — **Daily, after both collectors** |
+
+**Golden State (`Set-ImperionDnsGoldenState`).** Freezes a domain's current capture as its
+approved baseline → `dns_golden.golden_records` (the jsonb record set, each with its
+`content_hash`) + `golden_hash` (one stable hash over the whole-domain shape). Default plane
+`public` (ground-truth, the only plane every domain has); `azure` available. **Approving a
+baseline is a posture decision — gated** (`ShouldProcess`; runbook
+`docs/operations/dns-golden-approval.md`). Idempotent (`ON CONFLICT` re-approves). Until a
+domain is approved, every record classifies `ungoverned` — by design.
+
+**Drift classification (`Get-ImperionDnsDrift`).** Per governed domain (from `account_domain`):
+
+- **Record drift** — full-outer-joins the captured public-plane records vs `golden_records`
+  on `(record_type, name)` and classifies each with the **same four-state CASE** as
+  `Get-ImperionPolicyDrift` (ADR-0008 / ADR-0051 §3): `compliant` (hash match) / `drift`
+  (changed) / `ungoverned` (no baseline) / `missing` (baseline gone). Counts roll up.
+- **Governance verdict** — the three-state ladder (ADR-0063), **reconciled across both
+  planes**: `not-in-azure` (no `dns_zones` row) → `in-azure-readonly` (zone exists but not
+  write-proven, or NS not delegated) → `managed` (**in Azure AND write-proven AND the live
+  public NS delegate to the Azure zone's nameservers**). The NS-delegation check is the
+  cross-plane reconciliation (public NS records ∩ zone `ns_records`) — only then is the
+  domain authoritative-in-Azure.
+- **Score** — 0–100, the compliant share of governed records, capped at 60 unless `managed`.
+
+The classification SQL is **owned by `Get-ImperionDnsDrift` and reused verbatim by the cloud
+on-demand refresh** (parity contract, ADR-0063): change it in one place.
+
+**Merge (`Invoke-ImperionDnsMerge`).** Calls the drift read, then upserts one `dns_domain` row
+per domain (`tenant_id := account_id`, the isolation owner — falls back to the domain when
+unmapped). Each domain upserts independently so one bad domain never blocks the fleet; the
+whole run is idempotent and converges on re-run. **Gated** on migrations 0080 + 0081 prod
+apply — the task's catch logs a Warn and exits cleanly.
+
 ## Provenance
 
 Rows stamped `source='dns'` / `collected_at`; full payload in `raw_payload` (lossless);
