@@ -6,7 +6,8 @@ but if it provides value to the client analytics, worth exploring."_
 **Recommendation:** **DEFER** (build later, narrowly) — see [§7](#7-recommendation).
 
 > This is an assessment document, not an integration spec. Nothing here is wired to a
-> scheduled task. Any live pull is **Mark-gated** (a new GDAP role + admin consent, §3/§5).
+> scheduled task. Any live pull is **Mark-gated** (a new onboarding-app permission grant +
+> admin consent per tenant, §3/§5).
 > No row-level data, no PII, and no client identifiers appear in this doc (system CLAUDE.md
 > §8; this repo CLAUDE.md §8).
 
@@ -68,16 +69,18 @@ This is a representative map, not exhaustive.
   "any new capability is an explicit, documented, human-approved grant").
 - **Cert app-only token**, scope `https://graph.microsoft.com/.default` — same shape as
   `secure-score.md` / every posture collector; reuse `Get-ImperionGraphToken`.
-- **Per-client (GDAP) reach:** these are **tenant-scoped** reports. For client analytics
-  the app must read **each customer tenant** through the delegated relationship (GDAP, §3 of
-  CLAUDE.md). `Reports.Read.All` must be in the **GDAP role set** for each client — another
-  **GDAP-widening security event** (CLAUDE.md §3/§8). Partner-tenant-only (Imperion's own
-  tenant) needs no GDAP change but gives only Imperion's own numbers, not client analytics.
+- **Per-client reach (the onboarding app):** these are **tenant-scoped** reports. For
+  client analytics the app must read **each client tenant** as the consented onboarding app
+  (§3 of CLAUDE.md). `Reports.Read.All` must be on the onboarding app **and admin-consented
+  in each client tenant** — another **access-widening security event** (CLAUDE.md §3/§8).
+  Imperion's-own-tenant-only needs no new consent but gives only Imperion's own numbers, not
+  client analytics.
 - **No protected-API gate** (unlike Teams `/chats`): usage reports are regular application
   permissions, so no Microsoft approval-form turnaround.
 
-**Net consent cost to deliver _client_ analytics:** `Reports.Read.All` granted to the app
-**and** added to the per-client GDAP role — two approval gates, both Mark's call.
+**Net consent cost to deliver _client_ analytics:** `Reports.Read.All` granted to the
+onboarding app **and** admin-consented per client tenant — two approval gates, both
+Mark's call.
 
 ---
 
@@ -166,9 +169,9 @@ Reasoning:
 - But the value sits in the **aggregate, non-PII** endpoints; the per-user `...Detail` rows
   are the privacy-heavy part **and** are frequently pseudonymized into uselessness, so the
   right build is **narrow** (counts/storage only) — which also keeps it posture-clean.
-- It requires **two approval gates** (`Reports.Read.All` on the app + GDAP-role widening per
-  client) and is **not on the v1 critical path** — v1 is the data loop and the
-  expense/time/orchestration work. No reason to spend the GDAP-widening security event now.
+- It requires **two approval gates** (`Reports.Read.All` on the onboarding app + per-client
+  admin consent) and is **not on the v1 critical path** — v1 is the data loop and the
+  expense/time/orchestration work. No reason to spend the access-widening security event now.
 - It creates **no silver entity** and **no schema migration** (gold knowledge object / BI
   trend only), so deferring costs nothing structurally.
 
@@ -185,8 +188,8 @@ isn't lost.
 > daily cadence, snapshot-keyed idempotent upsert. **Explicitly exclude** all `...Detail`
 > per-user endpoints (PII, §6). Feeds a gold "client M365 adoption posture" knowledge object
 > for account-health / license-waste analytics (ADR-0062 BI hub consumer).
-> **Gates (Mark):** (1) `Reports.Read.All` application consent on the cert app; (2) add
-> `Reports.Read.All` to the per-client GDAP role set. (3) Front-end migration for the bronze
+> **Gates (Mark):** (1) `Reports.Read.All` application consent on the onboarding app; (2)
+> admin-consent `Reports.Read.All` in each client tenant. (3) Front-end migration for the bronze
 > usage-report table(s) — propose in `ImperionCRM` (CLAUDE.md §5/§6), claim the migration
 > number at merge (system §10.3).
 
@@ -234,8 +237,8 @@ function Invoke-ImperionUsageReportProbe {
 ---
 
 ## 9. References
-- This repo `CLAUDE.md` §2 (grant model / approval gates), §3 (GDAP read-only), §5/§6
-  (bronze rule, schema-ownership, idempotency), §8 (lawful-basis posture).
+- This repo `CLAUDE.md` §2 (grant model / approval gates), §3 (per-client onboarding-app
+  read-only access), §5/§6 (bronze rule, schema-ownership, idempotency), §8 (lawful-basis posture).
 - `docs/integrations/secure-score.md` — sibling read-only Graph collector pattern (auth shape).
 - `docs/integrations/m365-communications.md` — the _content_ interaction collectors usage
   reports are distinct from.

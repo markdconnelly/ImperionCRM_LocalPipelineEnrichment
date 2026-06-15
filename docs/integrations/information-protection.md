@@ -31,9 +31,9 @@ ImperionCRM#259.
     to hold the **Attribute Definition Reader** directory role *in addition to* the app
     permission — custom security attributes are access-gated beyond the scope grant. Confirm
     on first live run.
-- **Tenant scope:** the **partner tenant** by default. Customer tenants fan out over GDAP via
-  `IMPERION_M365_TENANT_IDS` (CLAUDE.md §3); each row is stamped with its owning tenant
-  (per-tenant isolation).
+- **Tenant scope:** Imperion's own tenant by default. Client tenants fan out via the
+  per-client onboarding app (`IMPERION_M365_TENANT_IDS`, CLAUDE.md §3); each row is
+  stamped with its owning tenant (per-tenant isolation).
 
 ## Source endpoints (paged via `@odata.nextLink`)
 | Object | Endpoint | Notes |
@@ -83,9 +83,9 @@ collector would read principal-level data and must carry the lawful-basis / prov
 guardrail (CLAUDE.md §8) before it is built.
 
 ## Assumptions to confirm on first live run
-- The cert app has `SensitivityLabels.Read.All` and `CustomSecAttributeDefinition.Read.All`
-  consented in the partner tenant (and via GDAP for customer tenants), plus the **Attribute
-  Definition Reader** role for the custom-security-attribute read.
+- The onboarding app has `SensitivityLabels.Read.All` and `CustomSecAttributeDefinition.Read.All`
+  admin-consented in Imperion's own tenant (and per client tenant for client fan-out), plus
+  the **Attribute Definition Reader** role for the custom-security-attribute read.
 - The front-end `sensitivity_labels` / `custom_security_attribute_definitions` bronze
   migration (ImperionCRM#259) is applied to prod and the local-pipeline SP has the write
   grant on them (follow-up grant migration, same as the 0036/0079 tables).

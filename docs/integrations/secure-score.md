@@ -7,7 +7,7 @@ feeds the agent's posture awareness. Cmdlet: `Invoke-ImperionSecureScoreSync`.
 ## Auth
 - Cert app-only Graph token; scope `https://graph.microsoft.com/.default`.
 - **Permission:** `SecurityEvents.Read.All` (application, read-only).
-- Partner tenant by default; customer tenants via GDAP.
+- Imperion's own tenant by default; client tenants via the per-client onboarding app (§3).
 
 ## Source endpoints (Graph v1.0)
 | Object | Endpoint |

@@ -2,7 +2,7 @@
 
 _ImperionCRM_LocalPipelineEnrichment — `docs/integrations`_
 
-One doc per source: auth, exact GDAP roles, rate limits, cadence, fields, provenance, change-detection, retry.
+One doc per source: auth, exact onboarding-app Graph permission grants, rate limits, cadence, fields, provenance, change-detection, retry.
 
 **Spikes / assessments** (not yet wired collectors):
 - [`graph-usage-reports-spike.md`](graph-usage-reports-spike.md) — Microsoft Graph usage

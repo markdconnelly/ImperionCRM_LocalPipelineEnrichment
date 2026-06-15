@@ -21,7 +21,8 @@ renamed property, the original survives in `raw_payload`). Standard envelope, PK
 ## Auth — the module's Graph connection
 Same cert-SP app-only token as every other m365 collector (`Get-ImperionGraphToken`),
 single-tenant against the Imperion company tenant (Mark's 2026-06-11 authorization;
-GDAP `ClientTenant` mode exists in the collectors but fan-out is deferred).
+per-client onboarding-app fan-out to client tenants — pipeline ADR-0018 — is supported
+by the collectors but deferred).
 
 **Teams protected-API gate:** `/users/{id}/chats` (and chat messages) are Microsoft
 **protected APIs** — application-permission access requires Microsoft's approval form

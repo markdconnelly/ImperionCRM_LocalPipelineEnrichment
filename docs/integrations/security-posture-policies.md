@@ -4,11 +4,11 @@
 observed bronze tables, and compare each to its **golden state** to detect drift (ADR-0008).
 Cmdlets: `Invoke-ImperionPolicySync`, `Get-ImperionPolicyDrift`, `Set-ImperionPolicyGoldenState`.
 
-## Auth (read-only, ADR-0002)
+## Auth (read-only, pipeline ADR-0018)
 Cert app-only Graph token. Permissions: `Policy.Read.All` (Conditional Access),
 `DeviceManagementConfiguration.Read.All` (Intune security / device config / endpoint
-security), `DeviceManagementServiceConfig.Read.All` (Autopilot). Partner tenant default;
-GDAP for customer tenants.
+security), `DeviceManagementServiceConfig.Read.All` (Autopilot). Imperion's own tenant
+default; client tenants via the per-client onboarding app (§3).
 
 ## Policy types, endpoints, tables
 | Type | Graph endpoint | Observed table | Golden table |
