@@ -114,6 +114,14 @@ SecretStore + CMS unlock, fill `%ProgramData%\Imperion\pipeline.config.psd1`
   posture. Add the three to the `imperion-localpipeline` grant list (SELECT/INSERT/UPDATE, no
   DELETE) in the same migration or a follow-on grant migration.
 
+### f. Information protection — [`sql/information_protection_schema.sql`](../../sql/information_protection_schema.sql)
+- `sensitivity_labels`, `custom_security_attribute_definitions` — standard envelope, logical
+  source `m365` (local issue #141 / front-end request **ImperionCRM#259**, which also owns the
+  benchmark-vs-golden classification surface). The data-classification taxonomy: Purview
+  sensitivity labels + custom security attribute *definitions* (assignments deferred, PII).
+  Add the two to the `imperion-localpipeline` grant list (SELECT/INSERT/UPDATE, no DELETE) in
+  the same migration or a follow-on grant migration.
+
 ## 3. Still new to the catalog (need migrations when those sources are built)
 Devices (`m365_devices`, `itglue_devices`, `website_devices`), apollo company/contact bronze
 where not present, and the website/manual bronze tables — per `CLAUDE.md §5` / ADR-0005.
