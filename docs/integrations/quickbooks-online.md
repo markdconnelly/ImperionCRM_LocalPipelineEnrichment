@@ -117,7 +117,7 @@ QBO Account **`Id`** (stable, realm-scoped) → idempotent upsert.
 
 > **Schema is front-end-owned (ADR-0042).** `qbo_expense_account` does **not exist yet** — it is
 > **proposed here** for a front-end migration (column set above + the `imperion-localpipeline`
-> SELECT/INSERT/UPDATE grant), tracked as front-end **#591** (filed from #168) per migration 0088
+> SELECT/INSERT/UPDATE grant), tracked as front-end **#592** (filed from #168) per migration 0088
 > in the expense epic. Until that migration lands, the collector is **deploy-ahead** (the task logs
 > + exits), exactly like the bill-payment pull.
 
@@ -135,7 +135,7 @@ bill-payment task.
 1. **Extend the QBO read scope to chart-of-accounts** (front-end markdconnelly/ImperionCRM#497) +
    the QuickBooks credential (`qbo-access-token` / `qbo-realm-id`, shared with §1).
 2. **Front-end `qbo_expense_account` bronze migration** + the local-pipeline grant (front-end
-   **#591**; migration 0088, apply gated by front-end #494).
+   **#592**; migration 0088, apply gated by front-end #494).
 
 ### Still assumptions (no live access yet) — CONFIRM BEFORE LIVE
 Modeled from the documented Intuit Accounting API; **unverified against the real company** until
@@ -149,7 +149,7 @@ the app registration lands (the flatten keeps a fallback chain, `raw_payload` is
 - front-end **ADR-0082** (time-tracking design), epic markdconnelly/ImperionCRM#458.
 - front-end **ADR-0083** (expense tracking design), epic markdconnelly/ImperionCRM#482; **#489**
   (admin account→category mapping), **#497** (extend QBO read scope), **#494** (apply migrations),
-  **#591** (proposed `qbo_expense_account` bronze migration, filed from #168).
+  **#592** (proposed `qbo_expense_account` bronze migration, filed from #168).
 - backend **#104** (QBO cloud read client + KV custody), **#105** (Payroll Reconciliation —
   reads `qbo_bill_payments` to set Paid).
 - This repo: the QBO source ADR (`docs/decision-records/ADR-0014-quickbooks-online-payment-fact.md`),

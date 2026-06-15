@@ -86,7 +86,7 @@ standard envelope.
 - Pure finance/reference data: flattens straight to Postgres, skips IT Glue (ADR-0006). The
   collector is **deploy-ahead/gated** — it logs + exits until both the QBO chart-of-accounts read
   scope (frontend markdconnelly/ImperionCRM#497) and the front-end `qbo_expense_account` migration
-  (frontend #591, migration 0088; apply gated by frontend #494) land.
+  (frontend #592, migration 0088; apply gated by frontend #494) land.
 - **Boundary:** chart-of-accounts bulk sync ONLY; the backend QBO read client owns the
   bill-payment reconciliation read (this repo's bill-payment leg is the bulk fact above).
 
