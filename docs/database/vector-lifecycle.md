@@ -10,7 +10,7 @@ only *queries*, backend ADR-0034).
 ```mermaid
 flowchart LR
     SILVER[("silver account/contact/device/<br/>credential_exposure/assessment_artifact/proposal +<br/>autotask/itglue/posture bronze")]
-    SILVER --> COMPOSE["Get-ImperionKnowledge*<br/>(account · contact · contract · ticket ·<br/>device · exposure · assessment · proposal · posture)"]
+    SILVER --> COMPOSE["Get-ImperionKnowledge*<br/>(account · contact · contract · ticket ·<br/>device · exposure · assessment · proposal · posture · social)"]
     COMPOSE --> KO[("knowledge_object<br/>Set-ImperionKnowledgeObject<br/>(upsert, content_hash gated)")]
     KO --> CHUNK["Split-ImperionTextChunk (v1)"]
     CHUNK -->|changed objects only| VOYAGE["Get-ImperionVoyageEmbedding<br/>voyage-3-large @ 1024"]
@@ -36,9 +36,11 @@ tasks land).
   (`'exposure'` — `credential_exposure` facts only; no raw breach payloads, no plaintext
   credentials ever reach gold), **assessments** (`'assessment'` — `assessment_artifact`
   evidence with its assessment/account context), **proposals** (`'proposal'` — lifecycle,
-  value, opportunity/account context), and **posture** (`'posture'` — ONE object per
+  value, opportunity/account context), **posture** (`'posture'` — ONE object per
   tenant: latest Secure Score + per-type policy drift counts and named gaps via
-  `Get-ImperionPolicyDrift`). Each further entity (IT Glue/Azure docs) is one new
+  `Get-ImperionPolicyDrift`), and **social** (`'social'` — one per FB/IG silver
+  `interaction` of kind social_post/social_comment/dm: author, text, engagement,
+  permalink, and the resolved contact for DM-sender leads; #127). Each further entity (IT Glue/Azure docs) is one new
   composer + one line in the sync — coverage is the goal, tracked in the
   production-readiness plan.
 - **Composer spine (#106):** every `Get-ImperionKnowledge*` composer is a thin adapter

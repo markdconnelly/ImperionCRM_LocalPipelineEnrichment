@@ -162,6 +162,7 @@
         'Get-ImperionKnowledgeAssessmentArtifact',
         'Get-ImperionKnowledgeProposal',
         'Get-ImperionKnowledgePosture',
+        'Get-ImperionKnowledgeSocial',
         'Set-ImperionKnowledgeObject',
         'Split-ImperionTextChunk',
         'Get-ImperionVoyageEmbedding',

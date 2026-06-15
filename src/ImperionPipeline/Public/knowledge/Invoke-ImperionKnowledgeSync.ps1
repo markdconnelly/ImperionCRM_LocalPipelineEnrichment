@@ -5,8 +5,9 @@ function Invoke-ImperionKnowledgeSync {
     .DESCRIPTION
         Sync entry point for the gold tier (CLAUDE.md §6/§7, ADR-0009) — the cmdlet the
         scheduled task runs. Composes knowledge objects (accounts, contacts, contracts,
-        tickets, devices, credential exposures, assessment artifacts, proposals, and
-        per-tenant security-posture summaries) through the Get-ImperionKnowledge*
+        tickets, devices, credential exposures, assessment artifacts, proposals,
+        per-tenant security-posture summaries, and FB/IG social interactions) through the
+        Get-ImperionKnowledge*
         composers, upserts them change-detected into `knowledge_object`, and — with
         -Vectorize — runs the chunk→Voyage→pgvector stage so the backend agent's
         retrieval surface is current.
@@ -15,7 +16,7 @@ function Invoke-ImperionKnowledgeSync {
         Idempotent and resumable: unchanged objects are not rewritten and never re-embedded.
     .PARAMETER EntityType
         'account', 'contact', 'contract', 'ticket', 'device', 'exposure', 'assessment',
-        'proposal', 'posture', or 'all' (default).
+        'proposal', 'posture', 'social', or 'all' (default).
     .PARAMETER Vectorize
         Also run Invoke-ImperionVectorizeKnowledge after the gold upsert.
     .PARAMETER TenantId
@@ -30,7 +31,7 @@ function Invoke-ImperionKnowledgeSync {
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
-        [ValidateSet('account', 'contact', 'contract', 'ticket', 'device', 'exposure', 'assessment', 'proposal', 'posture', 'all')][string] $EntityType = 'all',
+        [ValidateSet('account', 'contact', 'contract', 'ticket', 'device', 'exposure', 'assessment', 'proposal', 'posture', 'social', 'all')][string] $EntityType = 'all',
         [switch] $Vectorize,
         [string] $TenantId
     )
@@ -74,6 +75,10 @@ function Invoke-ImperionKnowledgeSync {
         if ($EntityType -in 'posture', 'all') {
             $postureRows = Get-ImperionKnowledgePosture -Connection $conn -TenantId $TenantId
             $tallies['posture'] = $postureRows | Set-ImperionKnowledgeObject -Connection $conn
+        }
+        if ($EntityType -in 'social', 'all') {
+            $socialRows = Get-ImperionKnowledgeSocial -Connection $conn -TenantId $TenantId
+            $tallies['social'] = $socialRows | Set-ImperionKnowledgeObject -Connection $conn
         }
 
         if ($Vectorize) {
