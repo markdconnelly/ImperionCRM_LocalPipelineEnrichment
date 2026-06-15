@@ -6,7 +6,8 @@ function Invoke-ImperionKnowledgeSync {
         Sync entry point for the gold tier (CLAUDE.md §6/§7, ADR-0009) — the cmdlet the
         scheduled task runs. Composes knowledge objects (accounts, contacts, contracts,
         tickets, devices, credential exposures, assessment artifacts, proposals,
-        per-tenant security-posture summaries, and FB/IG social interactions) through the
+        per-tenant security-posture summaries, FB/IG social interactions, and
+        conversation transcript segments) through the
         Get-ImperionKnowledge*
         composers, upserts them change-detected into `knowledge_object`, and — with
         -Vectorize — runs the chunk→Voyage→pgvector stage so the backend agent's
@@ -16,7 +17,7 @@ function Invoke-ImperionKnowledgeSync {
         Idempotent and resumable: unchanged objects are not rewritten and never re-embedded.
     .PARAMETER EntityType
         'account', 'contact', 'contract', 'ticket', 'device', 'exposure', 'assessment',
-        'proposal', 'posture', 'social', or 'all' (default).
+        'proposal', 'posture', 'social', 'conversation', or 'all' (default).
     .PARAMETER Vectorize
         Also run Invoke-ImperionVectorizeKnowledge after the gold upsert.
     .PARAMETER TenantId
@@ -31,7 +32,7 @@ function Invoke-ImperionKnowledgeSync {
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
-        [ValidateSet('account', 'contact', 'contract', 'ticket', 'device', 'exposure', 'assessment', 'proposal', 'posture', 'social', 'all')][string] $EntityType = 'all',
+        [ValidateSet('account', 'contact', 'contract', 'ticket', 'device', 'exposure', 'assessment', 'proposal', 'posture', 'social', 'conversation', 'all')][string] $EntityType = 'all',
         [switch] $Vectorize,
         [string] $TenantId
     )
@@ -80,9 +81,20 @@ function Invoke-ImperionKnowledgeSync {
             $socialRows = Get-ImperionKnowledgeSocial -Connection $conn -TenantId $TenantId
             $tallies['social'] = $socialRows | Set-ImperionKnowledgeObject -Connection $conn
         }
+        if ($EntityType -in 'conversation', 'all') {
+            $conversationRows = Get-ImperionKnowledgeConversationSegment -Connection $conn -TenantId $TenantId
+            $tallies['conversation'] = $conversationRows | Set-ImperionKnowledgeObject -Connection $conn
+        }
 
         if ($Vectorize) {
-            $vectorEntityType = if ($EntityType -eq 'all') { $null } else { $EntityType }
+            # The conversation composer stamps entity_type='conversation_segment' (the
+            # ADR-0041 embedding unit); the sync's 'conversation' switch maps to it so a
+            # scoped -EntityType conversation vectorize run filters the right gold rows.
+            $vectorEntityType = switch ($EntityType) {
+                'all'          { $null }
+                'conversation' { 'conversation_segment' }
+                default        { $EntityType }
+            }
             $tallies['vectorize'] = Invoke-ImperionVectorizeKnowledge -Connection $conn -EntityType $vectorEntityType -TenantId $TenantId
         }
 

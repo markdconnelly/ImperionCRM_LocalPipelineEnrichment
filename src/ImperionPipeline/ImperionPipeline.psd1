@@ -178,6 +178,7 @@
         'Get-ImperionKnowledgeProposal',
         'Get-ImperionKnowledgePosture',
         'Get-ImperionKnowledgeSocial',
+        'Get-ImperionKnowledgeConversationSegment',
         'Set-ImperionKnowledgeObject',
         'Split-ImperionTextChunk',
         'Get-ImperionVoyageEmbedding',

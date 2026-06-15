@@ -96,6 +96,26 @@ SecretStore + CMS unlock, fill `%ProgramData%\Imperion\pipeline.config.psd1`
   `kqm_proposals`). Won-quote detail tables = issue #161.
 - `docusign_contracts` — columns are **assumptions** (no live access yet); confirm on first pull.
 
+### c2. Conversation transcript citation — [`sql/conversation_segment_citation_schema.sql`](../../sql/conversation_segment_citation_schema.sql)
+The conversational-intelligence vertical (front-end ADR-0068, local issue **#200**). Front-end
+migration **0112** already created `conversation` / `conversation_segment` / `conversation_insight`
+but granted only the web role. The transcript-segment vectorizer
+(`Get-ImperionKnowledgeConversationSegment`, the `conversation` arm of
+`Invoke-ImperionKnowledgeSync`) needs **two** things from a new front-end migration:
+- **SELECT** for `imperion-localpipeline` on `conversation` + `conversation_segment` (the
+  composer reads the diarized turns — the ADR-0041 embedding unit — and joins the parent for
+  context). SELECT only; no DELETE; scoped to exactly these two tables.
+- A **citation view `conversation_segment_citation`** so a retrieved `knowledge_embedding`
+  (`entity_type='conversation_segment'`, `entity_ref` = the segment id) resolves back to its
+  source conversation + turn (channel, account, speaker, offsets, text) — ADR-0068's "surfaced
+  via the gold knowledge citation view". Mirrors the related-bronze citation views (migration
+  0039). Granted SELECT to web + local-pipeline. Purged conversations excluded.
+
+No new bronze tables and no schema *change* — additive grants + one read-only view. PII: the view
+exposes no more than the gold object already holds (transcript text is sensitive client content —
+keep it out of issues/docs). Proposed in the front-end per the schema-ownership rule (system
+CLAUDE.md §1); filed as front-end issue **ImperionCRM#663**.
+
 ### d. Security posture (Secure Score + golden states) — [`sql/security_posture_schema.sql`](../../sql/security_posture_schema.sql)
 - `secure_scores`, `secure_score_control_profiles`.
 - Observed policy bronze: `entra_conditional_access_policies`, `intune_security_policies`,
