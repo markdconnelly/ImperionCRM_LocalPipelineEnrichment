@@ -105,6 +105,15 @@ SecretStore + CMS unlock, fill `%ProgramData%\Imperion\pipeline.config.psd1`
   `device_configuration_policies_golden`, `autopilot_policies_golden`,
   `defender_xdr_security_policies_golden` (ADR-0008).
 
+### e. Entra tenant hygiene — [`sql/entra_tenant_hygiene_schema.sql`](../../sql/entra_tenant_hygiene_schema.sql)
+- `entra_domains`, `entra_app_registrations`, `entra_role_assignments` — standard envelope,
+  logical source `m365` (local issue #142 / front-end request **ImperionCRM#260**, which also
+  owns the benchmark-vs-standard surface). The directory-config gap left by
+  `m365_service_principals` (the per-tenant app *instance*): registrations are the app
+  *definition*; domains + role assignments are the tenant's verification + privileged-membership
+  posture. Add the three to the `imperion-localpipeline` grant list (SELECT/INSERT/UPDATE, no
+  DELETE) in the same migration or a follow-on grant migration.
+
 ## 3. Still new to the catalog (need migrations when those sources are built)
 Devices (`m365_devices`, `itglue_devices`, `website_devices`), apollo company/contact bronze
 where not present, and the website/manual bronze tables — per `CLAUDE.md §5` / ADR-0005.
