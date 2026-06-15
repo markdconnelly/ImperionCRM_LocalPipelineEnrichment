@@ -37,6 +37,17 @@
     MetaSystemUserToken     = 'meta-system-user-token'
     MetaTokenVaultSecret    = 'Meta-SystemUser-Token'
 
+    # EasyDMARC (issue #122) — Imperion's 3rd-party DNS/DMARC provider. A COMPANY credential
+    # (Imperion's MSP account, not per-client). Read-only REST, key sent as an
+    # Authorization: Bearer header (URLs are NOT secret-bearing). Resolution order in
+    # Resolve-ImperionEasyDmarcApiKey mirrors KQM/Meta:
+    #   1. SecretStore title below (when the vault is unlocked this run) — mirror of the KV value
+    #   2. Key Vault secret below, read by the cert SP (the ORIGINAL, kv-imperioncrm-prd)
+    # GATED: until provisioned (Mark-gated; plan must include API access), the domains task
+    # logs + exits cleanly. See docs/integrations/easydmarc.md.
+    EasyDmarcApiKey             = 'easydmarc-api-key'
+    EasyDmarcApiKeyVaultSecret  = 'EasyDMARC-API-Key'
+
     # Other CRM/enrichment sources — placeholders until provisioned.
     # DocuSign (issue #99): the OAuth access token + the eSignature API account id (GUID
     # from the OAuth userinfo endpoint). Tokens EXPIRE — see docs/integrations/docusign.md;
