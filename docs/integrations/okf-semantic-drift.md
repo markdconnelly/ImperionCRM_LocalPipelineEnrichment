@@ -48,9 +48,31 @@ the frontmatter `timestamp` and the `coverage-matrix.md` row.
 | Mode | Trigger | Behaviour |
 |---|---|---|
 | **Dry-run** (default) | `Invoke-ImperionSemanticDriftSync` | detect + log drift; open **nothing** |
-| **Execute** | `-Execute` **and** `$env:IMPERION_GH_TOKEN` set | open the proposal on `markdconnelly/ImperionCRM` |
+| **Execute → PR** | `-Execute` + token, drift carries column deltas | open a **cross-repo PR** on `markdconnelly/ImperionCRM` with the concept files already edited (issue #190) |
+| **Execute → issue** | `-Execute` + token, drift is only `missing-concept`/`orphaned-concept` | file an **issue** (no file to edit — those need human authoring) |
 | **Execute, no token** | `-Execute`, token unset | **fail-closed**: log a `Warn` and exit; never prompt, never store/print a token |
 | **No bundle / no DB** | either | clean no-op (logged); never crashes the schedule |
+
+### What the Execute → PR path does (issue #190)
+
+On detecting `drift` rows (added/removed columns), the agent:
+
+1. Clones `markdconnelly/ImperionCRM` to a temp dir using `$env:IMPERION_GH_TOKEN`
+   (the token is scoped to **write a feature branch only**, never to merge), checks out
+   `chore/okf-drift-<utc>`.
+2. Edits each affected `tables/<concept>.md` `## Schema` table — **adds** a row per
+   live-but-undocumented column (name backtick-wrapped, placeholder `_(?)_` type + a TODO
+   pointing at the live read-only DB; the agent never invents a type), **removes** the row
+   per documented-but-gone column — and bumps that file's frontmatter `timestamp`.
+3. Bumps `coverage-matrix.md`'s frontmatter `timestamp` (system `CLAUDE.md §11` — the matrix
+   rows are links, so the mechanical signal is the timestamp; the maintainer re-reviews the row).
+4. Commits, pushes the branch, and opens a PR via `gh pr create`. **It never merges.** A
+   maintainer applies the prose (definition / source-of-record / joins / PII) and merges.
+
+Column **names** only ever cross the boundary; a name that is not a plain identifier is
+rejected (no markdown/DDL injection). The token is handed to `git` only via an in-memory
+remote URL and to `gh` via `$env:GH_TOKEN`, both scrubbed in `finally` — never on a CLI
+argument, never on disk, never logged.
 
 The scheduled task (`scheduled-tasks/semantic/drift-sync.task.ps1`) registers in **dry-run**.
 Flip to live by setting `IMPERION_SEMANTIC_DRIFT_EXECUTE=1` and provisioning a
@@ -73,13 +95,17 @@ that checkout.
 
 Internal helpers (not exported): `Get-ImperionSemanticCatalog` (entity→relation→concept
 map), `Get-ImperionSilverSchema` (column-name introspection), `Get-ImperionOkfConcept`
-(concept-file parser), `New-ImperionSemanticDriftProposal` (proposal body + gated opener).
+(concept-file parser), `New-ImperionSemanticDriftProposal` (proposal body + gated opener),
+`New-ImperionSemanticDriftPullRequest` (clone→branch→edit→push→`gh pr create`),
+`Edit-ImperionOkfConceptFile` (applies column-name deltas + timestamp to a concept file),
+`Update-ImperionCoverageMatrixTimestamp` (bumps the matrix timestamp).
 
 ## Known limits / follow-up
 
-- The **PR-opening step is a documented stub**: `-Execute` files an **issue** on the
-  front-end repo today. Opening a PR with the concept files already edited on a branch
-  requires a clone+branch+push of `markdconnelly/ImperionCRM` and is deferred to **#190**.
+- **The PR-opener is live (issue #190 shipped).** `-Execute` opens a cross-repo PR with the
+  concept files already edited on a branch; it falls back to filing an **issue** only when the
+  drift is purely `missing-concept`/`orphaned-concept` (nothing to edit mechanically — those
+  need human authoring/reconciliation). The agent never merges.
 - The agent proposes column-name deltas; it does **not** author the prose
   (definition / source-of-record / joins). It flags what to update and links ADR-0086;
   the maintainer writes the meaning. (A future enhancement could draft prose from the

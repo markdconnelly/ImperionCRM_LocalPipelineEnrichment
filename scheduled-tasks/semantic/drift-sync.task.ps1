@@ -13,9 +13,11 @@
 # DORMANT / fail-closed by default:
 #   - No -Execute  -> DRY RUN: detect + log drift, open nothing. This is the default the schedule
 #     registers, so a cold node simply logs what drifted.
-#   - -Execute     -> opens a cross-repo proposal on the front-end repo. Fail-closed: needs a
-#     GitHub token in $env:IMPERION_GH_TOKEN or it logs a Warn and exits (never prompts, never
-#     stores/prints the token). Enable only once Mark provisions a least-privileged token.
+#   - -Execute     -> opens a cross-repo PR on the front-end repo with the drifted concept files
+#     already edited on a branch (issue #190; falls back to an issue for author-only drift). The
+#     agent NEVER merges. Fail-closed: needs a GitHub token in $env:IMPERION_GH_TOKEN or it logs a
+#     Warn and exits (never prompts, never stores/prints the token). Enable only once Mark provisions
+#     a least-privileged, branch-write-only token.
 #   - No bundle / no DB access -> clean no-op (logged), never crashes the schedule.
 #
 # Register with Register-ImperionTask (run elevated, under the gMSA/service identity):

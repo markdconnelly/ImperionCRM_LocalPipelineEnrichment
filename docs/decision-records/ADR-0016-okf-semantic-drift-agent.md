@@ -58,18 +58,28 @@ Ship a propose-only drift agent in the `ImperionPipeline` module:
   column-name-only proposal body. **Dry-run by default** (opens nothing). `-Execute`
   opens a proposal on `markdconnelly/ImperionCRM` and is **fail-closed**: it requires
   `$env:IMPERION_GH_TOKEN` or logs a `Warn` and exits, never prompting or printing a token.
-- **PR-opening is a documented stub.** `-Execute` files an **issue** on the front-end repo
-  today; opening a PR with concept files pre-edited on a branch needs a clone+branch+push of
-  the front-end repo and is deferred to a follow-up.
+- **PR-opener (issue #190, shipped).** When `-Execute` + token find drift carrying column
+  deltas, `New-ImperionSemanticDriftPullRequest` clones the front-end repo to a temp dir,
+  branches `chore/okf-drift-<utc>`, edits each affected concept file's `## Schema` table
+  (`Edit-ImperionOkfConceptFile` — column NAMES only, placeholder type, no DDL) and its
+  frontmatter `timestamp`, bumps `coverage-matrix.md`'s timestamp
+  (`Update-ImperionCoverageMatrixTimestamp`, system `CLAUDE.md §11`), commits, pushes, and
+  opens a PR via `gh pr create`. **The agent never merges.** When the drift is purely
+  `missing-concept`/`orphaned-concept` (no mechanical edit to make) it falls back to filing
+  an **issue**, so author-required drift is still surfaced.
 
 ## Consequences
 
 ### Security impact
 
-Read-only against the DB (catalog metadata only) and read-only against the front-end repo;
-the agent holds no push rights. No secret is stored, logged, or passed on a command line —
-the GitHub token is read from an env var by reference and the live path is fail-closed.
-The PII boundary is enforced structurally: only column names can leave the function.
+Read-only against the DB (catalog metadata only). Against the front-end repo the agent now
+writes a **feature branch and opens a PR** — but it holds **no merge rights** and the
+write token is least-privileged + Mark-gated + behind `IMPERION_SEMANTIC_DRIFT_EXECUTE`;
+absent the token the live path is fail-closed. No secret is stored, logged, or passed on a
+command line — the token is read from an env var by reference, handed to `git` only via an
+in-memory remote URL and to `gh` via `$env:GH_TOKEN`, both scrubbed in `finally`. The PII
+boundary is enforced structurally: only column **names** leave the function, and a name
+that is not a plain identifier is rejected (no markdown/DDL injection).
 
 ### Cost impact
 
@@ -84,8 +94,7 @@ token), Mark-gated. A cold node with no bundle / no token / no DB does a clean n
 
 ## Future considerations
 
-- Promote the issue-filing stub to a real cross-repo **PR** (concept files pre-edited on a
-  branch) — the follow-up issue from #175.
+- ~~Promote the issue-filing stub to a real cross-repo **PR**~~ — **done** (issue #190).
 - Draft concept *prose* (definition / source / joins) from the ERD, gated on never emitting
   PII (today the agent proposes column deltas only).
 - More valuable once the bundle expands past the pilot subset (front-end #536); keep the
