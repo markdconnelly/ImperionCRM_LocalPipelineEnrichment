@@ -26,7 +26,7 @@ function Set-ImperionPolicyGoldenState {
     [CmdletBinding(SupportsShouldProcess, DefaultParameterSetName = 'Single')]
     param(
         [Parameter(Mandatory)]
-        [ValidateSet('conditional-access', 'intune-security', 'device-configuration', 'autopilot', 'defender-xdr')]
+        [ValidateSet('conditional-access', 'intune-security', 'device-configuration', 'autopilot', 'defender-xdr', 'purview-compliance')]
         [string] $PolicyType,
         [Parameter(Mandatory, ParameterSetName = 'Single')][string] $PolicyId,
         [Parameter(Mandatory, ParameterSetName = 'All')][switch] $All,

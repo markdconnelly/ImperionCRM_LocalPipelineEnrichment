@@ -71,6 +71,9 @@ Register-ImperionTask -Name 'Imperion m365 Mail' `
 | **mileiq** | `mileiq/drives` | Business-classified drives (per connected employee) | **Daily** | Mileage capture (frontend ADR-0083); per-employee OAuth (backend custodies token, this repo reads it); triple-gated on MileIQ API creds (frontend #495) + backend OAuth custody + migrations 0088–0090 (frontend #494); business-only (personal drives never enter), no comp, locations/miles/amounts never logged |
 | **meta** | `meta/social` | FB posts/comments/DMs + IG media/comments + merge | **Daily** | Organic social is slow-moving; DM senders → leads via the merge (issue #126) |
 | **meta** | `meta/insights` | Page + IG insight snapshots + merge | **Daily** | period=day metrics yield one point/day; per-metric deprecation tolerance |
+| **security** | `security/incidents` | Incident → alerts → evidence (+ `autotask_ticket_ref`) | **Hourly** | Operationally timely (ADR-0019, #196); read-only onboarding-app Graph; → `m365_incidents`/`m365_alerts`/`m365_evidence` (FE 0119 applied); DORMANT until creds (#102) + autotask_ticket_ref format confirm-before-live |
+| **security** | `security/purview-compliance` | Purview compliance posture + drift (NO alerts) | **Daily** | Compliance config slow-changing (ADR-0019 §2); → `purview_compliance_policies`/`_golden` via the existing drift engine; silver merge held out until FE widens the policy_family CHECK; DORMANT until creds (#102) |
+| **security** | `security/retention-sweep` | 180-day prune of `m365_incidents`/`alerts`/`evidence` ONLY | **Daily** | Autotask is durable SoR (ADR-0019 §3); leaf-first, idempotent, `-WhatIf`-aware, count-only logging; NOT interaction/purview/system-wide; first live run gated |
 
 > Cadence is the **target**; tune per source rate-limits in `docs/integrations/<source>.md`.
 > The authoritative as-built registry of *registered* tasks is

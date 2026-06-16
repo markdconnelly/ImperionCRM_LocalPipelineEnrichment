@@ -6,11 +6,13 @@ baseline). Drift is a hash comparison (ADR-0008). Schema:
 
 ## Tables
 - **Observed (bronze):** `entra_conditional_access_policies`, `intune_security_policies`,
-  `device_configuration_policies`, `autopilot_policies`, `defender_xdr_security_policies` —
-  each exposes `policy_name`, `external_id`, `content_hash` plus the standard envelope,
-  refreshed (change-detected) on every `Invoke-ImperionPolicySync`.
+  `device_configuration_policies`, `autopilot_policies`, `defender_xdr_security_policies`,
+  **`purview_compliance_policies`** (Purview compliance posture, ADR-0019 §2; refreshed by
+  `Invoke-ImperionPurviewComplianceSync`) — each exposes `policy_name`, `external_id`,
+  `content_hash` plus the standard envelope, refreshed (change-detected) on every sync.
 - **Golden:** `*_golden`, keyed `(tenant_id, policy_id)`:
-  `golden_hash`, `golden_payload (jsonb)`, `approved_by`, `approved_at`, `notes`.
+  `golden_hash`, `golden_payload (jsonb)`, `approved_by`, `approved_at`, `notes` —
+  including **`purview_compliance_golden`**.
 
 ## Drift classification
 `Get-ImperionPolicyDrift` full-outer-joins observed↔golden per type:
@@ -55,3 +57,12 @@ Since ADR-0010 the classification is no longer only an ad-hoc read: the nightly
 (cloud pipeline ADR-0015) is the narrow on-demand twin. The CASE is a pinned parity
 contract across `Get-ImperionPolicyDrift`, this merge, and the cloud runner — change one,
 change all three (Pester pins it here).
+
+**Purview is bronze+golden+drift only — held out of the silver merge (ADR-0019 §2).** The
+`posture_policy.policy_family` column carries a **front-end-owned CHECK constraint** that lists
+the silver-eligible families; it does not yet include `purview_compliance`. So
+`Get-ImperionPolicyCatalog` marks the Purview entry `Silver = $false`, and
+`Invoke-ImperionPostureMerge` filters to `Silver`-flagged families — Purview drift works (via
+`Get-ImperionPolicyDrift` / `Invoke-ImperionPurviewComplianceSync`) but is **not** written into
+`posture_policy` until the front end widens the CHECK constraint (propose it back as a front-end
+issue, system CLAUDE.md §1). The other five families merge to silver exactly as before.
