@@ -1,7 +1,7 @@
 # qbo/chart-of-accounts - daily QuickBooks Online expense-account pull -> bronze (qbo_expense_account).
 # Cadence: Daily (scheduled-tasks/README.md). Composes one get + one post; keep this short
 # (CLAUDE.md §1). Credentials are SecretStore secrets (qbo-access-token / qbo-realm-id,
-# CLAUDE.md §2; shared with qbo/bill-payments). DOUBLE-GATED: until (a) the operator provisions
+# CLAUDE.md §2; shared with qbo/purchases). DOUBLE-GATED: until (a) the operator provisions
 # both secrets AND (b) the front-end qbo_expense_account bronze migration lands, the task logs
 # the gap and exits cleanly (never crashes the schedule) - see docs/integrations/quickbooks-online.md.
 # QuickBooks is the CATEGORY system of record; this pull is READ-ONLY (the app never writes QBO).

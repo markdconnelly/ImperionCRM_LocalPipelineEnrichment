@@ -63,7 +63,7 @@
 
     # QuickBooks Online (issue #170, time-tracking LP-1 QBO half) — the OAuth2 access token +
     # the realm (company) id. The token EXPIRES (~1h) and the refresh token rotates; the
-    # bill-payments task logs + exits cleanly until both are provisioned (the standing QBO app-
+    # purchases task logs + exits cleanly until both are provisioned (the standing QBO app-
     # registration gate, same blocker as backend #104). Read-only — authoritative payment fact
     # only; the app never pays. See docs/integrations/quickbooks-online.md.
     QboAccessToken          = 'qbo-access-token'
