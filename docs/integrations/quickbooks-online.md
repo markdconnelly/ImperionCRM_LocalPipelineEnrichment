@@ -4,25 +4,38 @@ QuickBooks Online (QBO) is the MSP's accounting source of record. Two **read-onl
 bulk pulls land into Postgres bronze, both via the shared connect helper
 (`Invoke-ImperionQboRequest`) and the same `qbo-access-token` / `qbo-realm-id` secrets:
 
-1. **Vendor bill-payments → `qbo_bill_payments`** — the authoritative **payment fact** (ADR-0014).
+1. **Purchases (Check/Expense) → `qbo_purchases`** — the authoritative **payment fact** (ADR-0014).
 2. **Expense chart-of-accounts → `qbo_expense_account`** — the authoritative **category** list
    (ADR-0014, amended for #168).
+
+> **Simple Start, not AP (#174, front-end ADR-0085).** Imperion's QBO company is **Simple Start**,
+> which has **no Accounts Payable** — `Bill`/`BillPayment` return "Feature Not Supported". 1099
+> payments and reimbursements are Checks/Expenses = the **`Purchase`** entity. §1 below was
+> re-targeted `BillPayment` → `Purchase` (front-end migration 0092 supersedes 0091).
 
 **Read-only throughout — the app never writes QuickBooks.** Pure finance/reference data: both
 flatten **straight to Postgres** and **skip the IT Glue hub** (ADR-0006).
 
-## 1. Vendor bill-payments (the payment fact)
+## 1. Purchases — Check/Expense (the payment fact)
 
-**Purpose.** Bulk-pull the MSP's own **accounts-payable vendor payments** from QuickBooks
-Online (QBO) into Postgres bronze (`qbo_bill_payments`). This is the **authoritative payment
-fact** for employee time-tracking (front-end **ADR-0082**, epic markdconnelly/ImperionCRM#458):
-the backend Payroll Reconciliation (ImperionCRM_Backend#105) matches expected pay to a real QBO
-payment to move a timesheet to **Paid**. **Read-only — QBO is authoritative for the payment fact
-ALONE; the app never pays.** Pure finance data: flattens **straight to Postgres** and **skips the
-IT Glue hub** (ADR-0006).
+**Purpose.** Bulk-pull the MSP's own **Check/Expense transactions** from QuickBooks Online (QBO)
+into Postgres bronze (`qbo_purchases`). This is the **authoritative payment fact** for employee
+time-tracking (front-end **ADR-0082**, epic markdconnelly/ImperionCRM#458) and expense
+reimbursement (front-end **ADR-0083**): the backend Payroll Reconciliation
+(ImperionCRM_Backend#105) matches expected pay to a real QBO payment to move a timesheet to
+**Paid**, and the reimbursement reconciliation matches a reimbursement the same way. **Read-only —
+QBO is authoritative for the payment fact ALONE; the app never pays.** Pure finance data: flattens
+**straight to Postgres** and **skips the IT Glue hub** (ADR-0006).
 
-> **v1 = all 1099.** Employees are paid hourly direct (gross = net) as QBO vendors / AP
-> bill-payments → an exact amount match. W2 payroll is modeled-dormant (front-end ADR-0082).
+> **Simple Start → Purchase, not BillPayment (#174, front-end ADR-0085).** The QBO company is
+> **Simple Start** — it has **no Accounts Payable**, so `Bill`/`BillPayment` (the entity this leg
+> originally used) return "Feature Not Supported". 1099 contractor payments and reimbursements are
+> recorded as **Checks / Expenses**, exposed as the **`Purchase`** entity. The subscription is NOT
+> upgraded. Front-end migration **0092** (`qbo_purchases`) **supersedes** 0091 (`qbo_bill_payments`,
+> which was empty and never wired).
+
+> **v1 = all 1099.** Employees are paid hourly direct (gross = net) as QBO Check/Expense purchases
+> → an exact amount match. W2 payroll is modeled-dormant (front-end ADR-0082).
 
 ## Source & auth
 | Source | API | Auth |
@@ -31,7 +44,7 @@ IT Glue hub** (ADR-0006).
 
 - **Read-only / pull-only** (no webhooks reach a home server — ADR-0001).
 - **Query endpoint:** `GET /v3/company/{realmId}/query?query=<url-encoded SQL>&minorversion=N`.
-  The SQL-like grammar: `SELECT * FROM BillPayment [WHERE MetaData.LastUpdatedTime > '<iso>']
+  The SQL-like grammar: `SELECT * FROM Purchase [WHERE MetaData.LastUpdatedTime > '<iso>']
   STARTPOSITION <n> MAXRESULTS <p>`.
 - **Paging is in the query text** (`STARTPOSITION`/`MAXRESULTS`, max 1000/page). The connect
   helper (`Invoke-ImperionQboRequest`) owns the page-walk and stops on a short page.
@@ -43,53 +56,61 @@ IT Glue hub** (ADR-0006).
   (ImperionCRM_Backend#104) — this node reads whatever access token the operator provisions.
 
 ## Entity & Postgres target (bronze)
-| Entity | Source | Bronze table (proposed) |
+| Entity | Source | Bronze table |
 | --- | --- | --- |
-| Vendor bill-payment | `qbo` | `qbo_bill_payments` |
+| Purchase (Check/Expense) | `qbo` | `qbo_purchases` |
 
-`qbo_bill_payments` columns (proposed): `txn_date, total_amount, vendor_id, vendor_name,
-pay_type, doc_number, currency, created_time, last_updated_time` + the standard envelope
-(`tenant_id, source, external_id, collected_at, raw_payload, content_hash`). `external_id` =
-the QBO BillPayment **`Id`** (stable, realm-scoped) → idempotent upsert. `total_amount` is the
-**payment fact** the backend reconciliation reads; it is NOT comp data (pay_rate stays in the
-front-end finance-gated 0085 store) and is **never logged** (metric counts only).
+`qbo_purchases` columns (front-end migration 0092): `txn_date, total_amount, payment_type,
+account_ref, account_name, entity_id, entity_type, entity_name, doc_number, currency,
+created_time, last_updated_time` + the standard envelope (`tenant_id, source, external_id,
+collected_at, raw_payload, content_hash`). `external_id` = the QBO Purchase **`Id`** (stable,
+realm-scoped) → idempotent upsert. `total_amount` is the **payment fact** the backend
+reconciliation reads; it is NOT comp data (pay_rate stays in the front-end finance-gated 0085
+store) and is **never logged** (metric counts only). The payee link is the existing
+`employee_profile.qb_vendor_id` (migration 0085) = `Purchase.EntityRef.value`.
 
-> **Schema is front-end-owned (ADR-0042).** `qbo_bill_payments` does **not exist yet** — it is
-> **proposed here** for a front-end migration (column set above + the `imperion-localpipeline`
-> SELECT/INSERT/UPDATE grant). Until that migration lands, the collector is **deploy-ahead**
-> (the task logs + exits), exactly like UniFi / Plaud / intune-devices.
+> **Schema is front-end-owned (ADR-0042).** `qbo_purchases` is **SHIPPED** — front-end migration
+> **0092** (markdconnelly/ImperionCRM#526 / front-end ADR-0085; drops + supersedes 0091/
+> `qbo_bill_payments`), with the `imperion-localpipeline` SELECT/INSERT/UPDATE grant. The collector
+> is still **deploy-ahead** on the QBO app registration (the task logs + exits until the secrets
+> land), like UniFi / Plaud / intune-devices.
 
 ## Flatten
-Standard pattern: flatten BillPayment to `[PSCustomObject]` with the columns above +
+Standard pattern: flatten Purchase to `[PSCustomObject]` with the columns above +
 `tenant_id, source, external_id, content_hash, collected_at, raw_payload`. `tenant_id` =
 partner tenant (QBO is the MSP's own books, not per-customer credentialed — like KQM).
 
 ## Cadence
-Daily (`scheduled-tasks/qbo/bill-payments.task.ps1`). Payment events are low-volume; a daily
+Daily (`scheduled-tasks/qbo/purchases.task.ps1`). Payment events are low-volume; a daily
 incremental page-walk is ample. Stagger from other finance tasks.
 
 ## Provenance & posture
 - Every row stamped `source = 'qbo'`, `collected_at`, full `raw_payload`. Read-only; no QBO
   write surface (the app never pays — front-end ADR-0082).
-- **Comp/PII discipline (CLAUDE.md §8):** the payment amount and vendor name are landed in
+- **Comp/PII discipline (CLAUDE.md §8):** the payment amount and payee name are landed in
   bronze (the fact) but **never logged**. No pay_rate here.
 
 ## Gates (Mark — block LIVE not BUILD)
 1. **QuickBooks Online read-only app registration** + token custody — the standing
    time-tracking blocker (same gate as backend ImperionCRM_Backend#104). Provision
    `qbo-access-token` + `qbo-realm-id` in the SecretStore.
-2. **Front-end `qbo_bill_payments` bronze migration** + the local-pipeline grant.
+2. ~~Front-end `qbo_purchases` bronze migration~~ — **SHIPPED** (front-end migration 0092, #526;
+   includes the local-pipeline grant). No longer a gate; the app registration alone blocks LIVE.
 
 ## Still assumptions (no live access yet) — CONFIRM BEFORE LIVE
 Modeled from the documented Intuit Accounting API; **unverified against the real company** until
 the app registration lands (do not over-fit — the flatten keeps a fallback chain and
 `raw_payload` is lossless, the KQM/DocuSign precedent):
-- BillPayment field names/casing (`TxnDate`, `TotalAmt`, `VendorRef.value/.name`, `PayType`,
-  `DocNumber`, `CurrencyRef.value`, `MetaData.CreateTime/LastUpdatedTime`).
+- Purchase field names/casing (`TxnDate`, `TotalAmt`, `PaymentType`, `AccountRef.value/.name`,
+  `EntityRef.value/.type/.name`, `DocNumber`, `CurrencyRef.value`,
+  `MetaData.CreateTime/LastUpdatedTime`).
 - The `QueryResponse.<Entity>` wrapper shape and the `minorversion` value.
 - Production vs sandbox base host.
-- Whether `BillPayment` alone is the right entity, or `Purchase`/`Bill` also carry 1099
-  contractor payments — confirm the AP shape with Mark against the real books.
+- ~~Whether `BillPayment` is the right entity~~ — **resolved (#174):** Simple Start has no AP, so
+  the entity is **`Purchase`** (Check/Expense). Confirm against the real books which `PaymentType`
+  values and which `Line[].AccountBasedExpenseLineDetail.AccountRef` accounts represent
+  contractor-pay vs reimbursable-expense (CFO mapping, lives in `raw_payload` — no migration
+  depends on the list).
 
 ## 2. Expense chart-of-accounts (the category system of record)
 

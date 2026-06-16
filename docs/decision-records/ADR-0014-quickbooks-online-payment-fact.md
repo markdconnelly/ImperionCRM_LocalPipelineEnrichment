@@ -4,9 +4,9 @@
 |---|---|
 | **Repo** | local-pipeline |
 | **Status** | Proposed |
-| **Date** | 2026-06-13 (amended 2026-06-15, #168 — chart-of-accounts) |
+| **Date** | 2026-06-13 (amended 2026-06-15, #168 — chart-of-accounts; amended 2026-06-15, #174 — BillPayment → Purchase for Simple Start) |
 | **Deciders** | Mark (human), Claude Code |
-| **Cross-references** | frontend ADR-0082, frontend ADR-0083, frontend ADR-0042, ADR-0001, ADR-0005, ADR-0006 |
+| **Cross-references** | frontend ADR-0082, frontend ADR-0083, frontend ADR-0085, frontend ADR-0042, ADR-0001, ADR-0005, ADR-0006 |
 
 > **Number claimed at merge (system CLAUDE.md §10.3).** Authored as 0014; renumber to the next
 > free local-pipeline ADR at merge if a concurrent branch takes it.
@@ -37,12 +37,18 @@ in-cloud QBO **read client** (token custody, on-demand reads). This decision cov
 
 ## Decision
 
-A scheduled on-prem collector (`Get-ImperionQboBillPayment` → `Set-ImperionQboBillPaymentToBronze`,
-connect helper `Invoke-ImperionQboRequest`) bulk-pulls QBO **BillPayment** rows into bronze
-`qbo_bill_payments`, idempotent on the QBO payment `Id`. **QBO is read-only and authoritative for
-the payment fact ALONE — the app never pays.** Pure finance data: flattens straight to Postgres,
-skips IT Glue (ADR-0006). The collector is **deploy-ahead/gated** — it logs + exits until both
-the QBO app registration and the front-end `qbo_bill_payments` migration land.
+A scheduled on-prem collector bulk-pulls the QBO **payment fact** into bronze, idempotent on the
+QBO transaction `Id`. **QBO is read-only and authoritative for the payment fact ALONE — the app
+never pays.** Pure finance data: flattens straight to Postgres, skips IT Glue (ADR-0006). The
+collector is **deploy-ahead/gated** — it logs + exits until the QBO app registration lands.
+
+> **Re-targeted 2026-06-15 (#174) — see the amendment below.** The original decision used the
+> `BillPayment` entity (`Get-ImperionQboBillPayment` → `Set-ImperionQboBillPaymentToBronze` →
+> `qbo_bill_payments`). Imperion's QBO company is **Simple Start**, which has NO Accounts Payable —
+> `Bill`/`BillPayment` return "Feature Not Supported". The collector now uses the **`Purchase`**
+> entity (`Get-ImperionQboPurchase` → `Set-ImperionQboPurchaseToBronze` → `qbo_purchases`,
+> front-end migration 0092 / ADR-0085), same connect helper `Invoke-ImperionQboRequest`. The
+> subscription is NOT upgraded.
 
 ## Consequences
 
@@ -61,10 +67,10 @@ rewriting unchanged rows.
 
 ### Operational impact
 
-Two gates block LIVE (not BUILD): the **QBO read-only app registration** + token custody (the
-standing time-tracking blocker, shared with backend #104) and the **front-end
-`qbo_bill_payments` migration** + local-pipeline grant. Token refresh re-auth is an operator
-runbook item (docs/integrations/quickbooks-online.md).
+The **front-end `qbo_purchases` migration** (0092, #526) is **SHIPPED**, so one gate remains for
+LIVE (not BUILD): the **QBO read-only app registration** + token custody (the standing
+time-tracking blocker, shared with backend #104). Token refresh re-auth is an operator runbook
+item (docs/integrations/quickbooks-online.md).
 
 ## Amendment 2026-06-15 (#168): expense chart-of-accounts pull
 
@@ -90,10 +96,37 @@ standard envelope.
 - **Boundary:** chart-of-accounts bulk sync ONLY; the backend QBO read client owns the
   bill-payment reconciliation read (this repo's bill-payment leg is the bulk fact above).
 
+## Amendment 2026-06-15 (#174): re-target the payment fact BillPayment → Purchase (Simple Start)
+
+Imperion's QBO company is **Simple Start**, which has **no Accounts Payable** — the `Bill` and
+`BillPayment` entities the original decision modeled return **"Feature Not Supported"** from the
+Intuit Accounting API. In Simple Start, 1099 contractor payments (and expense reimbursements) are
+recorded as **Checks / Expenses**, exposed by the API as the **`Purchase`** entity. So the
+authoritative payment fact re-targets `BillPayment` → `Purchase`. **The subscription is NOT being
+upgraded** (front-end ADR-0085).
+
+- **Collector.** `Get-ImperionQboPurchase` → `Set-ImperionQboPurchaseToBronze`, reusing the
+  connect helper `Invoke-ImperionQboRequest` and the same `qbo-access-token` / `qbo-realm-id`
+  secrets. Query `SELECT * FROM Purchase [WHERE MetaData.LastUpdatedTime > '<iso>']`, page-walk
+  unchanged. Scheduled task renamed `qbo/bill-payments.task.ps1` → `qbo/purchases.task.ps1`.
+- **Target.** Bronze `qbo_purchases` (front-end migration **0092**, markdconnelly/ImperionCRM#526
+  / front-end ADR-0085; **drops + supersedes** 0091/`qbo_bill_payments`, which was empty and never
+  wired). Idempotent on the QBO `Purchase.Id`. Columns: `txn_date, total_amount, payment_type,
+  account_ref, account_name, entity_id, entity_type, entity_name, doc_number, currency,
+  created_time, last_updated_time` + the standard envelope. The payee link is the existing
+  `employee_profile.qb_vendor_id` (front-end migration 0085) = `Purchase.EntityRef.value`, reused
+  unchanged.
+- **Gate change.** The front-end `qbo_purchases` migration (0092) is **SHIPPED**, so the only
+  remaining LIVE gate is the QBO app registration + token custody (unchanged, shared with backend
+  #104). Same read-only / never-log-amount-or-payee posture.
+- **Backend readers.** The Payroll Reconciliation (backend #105) and the expense-reimbursement
+  reconciliation (front-end ADR-0083) now match expected pay/reimbursement to a `Purchase`.
+
 ## Future considerations
 
-- Confirm the live BillPayment shape against the real books; verify whether `Purchase`/`Bill`
-  also carry 1099 contractor payments (the doc's CONFIRM-BEFORE-LIVE list).
+- Confirm the live `Purchase` shape against the real books (the doc's CONFIRM-BEFORE-LIVE list).
+  *(Resolved 2026-06-15, #174: `Purchase` — not `Bill`/`BillPayment` — carries the 1099 payments
+  on this Simple Start company; AP entities are unavailable. See the amendment below.)*
 - Confirm the live Account shape and whether the `Classification = 'Expense'` filter or an
   explicit `AccountType` IN (...) filter best captures the expense chart-of-accounts (#168).
 - W2 payroll (frontend ADR-0082 modeled-dormant) would add QBO Payroll entities later — a
