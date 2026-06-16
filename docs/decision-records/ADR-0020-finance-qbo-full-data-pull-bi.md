@@ -1,4 +1,4 @@
-# ADR-XXXX: Finance — QuickBooks Online read-only full-data pull into the intelligence / BI engine
+# ADR-0020: Finance — QuickBooks Online read-only full-data pull into the intelligence / BI engine
 
 | Field | Value |
 |---|---|
@@ -9,7 +9,7 @@
 | **Cross-references** | ADR-0001; ADR-0005; ADR-0006; ADR-0014; ADR-0018; ADR-0019; frontend ADR-0042; frontend ADR-0082; frontend ADR-0083; frontend ADR-0085; frontend ADR-0017 |
 
 > **Number claimed at merge (system CLAUDE.md §10.3).** Authored as the placeholder
-> `ADR-XXXX`; the orchestrator renames this file to the next free local-pipeline ADR number
+> `ADR-0020`; the orchestrator renames this file to the next free local-pipeline ADR number
 > (next free after 0019) at merge and fixes every reference. **Do not reserve a number now.**
 > The `_template.md` placeholder `ADR-NNNN` is untouched. (This matches the W28/W29 LP
 > placeholder convention used by ADR-0018 / ADR-0019.)
