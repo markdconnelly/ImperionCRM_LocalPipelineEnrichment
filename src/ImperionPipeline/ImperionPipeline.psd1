@@ -73,6 +73,8 @@
         'Invoke-ImperionDattoRmmRequest',
         'Invoke-ImperionDattoBcdrRequest',
         'Invoke-ImperionMyItProcessRequest',
+        'Invoke-ImperionAmazonBusinessRequest',
+        'Invoke-ImperionCdwRequest',
         # Per-object get layer (collect -> flatten to PSObject; no writes)
         'Get-ImperionAutotaskCompany',
         'Get-ImperionAutotaskContact',
@@ -133,6 +135,8 @@
         'Get-ImperionDattoRmmDevice',
         'Get-ImperionDattoBcdrBackup',
         'Get-ImperionMyItProcessRecommendation',
+        'Get-ImperionAmazonBusinessOrder',
+        'Get-ImperionCdwOrder',
         # Per-object post layer (write flattened rows -> bronze; change-detected upsert)
         'Set-ImperionAutotaskContractToBronze',
         'Set-ImperionAutotaskTicketToBronze',
@@ -194,6 +198,8 @@
         'Set-ImperionDattoRmmDeviceToBronze',
         'Set-ImperionDattoBcdrBackupToBronze',
         'Set-ImperionMyItProcessRecommendationToBronze',
+        'Set-ImperionAmazonBusinessOrderToBronze',
+        'Set-ImperionCdwOrderToBronze',
         'Invoke-ImperionMetaMerge',
         'Invoke-ImperionITGlueExportToBronze',
         # Gold knowledge + vectorization (ADR-0009; front-end migration 0045)
