@@ -1,4 +1,4 @@
-# ADR-XXXX: Security incidents (MS↔Autotask correlation) + Purview posture + 180-day security retention
+# ADR-0019: Security incidents (MS↔Autotask correlation) + Purview posture + 180-day security retention
 
 | Field | Value |
 |---|---|
@@ -8,7 +8,7 @@
 | **Deciders** | Mark (human), Claude Code |
 | **Cross-references** | ADR-0005; ADR-0006; ADR-0008; ADR-0010; ADR-0012; ADR-0015; ADR-0018; frontend ADR-0017; frontend ADR-0039; pipeline ADR-0009; pipeline ADR-0018 |
 
-> **Number claimed at merge (system CLAUDE.md §10.3).** Authored as `ADR-XXXX`; the
+> **Number claimed at merge (system CLAUDE.md §10.3).** Authored as `ADR-0019`; the
 > orchestrator renames this file to the next free local-pipeline ADR number (next free after
 > 0018) at merge and fixes every reference. Do not reserve a number now. The
 > `_template.md` placeholder `ADR-NNNN` is untouched.
