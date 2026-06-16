@@ -1,4 +1,4 @@
-# ADR-XXXX: RMM / managed-estate sources — Datto RMM, Datto BCDR, myITprocess (+ device-precedence revisit)
+# ADR-0018: RMM / managed-estate sources — Datto RMM, Datto BCDR, myITprocess (+ device-precedence revisit)
 
 | Field | Value |
 |---|---|
@@ -8,7 +8,7 @@
 | **Deciders** | Mark (human), Claude Code |
 | **Cross-references** | ADR-0005; ADR-0006; ADR-0012; frontend ADR-0039; frontend ADR-0017; pipeline ADR-0009 |
 
-> **Number claimed at merge (system CLAUDE.md §10.3).** Authored as `ADR-XXXX`; the
+> **Number claimed at merge (system CLAUDE.md §10.3).** Authored as `ADR-0018`; the
 > orchestrator renames this file to the next free local-pipeline ADR number at merge and
 > fixes every reference. Do not reserve a number now.
 
