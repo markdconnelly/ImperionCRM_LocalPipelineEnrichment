@@ -68,6 +68,9 @@
         'Invoke-ImperionMileIqRequest',
         'Invoke-ImperionMetaRequest',
         'Get-ImperionMetaPageToken',
+        'Invoke-ImperionDattoRmmRequest',
+        'Invoke-ImperionDattoBcdrRequest',
+        'Invoke-ImperionMyItProcessRequest',
         # Per-object get layer (collect -> flatten to PSObject; no writes)
         'Get-ImperionAutotaskCompany',
         'Get-ImperionAutotaskContact',
@@ -117,6 +120,9 @@
         'Get-ImperionInstagramMedia',
         'Get-ImperionInstagramComment',
         'Get-ImperionMetaInsight',
+        'Get-ImperionDattoRmmDevice',
+        'Get-ImperionDattoBcdrBackup',
+        'Get-ImperionMyItProcessRecommendation',
         # Per-object post layer (write flattened rows -> bronze; change-detected upsert)
         'Set-ImperionAutotaskContractToBronze',
         'Set-ImperionAutotaskTicketToBronze',
@@ -167,6 +173,9 @@
         'Set-ImperionInstagramMediaToBronze',
         'Set-ImperionInstagramCommentToBronze',
         'Set-ImperionMetaInsightToBronze',
+        'Set-ImperionDattoRmmDeviceToBronze',
+        'Set-ImperionDattoBcdrBackupToBronze',
+        'Set-ImperionMyItProcessRecommendationToBronze',
         'Invoke-ImperionMetaMerge',
         'Invoke-ImperionITGlueExportToBronze',
         # Gold knowledge + vectorization (ADR-0009; front-end migration 0045)

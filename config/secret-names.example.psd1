@@ -82,6 +82,23 @@
     MileIqTokenPrefix       = 'mileiq-token-'
     MileIqTokenVaultPrefix  = 'MileIQ-Token-'
 
+    # RMM / managed-estate sources (issue #195, ADR-0018) — three MSP-WIDE vendor keys (like
+    # Autotask / IT Glue / KQM, NOT per-employee OAuth, NOT per-client onboarding tokens).
+    # Resolution mirrors the KQM/EasyDMARC pattern (Resolve-ImperionDattoRmmApiKey /
+    # Resolve-ImperionDattoBcdrApiKey / Resolve-ImperionMyItProcessApiKey):
+    #   1. SecretStore title below (when the vault is unlocked this run) — mirror of the KV value
+    #   2. Key Vault secret below, read by the cert SP (the ORIGINAL, kv-imperioncrm-prd)
+    # GATED: until provisioned (Mark-gated), each collector's task logs the gap + exits cleanly.
+    # Datto RMM does an API-KEY -> short-lived BEARER exchange (its /auth/oauth/token endpoint),
+    # owned by the connect helper; the token is never logged. See docs/integrations/datto-rmm.md,
+    # datto-bcdr.md, myitprocess.md.
+    DattoRmmApiKey               = 'datto-rmm-api-key'
+    DattoRmmApiKeyVaultSecret    = 'Datto-RMM-API-Key'
+    DattoBcdrApiKey              = 'datto-bcdr-api-key'
+    DattoBcdrApiKeyVaultSecret   = 'Datto-BCDR-API-Key'
+    MyItProcessApiKey            = 'myitprocess-api-key'
+    MyItProcessApiKeyVaultSecret = 'myITprocess-API-Key'
+
     # Voyage AI key for the vectorization stage (ADR-0009; pinned voyage-3-large @ 1024,
     # front-end ADR-0041). Resolution order in Get-ImperionVoyageEmbedding:
     #   1. SecretStore title below (when the vault is unlocked this run) — mirror of the KV value
