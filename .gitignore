@@ -1,6 +1,7 @@
 # Secrets & local config — NEVER commit (CLAUDE.md §2/§8)
 config/pipeline.config.psd1
 config/secret-names.psd1
+config/interaction-allowlist.json
 config/state/
 *.cer
 *.pfx

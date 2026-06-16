@@ -1,0 +1,15 @@
+{
+  "_comment": "Scoped interaction allowlist (issue #199, ADR-0022). Copy to %ProgramData%\\Imperion\\interaction-allowlist.json and fill in. The `principals` list is the CONFIG-DRIVEN set of Imperion principals whose mail / Teams chat with clients is captured. The set changes WITHOUT a code release. v1 = Derek Rankin + Mark Connelly; replace the placeholder UPNs below with the real mailbox UPNs. Only `upn` is read (case-insensitive); `displayName` and `notes` are for the human editor and are ignored. This file is NOT committed (real UPNs are employee identifiers) — only this .example.json ships.",
+  "principals": [
+    {
+      "upn": "REPLACE_WITH_PRINCIPAL_1_UPN",
+      "displayName": "Principal 1 (e.g. Derek)",
+      "notes": "Imperion mailbox whose client interactions are captured."
+    },
+    {
+      "upn": "REPLACE_WITH_PRINCIPAL_2_UPN",
+      "displayName": "Principal 2 (e.g. Mark)",
+      "notes": "Imperion mailbox whose client interactions are captured."
+    }
+  ]
+}
