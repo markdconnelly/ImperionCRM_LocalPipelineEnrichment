@@ -7,13 +7,15 @@ BeforeAll {
 }
 
 Describe 'Get-ImperionPolicyCatalog' {
-    It 'returns the five posture policy types with unique keys' {
+    It 'returns the six posture policy types with unique keys' {
         InModuleScope ImperionPipeline {
             $cat = Get-ImperionPolicyCatalog
-            $cat.Count | Should -Be 5
-            ($cat.Key | Sort-Object -Unique).Count | Should -Be 5
+            $cat.Count | Should -Be 6
+            ($cat.Key | Sort-Object -Unique).Count | Should -Be 6
             $cat.Key | Should -Contain 'conditional-access'
             $cat.Key | Should -Contain 'defender-xdr'
+            # Purview compliance joins the posture set as posture only (issue #196, ADR-0019 §2).
+            $cat.Key | Should -Contain 'purview-compliance'
         }
     }
 

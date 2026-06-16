@@ -24,7 +24,7 @@ function Get-ImperionPolicyDrift {
     [OutputType([object[]])]
     param(
         [string] $TenantId,
-        [ValidateSet('conditional-access', 'intune-security', 'device-configuration', 'autopilot', 'defender-xdr')]
+        [ValidateSet('conditional-access', 'intune-security', 'device-configuration', 'autopilot', 'defender-xdr', 'purview-compliance')]
         [string] $PolicyType,
         $Connection
     )

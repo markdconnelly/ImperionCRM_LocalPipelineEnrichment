@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | **Repo** | local-pipeline |
-| **Status** | Proposed |
+| **Status** | Accepted (design shipped prior wave; collectors + 180-day sweep shipped this wave, #196 collector phase) |
 | **Date** | 2026-06-15 |
 | **Deciders** | Mark (human), Claude Code |
 | **Cross-references** | ADR-0005; ADR-0006; ADR-0008; ADR-0010; ADR-0012; ADR-0015; ADR-0018; frontend ADR-0017; frontend ADR-0039; pipeline ADR-0009; pipeline ADR-0018 |

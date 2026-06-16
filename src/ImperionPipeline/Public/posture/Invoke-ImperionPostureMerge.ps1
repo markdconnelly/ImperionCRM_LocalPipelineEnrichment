@@ -44,7 +44,11 @@ function Invoke-ImperionPostureMerge {
     if ($ownConnection) { $Connection = New-ImperionDbConnection }
 
     try {
-        $catalog = Get-ImperionPolicyCatalog
+        # Silver-eligible families only: posture_policy.policy_family carries a front-end-owned
+        # CHECK constraint, so a family not in it (e.g. purview-compliance, ADR-0019 §2 — held out
+        # until the FE widens the constraint) must never reach the silver write. Bronze+golden+drift
+        # still cover every family via Get-ImperionPolicyDrift; this merge is silver only.
+        $catalog = @(Get-ImperionPolicyCatalog | Where-Object { $_.Silver })
 
         if (-not $TenantId) {
             # Every tenant the posture estate knows about: observed bronze, golden
