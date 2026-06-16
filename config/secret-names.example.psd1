@@ -99,6 +99,21 @@
     MyItProcessApiKey            = 'myitprocess-api-key'
     MyItProcessApiKeyVaultSecret = 'myITprocess-API-Key'
 
+    # Logistics / procurement sources (issue #198, ADR-0021) — two MSP-WIDE COMPANY credentials
+    # (Imperion's own purchasing accounts, NOT per-client). Resolution mirrors the EasyDMARC/Datto
+    # pattern (Resolve-ImperionAmazonBusinessToken / Resolve-ImperionCdwApiKey):
+    #   1. SecretStore title below (when the vault is unlocked this run) — mirror of the KV value
+    #   2. Key Vault secret below, read by the cert SP (the ORIGINAL, kv-imperioncrm-prd)
+    # Both sent as an Authorization: Bearer header (URLs are NOT secret-bearing). READ-ONLY — no
+    # order is ever placed/modified. GATED: until provisioned (Mark-gated; plan must include API
+    # access), each collector's daily task logs the gap + exits cleanly. The front-end bronze
+    # migration 0120 (amazon_business_orders / cdw_orders) is already prod-applied; the post writer
+    # fails loudly if a table is ever absent. See docs/integrations/logistics-procurement.md.
+    AmazonBusinessToken          = 'amazon-business-token'
+    AmazonBusinessTokenVaultSecret = 'AmazonBusiness-Token'
+    CdwApiKey                    = 'cdw-api-key'
+    CdwApiKeyVaultSecret         = 'CDW-API-Key'
+
     # Voyage AI key for the vectorization stage (ADR-0009; pinned voyage-3-large @ 1024,
     # front-end ADR-0041). Resolution order in Get-ImperionVoyageEmbedding:
     #   1. SecretStore title below (when the vault is unlocked this run) — mirror of the KV value
