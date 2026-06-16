@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.0](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.9.0...v0.10.0) (2026-06-16)
+
+
+### Features
+
+* **local-pipeline:** Amazon Business + CDW logistics collectors → bronze ([#198](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/198)) ([#211](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/211)) ([b897b35](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/b897b35083b1c64ef775d4005094b2153bc5ac94))
+* **local-pipeline:** scoped interaction collector (allowlisted principal ↔ client) → bronze + ADR-0022 ([#199](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/199)) ([#213](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/213)) ([2272bae](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/2272bae5f52572d7f2c1cbe56e330a7bea755529))
+
 ## [0.9.0](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.8.0...v0.9.0) (2026-06-16)
 
 
