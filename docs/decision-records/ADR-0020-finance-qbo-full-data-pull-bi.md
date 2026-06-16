@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | **Repo** | local-pipeline |
-| **Status** | Proposed |
+| **Status** | Accepted |
 | **Date** | 2026-06-15 |
 | **Deciders** | Mark (human), Claude Code |
 | **Cross-references** | ADR-0001; ADR-0005; ADR-0006; ADR-0014; ADR-0018; ADR-0019; frontend ADR-0042; frontend ADR-0082; frontend ADR-0083; frontend ADR-0085; frontend ADR-0017 |
