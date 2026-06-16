@@ -1,8 +1,16 @@
 # Secret rotation runbook
 
 The SecretStore holds **source API keys** (Autotask, IT Glue, Apollo, KQM, DocuSign,
-website) and **embedding/LLM provider keys**. It holds **no DB password** (Entra token,
-ADR-0003) and **no app client secret** (cert auth, ADR-0002).
+website, EasyDMARC, QBO, **Datto RMM, Datto BCDR, myITprocess**) and **embedding/LLM
+provider keys**. It holds **no DB password** (Entra token, ADR-0003) and **no app client
+secret** (cert auth, ADR-0002).
+
+The RMM / managed-estate keys (issue #195, ADR-0018) are three MSP-wide vendor keys —
+SecretStore titles `Datto-RMM-API-Key`, `Datto-BCDR-API-Key`, `myITprocess-API-Key`
+(config keys `DattoRmmApiKey` / `DattoBcdrApiKey` / `MyItProcessApiKey`; Key Vault originals
+of the same titles are the fallback). They follow the same mint→overlap→`Set-Secret`→run→
+revoke procedure below. Datto RMM exchanges its API key for a short-lived bearer at call
+time (no separate stored token to rotate); rotating the API key rotates the whole chain.
 
 ## Rotate a source/provider key
 1. Mint the new key in the source system (keep the old one valid during overlap).
