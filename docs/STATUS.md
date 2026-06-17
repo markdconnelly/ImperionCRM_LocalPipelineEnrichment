@@ -4,139 +4,114 @@ _Snapshot of where the `ImperionPipeline` module stands. Updated as layers land.
 
 ## Summary
 
-- Module **v0.5.0**: **74 exported cmdlets**, **279 hermetic Pester tests**, **0
-  PSScriptAnalyzer findings in `src/`**. Module imports clean on PowerShell 7.
-- **Gold knowledge layer LIVE in prod (2026-06-09):** 205 `knowledge_object` rows
-  (25 accounts · 83 contacts · 9 contracts · 88 tickets) written by
-  `Invoke-ImperionKnowledgeSync` running interactively in `-SkipSecretStore` interim mode
-  (markd-profile cert; KV reads via the SP's new `Key Vault Secrets User` grant; silver
-  reads via front-end migration 0048). **Vectorization pending one operator step:** the
-  Key Vault secret `Voyage-Embedding-API-Key` currently holds a placeholder — paste the
-  real key and re-run `Invoke-ImperionKnowledgeSync -Vectorize`.
+- Module shipping at release **0.10.0**: **198 exported cmdlets**, ~199 hermetic Pester test
+  files, **0 PSScriptAnalyzer findings** across `src/` + `build/`. The module imports clean on
+  PowerShell 7.
+- **Gold knowledge + vectorization LIVE in prod.** ~205 `knowledge_object` rows are composed
+  from silver and **embedded with Voyage `voyage-3-large` @ 1024** by `Invoke-ImperionKnowledgeSync
+  -Vectorize` (the nightly `Imperion-KnowledgeVectorize` task, 04:30). The Voyage key is
+  provisioned (Key Vault `Voyage-Embedding-API-Key`, with the SecretStore mirror
+  `embedding-provider-key`); the chunk-hash-idempotent vectorizer writes `knowledge_embedding`
+  (front-end migration 0045 / ADR-0041). This is the system's sole embedding producer; the
+  backend agent reads the vectors and embeds only queries against the same contract.
 - Built in the layered order from `CLAUDE.md §10` / `functions/README.md`:
-  **connect → get → post → scheduled-task**. Connect, get, the **post fan-out for every
-  bronze table that exists today**, the **gold knowledge + vectorization stage
-  (ADR-0009)**, and the **knowledge-composer fan-out (v0.5.0 — device, exposure,
-  assessment, proposal, posture)** are complete; what remains is the Sentinel get, the
-  posts whose bronze tables haven't landed yet (kqm/docusign/website), and the IT Glue
-  docs composer.
-- Every change shipped as its own branch → PR → merge (one PR per function). `main` on `origin`
-  is the source of truth; nothing is local-only.
+  **connect → get → post → scheduled-task**. The full spine is built across ~25 source areas
+  (CRM/support, security posture, finance/BI, logistics, scoped interaction). What remains is
+  **operator/credential gating** — many newer collectors are built + tested but **DORMANT**
+  until their API key, onboarding-app consent, or a front-end bronze migration lands.
+- Every change shipped as its own branch → PR → merge (one PR per function/area). `main` on
+  `origin` is the source of truth; nothing is local-only.
 
 ## Done
 
 ### Foundation
 - Per-API restructure of `src/ImperionPipeline/Public/` into `<area>/{connect,get,post}` with a
-  `utility/` and `posture/` area; `functions/` is documentation mirroring the code areas.
-- README **data-model diagram** (medallion flow + the bronze→silver→gold/pgvector slice this repo
-  produces), cross-linked to the front-end ERD (which owns the schema).
-- `build/Install-ImperionDependencies.ps1` (machine-wide runtime deps), `config/secret-names.example.psd1`
-  reconciled to the real vault titles (Autotask-API-*, ITGlue-API-Key, Telivy-API-Key, …).
-- `scheduled-tasks/` with a polling-cadence registry.
+  `utility/`, `posture/`, `security/`, `semantic/`, and `knowledge/` area; `functions/` is
+  documentation mirroring the code areas.
+- Shared scaffolds (one deep module, thin adapters): the post-writer scaffold
+  `Invoke-ImperionBronzePost` (#105) and the knowledge-composer spine
+  `Invoke-ImperionKnowledgeCompose` (#106). A new collector / composer adds a small adapter,
+  never a copy of the scaffold.
+- `build/Install-ImperionDependencies.ps1` (machine-wide runtime deps),
+  `config/secret-names.example.psd1` reconciled to the real vault titles.
+- `scheduled-tasks/` with a per-`(source, entity)` task file and a polling-cadence registry.
 
-### Connect layer (reusable auth + paged-request, per API)
-- **m365** `Invoke-ImperionGraphRequest` · **azure** `Invoke-ImperionArmRequest` · **itglue**
-  `Invoke-ImperionITGlueRequest` · **autotask** `Get-ImperionAutotaskZone` +
-  `Invoke-ImperionAutotaskRequest` · **telivy** `Invoke-ImperionTelivyRequest` (x-api-key,
-  links.next) · **darkwebid** `Invoke-ImperionDarkWebIdRequest` (bearer key).
-- Private cores: `Invoke-ImperionHttp` (transport) + `Invoke-ImperionRestWithRetry` (429/503
-  backoff), `Get-ImperionMember` / `Get-ImperionPropertyPath` (StrictMode-safe reads),
-  `Test-ImperionCrossOrgComm` (m365 comms noise filter), `Get-ImperionAutotaskContext`,
-  `ConvertTo-ImperionTagString`.
+### Connect → get → post layers (per source)
+Reusable auth + paged-request (`connect`), flatten-to-bronze-shape collectors (`get`), and
+change-detected bronze writers (`post`) across the source roster. The full catalog —
+source → connect → get → post → scheduled task → bronze target → cadence → ADR — is in
+[`collector-inventory.md`](collector-inventory.md). Highlights:
+
+- **CRM / support:** Autotask (company/contact/contract/ticket/time-entry), IT Glue
+  (organization/contact/configuration + full export router), m365 (user/device + Teams/mail),
+  KQM opportunities, DocuSign envelopes, Meta (FB/IG), Apollo, Plaud.
+- **Security posture:** service principals, Azure + Sentinel inventory, Secure Score, the
+  policy set + drift vs golden, Entra hygiene (domains / app-regs / role-assignments /
+  groups / auth-methods), information protection (sensitivity labels, custom security
+  attribute definitions), security incidents, Purview compliance, Dark Web ID, Telivy,
+  EasyDMARC, DNS (zones / resolve / merge).
+- **Finance / BI:** QuickBooks Online — invoices, payments, customers, estimates, bills,
+  chart of accounts (full + expense-only), P&L snapshot, purchases; MileIQ business drives.
+- **Logistics / procurement:** Amazon Business orders, CDW orders.
+- **RMM / managed estate:** Datto RMM devices, Datto BCDR backups, myITprocess
+  recommendations, UniFi devices.
+- **Scoped interaction (ADR-0022):** allowlisted-principal ↔ client mail / Teams capture
+  (message-grain, scoped at collection, count-only logging).
+
+### Gold knowledge + vectorization (ADR-0009 — LIVE)
+- Knowledge composers for **account, contact, contract, ticket, device, exposure,
+  assessment, proposal, posture, social, and conversation_segment** entity types
+  (`Get-ImperionKnowledge*` → `Set-ImperionKnowledgeObject`), all thin adapters over
+  `Invoke-ImperionKnowledgeCompose`.
+- Chunking v1 (`Split-ImperionTextChunk`), the Voyage client
+  (`Get-ImperionVoyageEmbedding`, pinned `voyage-3-large` @ 1024, refuses other dimensions),
+  and the vectorizer (`Invoke-ImperionVectorizeKnowledge`, chunk-hash idempotent, per-object
+  replace, full cost telemetry). Entry point `Invoke-ImperionKnowledgeSync -Vectorize`.
+- **Citation views** for conversation segments (`conversation_segment_citation`, front-end
+  ADR-0068) trace a retrieved vector back to its source conversation + diarized turn.
+
+### Semantic-layer drift (front-end ADR-0086, #175)
+- `Invoke-ImperionSemanticDriftSync` detects live-silver-vs-OKF-bundle drift (column **names
+  only** — no data, no PII) and **proposes** a sync against the front-end bundle. Dry-run by
+  default; never forks/edits the bundle; humans approve.
 
 ### Quality pass
-- Every public + private function reviewed and given hermetic tests (mocking the network/secret/DB
-  seams), **except** `Open-ImperionDbConnection` (live-DB I/O only). ~11 real latent bugs fixed —
-  chiefly StrictMode missing-property throws across every paging wrapper and the posture syncs,
-  plus an empty-rows bind defect, a module-state init bug, and a tag/object-count bug.
+- Every public + private function has hermetic tests (mocking the network/secret/DB seams),
+  except live-DB-only I/O. Real latent bugs fixed along the way (chiefly StrictMode
+  missing-property throws across paging wrappers and posture syncs).
 
-### Get layer (collect → flatten to bronze-shaped `[PSCustomObject]`; **no writes**)
-| API | Collectors |
-| --- | --- |
-| **Autotask** | Company · Contact · Contract · Ticket |
-| **m365** | User · Device · Mail · TeamsChat · TeamsMeeting *(Imperion↔client cross-org filter)* |
-| **azure** | Subscription · ResourceGroup · Resource |
-| **IT Glue** | Organization · Contact · Configuration (= devices) |
-| **Telivy** | Report *(source `televy`)* |
-| **Dark Web ID** | Compromise *(source `darkwebid`; key passed in — company credential)* |
+## Remaining (mostly operator/credential gating)
 
-### Security-posture sync cmdlets (end-to-end, pre-existing, hardened + tested)
-`Invoke-ImperionServicePrincipalSync`, `…SecureScoreSync`, `…PolicySync` (+ drift),
-`…AzureInventorySync`, `Get-ImperionPolicyDrift`, `Set-ImperionPolicyGoldenState`.
+Built and tested, but **DORMANT** until the gate clears — each collector logs and exits cleanly
+until then. See the per-source [`integrations/`](integrations/) doc and the registry for the
+exact gate.
 
-## Remaining
-
-1. **azure Sentinel get** — the one deferred collector (per-workspace, multi-step: enumerate Log
-   Analytics workspaces → analytic/automation rules, watchlists, workbooks).
-2. **Post layer** — per-`(source, entity)` bronze writers. Take a get function's flat rows and
-   `Invoke-ImperionBronzeUpsert` into the standard-envelope bronze tables; for **telivy/darkwebid**
-   map to the ADR-0039 per-source shape (`external_ref` ← `external_id`, `payload_bronze` ←
-   `raw_payload`) of `televy_reports` / `darkwebid_exposures`. Operational/infra sources also
-   document into IT Glue (flatten → IT Glue → Postgres, ADR-0006).
-   - **Done:** `Set-ImperionAutotaskContractToBronze` + `…TicketToBronze` (standard envelope) and
-     `Set-ImperionTelivyReportToBronze` + `…DarkWebIdCompromiseToBronze` (ADR-0039 `external_ref`/
-     `payload_bronze` remap via `Invoke-ImperionBronzeUpsert -NoChangeDetect`). All pipeline-accepting,
-     open/reuse a short-lived-token connection, metric-log, `ShouldProcess`-gated; hermetic tests.
-   - **Done (v0.4.0 fan-out, 9 writers):** ADR-0039-shape (migration 0036 tables, `external_ref`/
-     `payload_bronze`, `-NoChangeDetect`): `Set-ImperionM365UserToBronze` → `m365_contacts`,
-     `…M365DeviceToBronze` → `m365_devices`, `…ITGlueOrganizationToBronze` → `itglue_companies`,
-     `…ITGlueContactToBronze` → `itglue_contacts`, `…ITGlueConfigurationToBronze` → `itglue_devices`.
-     Standard envelope projected to the exact migration-0038 column sets (the collectors
-     over-collect; extras stay in `raw_payload`): `Set-ImperionAzureSubscriptionToBronze`,
-     `…AzureResourceGroupToBronze`, `…AzureResourceToBronze`. Multi-table router:
-     `Invoke-ImperionITGlueExportToBronze` (export-envelope rows → `itglue_export_<entity>` by a
-     per-row `entity` discriminator or `-Entity`, keyed `(source, external_id)`, unknown entity
-     fails loudly). Same contract as the reference writers; hermetic tests for all nine.
-   - **Still to fan out:** kqm/docusign/website posts once their sources are wired (their 0038
-     tables exist; no collectors yet). Posture already writes via its `Invoke-*Sync` cmdlets.
-3. **Scheduled-task files** — short `scheduled-tasks/<area>/*.task.ps1` composing get → post per the
-   cadence registry, registered with `Register-ImperionTask`. Done: `autotask/contracts`,
-   `autotask/tickets`, `telivy/assessments`, `darkwebid/compromises` (sources its API key from Key
-   Vault via the new `Get-ImperionKeyVaultSecret`, the cert-SP reader for company credentials),
-   `m365/users`, `m365/devices` (optional GDAP fan-out via `IMPERION_M365_TENANT_IDS`),
-   `itglue/organizations`, `itglue/contacts`, `itglue/configurations`, `itglue/export`,
-   `azure/inventory` (per-entity composition; Sentinel/mgmt-groups stay with
-   `Invoke-ImperionAzureInventorySync` until the Sentinel get lands).
-   **Note:** front-end migration 0044 grants the local-pipeline SP write on the 0038/0043 tables
-   only — the migration-0036 tables the new writers target (`m365_contacts`, `m365_devices`,
-   `itglue_companies`, `itglue_contacts`, `itglue_devices`) need a follow-up grant migration in
-   the front-end repo before live runs.
-4. ~~**Vectorization stage**~~ — **DONE (ADR-0009, v0.3.0).** Gold knowledge composers
-   (`Get-ImperionKnowledgeAccount`/`Contact` → `Set-ImperionKnowledgeObject`), chunking v1
-   (`Split-ImperionTextChunk`), the Voyage client (`Get-ImperionVoyageEmbedding`, pinned
-   `voyage-3-large` @ 1024, refuses other dimensions), and the vectorizer
-   (`Invoke-ImperionVectorizeKnowledge`, chunk-hash idempotent, per-object replace, full
-   cost telemetry). Entry point `Invoke-ImperionKnowledgeSync -Vectorize`; scheduled as
-   `Imperion-KnowledgeVectorize` (04:30). **To go live:** put the Voyage key in the
-   SecretStore (`embedding-provider-key`) and run it once.
-5. ~~**More knowledge composers**~~ — **DONE (v0.5.0)** for the mature entities:
-   `Get-ImperionKnowledgeDevice` (silver `device` + not-yet-merged
-   `itglue_export_configurations`, mirroring the front-end `device_inventory_all` view,
-   migration 0053), `…CredentialExposure` (silver `credential_exposure`, facts only —
-   no `payload_bronze`, no plaintext credentials in gold), `…AssessmentArtifact`
-   (`assessment_artifact` + assessment/account context + `televy_reports` provenance),
-   `…Proposal` (`proposal` + opportunity/account context), and `…Posture` (one object
-   per tenant: latest Secure Score + per-type policy counts and named gaps via
-   `Get-ImperionPolicyDrift`). All wired into `Invoke-ImperionKnowledgeSync`
-   (entity types `device`/`exposure`/`assessment`/`proposal`/`posture`); `-Vectorize`
-   picks the new objects up through the existing chunk/embed stage. Still to come:
-   the IT Glue docs composer (once the doc corpus lands).
-   **Note (read grants):** front-end migration 0048 granted the SP SELECT on
-   `account`/`contact`/`opportunity`/`autotask_companies` only — the new composers also
-   need SELECT on **`device`, `credential_exposure`, `assessment_artifact`,
-   `assessment`, `proposal`, `itglue_devices`, and the `account_bronze_all` view** via
-   a follow-up front-end grant migration before live runs (the posture/darkwebid/televy
-   bronze reads are already covered by 0044's write grants).
+1. **Credential / consent gates (Mark):** QBO app registration (`qbo-access-token` /
+   `qbo-realm-id`) for all finance collectors; onboarding-app consent + creds (#102) for
+   security incidents / Purview / cross-org comms / scoped interaction; the RMM/managed-estate
+   vendor keys (Datto RMM/BCDR, myITprocess); Amazon Business / CDW logistics keys; KQM /
+   DocuSign / Dark Web ID / Telivy / EasyDMARC / UniFi / Plaud / MileIQ keys.
+2. **Front-end bronze migrations** for the newest sources (Entra hygiene #260, information
+   protection #259, UniFi, Plaud, Intune apps, EasyDMARC) — collectors gate on the table
+   existing and fail loudly otherwise.
+3. **Confirm-before-live field-shape checks** flagged in the integration docs (e.g.
+   `m365_incidents.autotask_ticket_ref` format, Amazon/CDW cursor paging, Purview Graph
+   surface) before the first live run of those paths.
+4. **Composer breadth** — each further entity (IT Glue docs corpus, etc.) is one new composer
+   + one line in `Invoke-ImperionKnowledgeSync`. Coverage is the goal, tracked in the
+   production-readiness plan.
 
 ## Toolchain note
 
-The module is `#Requires -Version 7.2` and tests use Pester 5. PowerShell 7 + Pester 5 +
-PSScriptAnalyzer were installed for development (the box originally had only Windows PowerShell
-5.1 / Pester 3.4). The machine-wide runtime deps (MSAL.PS, SecretManagement/SecretStore, Npgsql)
-are installed via `build/Install-ImperionDependencies.ps1` before a live run; unit tests mock them.
+The module is `#Requires -Version 7.2` and tests use Pester 5. CI runs on `windows-latest`
+(the on-prem Windows runtime). Machine-wide runtime deps (MSAL.PS, SecretManagement/SecretStore,
+Npgsql) install via `build/Install-ImperionDependencies.ps1` before a live run; unit tests mock
+them.
 
 ## Cross-repo note
 
-The cloud `ImperionCRM_Pipeline` is limited to live polling for GUI refresh; **all bulk loads
-(including Dark Web ID + Televy) are owned by this repo**. A task was filed there to scope its
-darkwebid/televy poll timers down to GUI-refresh (front-end ADR-0040 added the destination tables).
+The cloud `ImperionCRM_Pipeline` is limited to inbound webhooks + GUI-refresh polling; **all
+bulk loads are owned by this repo**. The downstream **silver merge** (bronze → unified entities,
+precedence) and the **OKF semantic-layer meaning** are front-end / cloud-Pipeline owned; this
+repo proposes silver-shape / source-of-record / join changes back to the front-end OKF bundle at
+merge (system `CLAUDE.md §11`). See [`cross-repo-action-items.md`](cross-repo-action-items.md).
