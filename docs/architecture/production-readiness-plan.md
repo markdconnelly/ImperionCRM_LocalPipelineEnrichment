@@ -34,15 +34,16 @@ Sentinel/KQM/DocuSign collectors, M365 comms bronze tables).
 | **`ImperionCRM`** (front-end) | GUI; direct DB reads; **owns DB schema + migrations** | Live. Migrations `0001–0058` applied. Agents page (ADR-0048), Board module (ADR-0049), project board (ADR-0052 #95), OAuth UI + callback route, saved views, device inventory all real. |
 | **`ImperionCRM_Backend`** | ALL processes: agent runtime, OAuth, sends, credentials, semantic search | Claude tool-use orchestrator (ADR-0036) + tier presets/budget (ADR-0037) + per-user OAuth (ADR-0038) + **Board runtime** (ADR-0039) deployed. Sends gated on consent; SMS awaits ACS config. |
 | **`ImperionCRM_Pipeline`** (cloud) | Live data: webhooks, bronze→silver merge, on-demand refresh | Webhook payload handlers **implemented** (ADR-0013): Autotask tickets land + merge inline; Graph notifications trigger GDAP-fail-closed targeted refresh. Merge covers contacts/accounts/devices/contracts/tickets/exposures/assessments. |
-| **`ImperionCRM_LocalPipelineEnrichment`** (on-prem) ← *this repo* | Heavy lifting: bulk ingestion + **all** vectorization | Module **v0.5.0**: post writers fanned out (PR #68), **nine** knowledge composers (PR #69 — account, contact, contract, ticket, device, exposure, assessment, proposal, posture), 279 hermetic tests. Vectorization stage built; awaits the real Voyage key. |
+| **`ImperionCRM_LocalPipelineEnrichment`** (on-prem) ← *this repo* | Heavy lifting: bulk ingestion + **all** vectorization | Mature (release **0.10.0**, 198 cmdlets, ~199 test files). Connect→get→post→task spine built across ~25 source areas; eleven knowledge composers. **Vectorization LIVE in prod** — Voyage key provisioned, ~205 `knowledge_object` rows embedded nightly. Remaining work is credential/consent gating on newer collectors (see [STATUS](../STATUS.md)). |
 
 ## Operator checklist (the remaining unblocks, in order of payoff)
 
-1. **Voyage key** — replace the placeholder in Key Vault `Voyage-Embedding-API-Key`, then
-   `Invoke-ImperionKnowledgeSync -Vectorize` (module v0.5.0 staged; grants 0056/0057 live).
-   → semantic search + agent retrieval go live over the full gold layer.
-2. **Knowledge re-sync** — `Invoke-ImperionKnowledgeSync` (interim mode) to add the five
-   new entity types to gold (devices, proposals, exposures, assessments, posture).
+1. ~~**Voyage key**~~ — **DONE.** The real `Voyage-Embedding-API-Key` is provisioned; the
+   nightly `Invoke-ImperionKnowledgeSync -Vectorize` runs in prod (~205 `knowledge_object`
+   rows embedded). Semantic search + agent retrieval are live over the gold layer.
+2. ~~**Knowledge re-sync**~~ — **DONE.** All composer entity types (account, contact,
+   contract, ticket, device, exposure, assessment, proposal, posture, social,
+   conversation_segment) are composed by the nightly sync.
 3. **Per-user OAuth providers** — per backend ADR-0038: `OAUTH_REDIRECT_BASE_URL`
    (`https://imperioncrm.azurewebsites.net/api/connections`), per-provider app
    registrations + `OAUTH_<P>_CLIENT_ID` / `OAUTH_<P>_CLIENT_SECRET_SECRET`, and the

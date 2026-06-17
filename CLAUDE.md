@@ -397,7 +397,9 @@ Inherits the system-wide posture (front-end `CLAUDE.md §5`, §9) and the cloud 
   into 365; **read-only by default across Azure** (`Reader`), with write only to Storage /
   Postgres / Key Vault (§2). The Postgres role is scoped to exactly the tables this repo
   touches. New write = explicit, approved grant.
-- **No secrets in repo or in plaintext on disk.** SecretStore only; CMS-protected unlock.
+- **No secrets in repo or in plaintext on disk. Never commit secrets** — not key material,
+  tokens, connection strings, `*.pfx`/`*.cer`, or exported credentials. SecretStore only;
+  CMS-protected unlock; commit only `*.example` templates.
 - **Access is per-client onboarding-app credentials — fail closed** (§3). Never operate
   against a tenant with no current consent / credential pair.
 - **Audit + cost telemetry from day one** (§4, §7): every run, every external call, every
