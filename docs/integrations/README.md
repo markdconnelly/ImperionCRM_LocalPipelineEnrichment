@@ -23,6 +23,14 @@ until creds + confirm-before-live):
   **NO alerts**) → `purview_compliance_policies` + `purview_compliance_golden`, via the existing
   golden-state/drift engine (silver merge held out until the FE widens the `policy_family` CHECK).
 
+**Azure / cloud** (read-only ARM, Reader — already held):
+- [`azure-dns-posture.md`](azure-dns-posture.md) — Azure DNS zones + recordsets (manage plane)
+  → `dns_zones` / `dns_records`, plus the public resolver + golden/drift merge (ADR-0063).
+- [`azure-arm-cloud-inventory.md`](azure-arm-cloud-inventory.md) — **per-client** Azure ARM
+  cloud-resource inventory (subscriptions / resource groups / resources) → `cloud_*` bronze,
+  backing the front-end CMDB cloud-asset CI type (epic #201 / #216, ADR-XXXX). Fanned out per
+  consented client tenant; **gated** on the front-end `cloud_*` migration (dormant until applied).
+
 **Spikes / assessments** (not yet wired collectors):
 - [`graph-usage-reports-spike.md`](graph-usage-reports-spike.md) — Microsoft Graph usage
   reports (`Reports.Read.All`) for client analytics (#144). Verdict: **defer** — build a
