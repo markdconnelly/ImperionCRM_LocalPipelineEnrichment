@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.10.0...v0.11.0) (2026-06-17)
+
+
+### Features
+
+* **arm:** Azure ARM cloud-resource inventory — slice 1 (ADR + per-client resource bronze collector) ([#217](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/217)) ([db11e44](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/db11e449fa26284b14c21e85eab5f5283fbe15d1))
+
 ## [0.10.0](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.9.0...v0.10.0) (2026-06-16)
 
 
