@@ -1,4 +1,4 @@
-# ADR-XXXX: Azure ARM cloud-resource inventory — per-client cloud-asset bronze (CMDB CI source)
+# ADR-0023: Azure ARM cloud-resource inventory — per-client cloud-asset bronze (CMDB CI source)
 
 | Field | Value |
 |---|---|
@@ -8,7 +8,7 @@
 | **Deciders** | Mark (human), Claude Code |
 | **Cross-references** | ADR-0005; ADR-0012; ADR-0018; frontend ADR-0017; frontend ADR-0039; frontend ADR-0078; pipeline ADR-0018 |
 
-> **Number claimed at merge (system CLAUDE.md §10.3).** Authored as `ADR-XXXX`; the
+> **Number claimed at merge (system CLAUDE.md §10.3).** Authored as `ADR-0023`; the
 > orchestrator renames this file to the next free local-pipeline ADR number at merge and
 > fixes every reference. Do not reserve a number now.
 

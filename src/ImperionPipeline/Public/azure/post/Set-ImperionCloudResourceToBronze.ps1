@@ -5,7 +5,7 @@ function Set-ImperionCloudResourceToBronze {
         / cloud_resources bronze tables (multi-table writer).
     .DESCRIPTION
         Post-layer writer (CLAUDE.md §6) for the per-client Azure ARM cloud-resource bronze set
-        — slice 1 of epic #201 (ADR-XXXX), the CMDB cloud-asset CI source. Standard envelope,
+        — slice 1 of epic #201 (ADR-0023), the CMDB cloud-asset CI source. Standard envelope,
         PK (tenant_id, source, external_id), change-detected (unchanged content hashes are not
         rewritten).
 
@@ -20,7 +20,7 @@ function Set-ImperionCloudResourceToBronze {
         (they survive in raw_payload). Unknown entities fail loudly (CLAUDE.md §6: schema is
         owned by the front-end repo; this never invents a table).
 
-        SCHEMA GATE (dormant-safe, ADR-XXXX §3): until the front-end cloud_* migration is
+        SCHEMA GATE (dormant-safe, ADR-0023 §3): until the front-end cloud_* migration is
         applied to prod the upsert fails loudly — by design (the task file's catch logs a Warn
         and exits cleanly). The collector merges dormant until that migration lands.
 

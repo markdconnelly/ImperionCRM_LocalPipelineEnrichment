@@ -1,6 +1,6 @@
 # Azure ARM cloud-resource inventory — per-client CMDB cloud-asset source
 
-**Epic:** local #201 · **Issue:** local #216 (slice 1) · **Decision:** ADR-XXXX (this repo) ·
+**Epic:** local #201 · **Issue:** local #216 (slice 1) · **Decision:** ADR-0023 (this repo) ·
 **Schema:** front-end `cloud_resource*` migration (the schema dependency — filed as a
 front-end issue, **not merged yet**) · **Source key:** `azure_arm`
 

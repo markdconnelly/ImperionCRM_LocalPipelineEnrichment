@@ -1,6 +1,6 @@
 # azure/cloud-resources - daily per-client Azure ARM cloud-resource inventory -> bronze
 # (cloud_subscriptions + cloud_resource_groups + cloud_resources; epic #201 / issue #216 /
-# ADR-XXXX). The CMDB cloud-asset CI source: enumerates each consented client tenant's
+# ADR-0023). The CMDB cloud-asset CI source: enumerates each consented client tenant's
 # subscriptions, resource groups, and resources (read-only ARM, Reader) and lands them in the
 # NEW per-client cloud_* bronze set. DISTINCT from the partner-tenant posture inventory
 # (azure/inventory, ADR-0008 / azure_resources) — this is per-managed-client + CMDB-shaped.

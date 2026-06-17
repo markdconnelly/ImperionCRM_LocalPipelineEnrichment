@@ -5,7 +5,7 @@ function Get-ImperionCloudResource {
         resources) and flatten them to bronze rows for the CMDB cloud-asset CI source.
     .DESCRIPTION
         Get-layer collector (CLAUDE.md §6) for the per-client Azure ARM cloud-resource
-        inventory — slice 1 of epic #201 (ADR-XXXX). This is the CMDB cloud-asset feed,
+        inventory — slice 1 of epic #201 (ADR-0023). This is the CMDB cloud-asset feed,
         DISTINCT from Get-ImperionAzureResource: that collector lands the PARTNER-tenant,
         posture-scoped azure_resources set (ADR-0008 / migration 0038); THIS collector is
         per-managed-CLIENT (auth fans out per consented client tenant, §3 / ADR-0018) and
