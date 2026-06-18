@@ -93,7 +93,8 @@ domain-joined host). A password change requires re-running `Register-ImperionTas
        CertThumbprint  = 'F860A0D53376DBFD10DD9C2E53C118366832EFCC'
        ClientId        = '46f1077b-c93f-42da-abd4-192da13781ac'
        PartnerTenantId = '49307c12-1bb7-42e4-9c7c-43d2850bd8c6'
-       CmsPasswordPath = 'C:\ProgramData\Imperion\vault.cms'
+       SecretStoreAuthentication = 'None'   # DPAPI unlock (ADR-0002 amendment) — the Entra cert lacks the Document Encryption EKU CMS needs
+       CmsPasswordPath = 'C:\ProgramData\Imperion\vault.cms'   # ignored when SecretStoreAuthentication='None'
        SecretVault     = 'ImperionStore'
        LogDirectory    = 'C:\ProgramData\Imperion\logs'
        NpgsqlDllPath   = 'C:\ProgramData\Imperion\lib\<...>\lib\net8.0\Npgsql.dll'  # path printed by the deps installer
@@ -103,12 +104,23 @@ domain-joined host). A password change requires re-running `Register-ImperionTas
    }
    ```
 
-5. **SecretStore + CMS unlock** (admin), then **load source API keys**:
+5. **SecretStore unlock — DPAPI, not CMS** (ADR-0002 amendment, 2026-06-17). The Entra cert
+   (`F860A0D5…`) carries only Client/Server Auth EKUs, so `Protect-CmsMessage` cannot use it;
+   the SecretStore is configured for **`-Authentication None`** (DPAPI, bound to the
+   `svc-imperion` profile) and holds **API keys only**. The vault lives in `svc-imperion`'s
+   profile, so `Initialize-ImperionUnattended` must run **as `svc-imperion`** — and because
+   that account is deny-interactive-logon, drive it with a one-shot scheduled task:
    ```powershell
-   Import-Module ImperionPipeline
-   Initialize-ImperionUnattended -CertThumbprint 'F860A0D5…' -TaskIdentity '.\svc-imperion'
+   # AS svc-imperion (one-shot scheduled task, RunLevel Limited, x64 pwsh):
+   Initialize-ImperionUnattended -CertThumbprint 'F860A0D5…' -Authentication None
+   #   -> Reset-SecretStore -Authentication None (non-interactive); NO CMS blob, NO doc-enc cert.
+   #   (Set-SecretStoreConfiguration would HANG a session-0 task on a confirm prompt — hence Reset.)
+   # The cert private-key ACL to svc-imperion is granted SEPARATELY as admin (step 2 / Set-Acl).
+   ```
+   Then **load source API keys** — also **as `svc-imperion`** (the vault is in its profile):
+   ```powershell
    Copy-Item config\secret-names.example.psd1 C:\ProgramData\Imperion\secret-names.psd1
-   # then Set-Secret for each source the node polls directly (SecretStore titles per secret-names):
+   # Set-Secret for each source the node polls directly (SecretStore titles per secret-names):
    #   Autotask-API-TrackingIdentifier / -Username / -Password, ITGlue-API-Key, Telivy-API-Key …
    # (Dark Web ID is NOT a SecretStore secret — read from Key Vault conn-company-darkwebid.)
    ```

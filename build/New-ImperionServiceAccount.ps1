@@ -35,7 +35,7 @@ if ($existing) {
 elseif ($PSCmdlet.ShouldProcess($Name, 'Create local service account')) {
     $password = Read-Host -AsSecureString -Prompt "Password for new local account '$Name' (store it in your password manager - Register-ImperionTask will prompt for it)"
     New-LocalUser -Name $Name -Password $password -PasswordNeverExpires -AccountNeverExpires `
-        -Description 'Imperion pipeline scheduled-task identity (ADR-0012). Batch logon only.' | Out-Null
+        -Description 'Imperion pipeline task identity (ADR-0012)' | Out-Null
     Write-Host "Created local account '$Name'."
 }
 

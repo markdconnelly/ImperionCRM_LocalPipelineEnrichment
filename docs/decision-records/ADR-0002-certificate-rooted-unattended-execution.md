@@ -64,6 +64,30 @@ human-approved grant — never added for convenience. (This replaced an earlier,
 - **Future considerations:** narrow the Storage/DB/KV grants further per actual usage;
   add cert-expiry monitoring to the relationship-health task.
 
+## Amendment (2026-06-17) — SecretStore unlock activated as the DPAPI fallback
+
+The Decision's primary unlock path (CMS-encrypted vault password) requires a certificate with
+the **Document Encryption** EKU (`1.3.6.1.4.1.311.80.1`), which `Protect-CmsMessage` enforces.
+The deployed Entra app certificate (`CN=ImperionCRM-WebApp-EntraAuthCert`, thumbprint
+`F860A0D5…`) carries only **Client/Server Authentication** EKUs, so it cannot encrypt the CMS
+blob. Rather than introduce a second (Document Encryption) certificate, we **activate the
+documented fallback**: `Set-SecretStoreConfiguration -Authentication None -Interaction None`.
+
+Resulting model:
+- The **SecretStore holds API keys only** and is unlocked by **DPAPI binding to the
+  `.\svc-imperion` task-identity profile** — no vault password, no CMS file, no doc-enc cert.
+  `Initialize-ImperionUnattended -Authentication None` must therefore run **as the task
+  identity** (the store lives in its profile).
+- The **certificate remains non-exportable in `Cert:\LocalMachine\My`**, ACL'd to
+  `.\svc-imperion`, and is used **solely for token minting** (job (b) — Graph/ARM/Key
+  Vault/Postgres via `Get-MsalToken -ClientCertificate`). Job (a) is now DPAPI, not the cert.
+
+Security delta vs. the CMS model: the unlock gate is the OS account boundary (DPAPI) rather
+than a cert-encrypted password, i.e. "slightly weaker" per the original fallback note — but
+the cert's private key stays non-exportable, so the crown-jewel exposure is unchanged. The
+config flag is `SecretStoreAuthentication` (`pipeline.config.psd1`); `'Password'` preserves the
+original CMS path for any future host whose cert has the Document Encryption EKU.
+
 ## Cross-references
 
 This repo `CLAUDE.md §2`, §8; [security/certificate-trust-chain.md](../security/certificate-trust-chain.md),

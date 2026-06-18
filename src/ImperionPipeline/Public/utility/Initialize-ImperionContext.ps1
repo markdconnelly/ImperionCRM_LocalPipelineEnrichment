@@ -49,7 +49,8 @@ function Initialize-ImperionContext {
         Write-ImperionLog -Level Warn -Source 'context' -Message 'SecretStore SKIPPED (interim mode) — only Key-Vault-backed secrets are available this run.'
     }
     else {
-        Connect-ImperionSecretStore -CmsPasswordPath $script:ImperionConfig.CmsPasswordPath -VaultName $script:ImperionConfig.SecretVault
+        $authMode = if ($script:ImperionConfig.SecretStoreAuthentication) { $script:ImperionConfig.SecretStoreAuthentication } else { 'Password' }
+        Connect-ImperionSecretStore -Authentication $authMode -CmsPasswordPath $script:ImperionConfig.CmsPasswordPath -VaultName $script:ImperionConfig.SecretVault
     }
     Write-ImperionLog -Source 'context' -Message "Context initialized (tenant $($script:ImperionConfig.PartnerTenantId))."
 }
