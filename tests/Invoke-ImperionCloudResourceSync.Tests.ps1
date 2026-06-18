@@ -66,18 +66,3 @@ Describe 'Invoke-ImperionCloudResourceSync' {
         }
     }
 }
-
-Describe 'Get-ImperionAccessToken (cert OR secret, ADR-0103)' {
-    It 'mints via client secret without touching the certificate store' {
-        InModuleScope ImperionPipeline {
-            Mock Get-MsalToken {
-                [pscustomobject]@{ AccessToken = 'secret-token'; ExpiresOn = [datetimeoffset]::Now.AddHours(1) }
-            }
-            $sec = [securestring]::new()   # content irrelevant — Get-MsalToken is mocked
-            $tok = Get-ImperionAccessToken -Resource 'https://management.azure.com/.default' `
-                -TenantId 'secret-tenant' -ClientId 'cid' -ClientSecret $sec
-            $tok | Should -Be 'secret-token'
-            Should -Invoke Get-MsalToken -Times 1 -ParameterFilter { $null -ne $ClientSecret }
-        }
-    }
-}

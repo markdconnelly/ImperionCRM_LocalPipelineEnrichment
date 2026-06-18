@@ -9,7 +9,7 @@ BeforeAll {
     Import-Module $module -Force
     InModuleScope ImperionPipeline {
         if (-not (Get-Command Get-MsalToken -ErrorAction SilentlyContinue)) {
-            function script:Get-MsalToken { param($ClientId, $TenantId, $ClientCertificate, $Scopes) }
+            function script:Get-MsalToken { param($ClientId, $TenantId, $ClientCertificate, $ClientSecret, $Scopes) }
         }
         # Ephemeral self-signed cert, never touches a cert store; HasPrivateKey = $true.
         $rsa = [System.Security.Cryptography.RSA]::Create(2048)
@@ -68,6 +68,17 @@ Describe 'Get-ImperionAccessToken' {
         InModuleScope ImperionPipeline {
             Mock Get-Item { [pscustomobject]@{ HasPrivateKey = $false } }
             { Get-ImperionAccessToken -Resource 'r' -TenantId 't1' -ClientId 'c1' -CertThumbprint 'ABC' } | Should -Throw '*private key*'
+        }
+    }
+
+    It 'mints via the client SECRET without touching the certificate store (ADR-0103)' {
+        InModuleScope ImperionPipeline {
+            Mock Get-Item { throw 'cert store must not be read for secret auth' }
+            $sec = [securestring]::new()   # content irrelevant — Get-MsalToken is mocked
+            $t = Get-ImperionAccessToken -Resource 'r-secret' -TenantId 't-secret' -ClientId 'c1' -ClientSecret $sec
+            $t | Should -Be 'tok-abc'
+            Should -Invoke Get-MsalToken -Times 1 -ParameterFilter { $null -ne $ClientSecret }
+            Should -Invoke Get-Item -Times 0
         }
     }
 }
