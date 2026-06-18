@@ -18,19 +18,27 @@ function Get-ImperionAccessToken {
     .PARAMETER ClientId
         The Entra app (client) id.
     .PARAMETER CertThumbprint
-        Thumbprint of the certificate. Looked up in Cert:\LocalMachine\My first (the
-        unattended end-state, ADR-0002), falling back to Cert:\CurrentUser\My (interim
-        interactive runs before the service identity owns a machine-store cert).
+        Thumbprint of the certificate (certificate auth — the preferred default). Looked up
+        in Cert:\LocalMachine\My first (the unattended end-state, ADR-0002), falling back to
+        Cert:\CurrentUser\My (interim interactive runs before the service identity owns a
+        machine-store cert).
+    .PARAMETER ClientSecret
+        The enterprise-app client secret (secret auth — the alternative to a certificate,
+        frontend ADR-0103). A SecureString; the caller resolves it from the SecretStore and
+        it is never logged or written to disk. Use this OR -CertThumbprint, never both.
     .EXAMPLE
         $tok = Get-ImperionAccessToken -Resource 'https://graph.microsoft.com/.default' -TenantId $tid -ClientId $cid -CertThumbprint $thumb
+    .EXAMPLE
+        $tok = Get-ImperionAccessToken -Resource 'https://management.azure.com/.default' -TenantId $tid -ClientId $cid -ClientSecret $secret
     #>
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName = 'Certificate')]
     [OutputType([string])]
     param(
         [Parameter(Mandatory)][string] $Resource,
         [Parameter(Mandatory)][string] $TenantId,
         [Parameter(Mandatory)][string] $ClientId,
-        [Parameter(Mandatory)][string] $CertThumbprint
+        [Parameter(Mandatory, ParameterSetName = 'Certificate')][string] $CertThumbprint,
+        [Parameter(Mandatory, ParameterSetName = 'Secret')][securestring] $ClientSecret
     )
 
     if (-not $script:ImperionTokenCache) { $script:ImperionTokenCache = @{} }
@@ -40,19 +48,26 @@ function Get-ImperionAccessToken {
         return $cached.AccessToken
     }
 
-    # Machine store first (unattended end-state); user store as the interim fallback.
-    $cert = Get-Item -Path ("Cert:\LocalMachine\My\{0}" -f $CertThumbprint) -ErrorAction SilentlyContinue
-    if (-not $cert) {
-        $cert = Get-Item -Path ("Cert:\CurrentUser\My\{0}" -f $CertThumbprint) -ErrorAction SilentlyContinue
+    if ($PSCmdlet.ParameterSetName -eq 'Secret') {
+        # Secret auth (ADR-0103): client-credentials with the enterprise-app secret. The
+        # SecureString goes straight to MSAL — never converted to plaintext or logged.
+        $result = Get-MsalToken -ClientId $ClientId -TenantId $TenantId -ClientSecret $ClientSecret -Scopes $Resource -ErrorAction Stop
     }
-    if (-not $cert) {
-        throw "Certificate $CertThumbprint not found in Cert:\LocalMachine\My or Cert:\CurrentUser\My."
-    }
-    if (-not $cert.HasPrivateKey) {
-        throw "Certificate $CertThumbprint has no accessible private key for this identity."
+    else {
+        # Certificate auth (default). Machine store first (unattended end-state); user store as the interim fallback.
+        $cert = Get-Item -Path ("Cert:\LocalMachine\My\{0}" -f $CertThumbprint) -ErrorAction SilentlyContinue
+        if (-not $cert) {
+            $cert = Get-Item -Path ("Cert:\CurrentUser\My\{0}" -f $CertThumbprint) -ErrorAction SilentlyContinue
+        }
+        if (-not $cert) {
+            throw "Certificate $CertThumbprint not found in Cert:\LocalMachine\My or Cert:\CurrentUser\My."
+        }
+        if (-not $cert.HasPrivateKey) {
+            throw "Certificate $CertThumbprint has no accessible private key for this identity."
+        }
+        $result = Get-MsalToken -ClientId $ClientId -TenantId $TenantId -ClientCertificate $cert -Scopes $Resource -ErrorAction Stop
     }
 
-    $result = Get-MsalToken -ClientId $ClientId -TenantId $TenantId -ClientCertificate $cert -Scopes $Resource -ErrorAction Stop
     $script:ImperionTokenCache[$cacheKey] = [pscustomobject]@{
         AccessToken = $result.AccessToken
         ExpiresOn   = $result.ExpiresOn.LocalDateTime

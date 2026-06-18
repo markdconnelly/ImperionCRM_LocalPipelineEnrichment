@@ -22,25 +22,40 @@ function Get-ImperionSecretValue {
     Get-Secret -Name $Name -AsPlainText -Vault $cfg.SecretVault
 }
 
+function Get-ImperionAppCredentialArg {
+    # The enterprise-app credential splat for Get-ImperionAccessToken (frontend ADR-0103):
+    # the SECRET when ClientSecretName is configured (read as a SecureString — never
+    # plaintext, never logged), else the CERTIFICATE (the preferred default). Centralizing
+    # this means every token wrapper supports cert OR secret with no per-call branching.
+    $cfg = Get-ImperionConfig
+    if ($cfg.PSObject.Properties['ClientSecretName'] -and $cfg.ClientSecretName) {
+        return @{ ClientSecret = (Get-Secret -Name $cfg.ClientSecretName -Vault $cfg.SecretVault) }
+    }
+    return @{ CertThumbprint = $cfg.CertThumbprint }
+}
+
 function Get-ImperionGraphToken {
     param([string] $TenantId)
     $cfg = Get-ImperionConfig
     if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
-    Get-ImperionAccessToken -Resource 'https://graph.microsoft.com/.default' -TenantId $TenantId -ClientId $cfg.ClientId -CertThumbprint $cfg.CertThumbprint
+    $cred = Get-ImperionAppCredentialArg
+    Get-ImperionAccessToken -Resource 'https://graph.microsoft.com/.default' -TenantId $TenantId -ClientId $cfg.ClientId @cred
 }
 
 function Get-ImperionArmToken {
     param([string] $TenantId)
     $cfg = Get-ImperionConfig
     if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
-    Get-ImperionAccessToken -Resource 'https://management.azure.com/.default' -TenantId $TenantId -ClientId $cfg.ClientId -CertThumbprint $cfg.CertThumbprint
+    $cred = Get-ImperionAppCredentialArg
+    Get-ImperionAccessToken -Resource 'https://management.azure.com/.default' -TenantId $TenantId -ClientId $cfg.ClientId @cred
 }
 
 function Get-ImperionKeyVaultToken {
     param([string] $TenantId)
     $cfg = Get-ImperionConfig
     if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
-    Get-ImperionAccessToken -Resource 'https://vault.azure.net/.default' -TenantId $TenantId -ClientId $cfg.ClientId -CertThumbprint $cfg.CertThumbprint
+    $cred = Get-ImperionAppCredentialArg
+    Get-ImperionAccessToken -Resource 'https://vault.azure.net/.default' -TenantId $TenantId -ClientId $cfg.ClientId @cred
 }
 
 function Get-ImperionStorageToken {
@@ -49,7 +64,8 @@ function Get-ImperionStorageToken {
     # receipt 90-day lifecycle to delete a verified-in-Autotask blob (ADR-0015).
     $cfg = Get-ImperionConfig
     if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
-    Get-ImperionAccessToken -Resource 'https://storage.azure.com/.default' -TenantId $TenantId -ClientId $cfg.ClientId -CertThumbprint $cfg.CertThumbprint
+    $cred = Get-ImperionAppCredentialArg
+    Get-ImperionAccessToken -Resource 'https://storage.azure.com/.default' -TenantId $TenantId -ClientId $cfg.ClientId @cred
 }
 
 function New-ImperionDbConnection {
@@ -59,6 +75,7 @@ function New-ImperionDbConnection {
     param()
     # Mint a short-lived Postgres token (ADR-0003) and open a connection from config.
     $cfg = Get-ImperionConfig
-    $token = Get-ImperionAccessToken -Resource 'https://ossrdbms-aad.database.windows.net/.default' -TenantId $cfg.PartnerTenantId -ClientId $cfg.ClientId -CertThumbprint $cfg.CertThumbprint
+    $cred = Get-ImperionAppCredentialArg
+    $token = Get-ImperionAccessToken -Resource 'https://ossrdbms-aad.database.windows.net/.default' -TenantId $cfg.PartnerTenantId -ClientId $cfg.ClientId @cred
     Open-ImperionDbConnection -DbHost $cfg.Db.Host -Database $cfg.Db.Database -Username $cfg.Db.Username -AccessToken $token -Port $cfg.Db.Port
 }

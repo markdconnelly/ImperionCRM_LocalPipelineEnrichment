@@ -212,6 +212,25 @@ The collector + task are merged **dormant**:
   tenants in the live-bringup step (the CONFIRM-BEFORE-LIVE list in the integration doc), the
   same precedent as the DNS-posture and security-incident collectors.
 
+## Amendment (2026-06-18, #234 — estate discovery + cert-or-secret)
+
+The scheduled entry point is the cmdlet **`Invoke-ImperionCloudResourceSync`** (task
+`Imperion-CloudResources`, added to `Register-ImperionTask`'s list), superseding the
+`cloud-resources.task.ps1` env-var loop (now a thin ad-hoc wrapper that calls the cmdlet):
+
+- **Estate discovery from `account_tenant`.** §2's tenant fan-out no longer reads the
+  `IMPERION_M365_TENANT_IDS` env list — the sweep enumerates the **whole estate** from the
+  front-end-owned `account_tenant` registry (tenant_id ↔ account_id, frontend ADR-0051),
+  curated in Settings → Tenant mapping. Adding/removing a managed tenant is a GUI action;
+  access stays fail-closed (no registry row ⇒ never touched). The local pipeline reads
+  `account_tenant` + `connection` read-only (frontend migration 0141). Empty registry ⇒
+  partner-tenant-only (dormant-safe), unchanged.
+- **Cert OR secret enterprise-app auth (frontend ADR-0103).** §2's "no new secret; cert is
+  the credential" is relaxed: `Get-ImperionAccessToken` now supports a client **secret** as
+  well as the **certificate** (still the preferred default). The token wrappers pick secret
+  when `ClientSecretName` is configured (read from the SecretStore as a SecureString — never
+  plaintext, never logged), else cert.
+
 ## Cross-references
 
 ADR-0005 (source catalog & table naming; fail-loud-on-missing-table) · ADR-0008 (the

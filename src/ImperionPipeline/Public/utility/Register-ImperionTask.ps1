@@ -43,6 +43,9 @@ function Register-ImperionTask {
     $tasks = @(
         @{ Name = 'Imperion-EntraServicePrincipals'; Cmdlet = 'Invoke-ImperionServicePrincipalSync'; At = '02:00' }
         @{ Name = 'Imperion-AzureInventory';         Cmdlet = 'Invoke-ImperionAzureInventorySync';   At = '02:30' }
+        # Per-client Azure ARM cloud-resource inventory → CMDB cloud-asset bronze (#201/#234,
+        # ADR-0023). Fans out over every account_tenant; distinct from AzureInventory (partner tenant).
+        @{ Name = 'Imperion-CloudResources';         Cmdlet = 'Invoke-ImperionCloudResourceSync';    At = '02:50' }
         @{ Name = 'Imperion-SecureScore';            Cmdlet = 'Invoke-ImperionSecureScoreSync';       At = '02:45' }
         @{ Name = 'Imperion-PolicySync';             Cmdlet = 'Invoke-ImperionPolicySync';            At = '03:00' }
         # Posture silver merge runs AFTER SecureScore (02:45) + PolicySync (03:00)

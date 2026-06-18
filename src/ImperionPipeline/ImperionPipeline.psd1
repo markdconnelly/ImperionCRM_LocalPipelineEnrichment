@@ -22,6 +22,7 @@
         # Sync cmdlets (scheduled-task entry points)
         'Invoke-ImperionServicePrincipalSync',
         'Invoke-ImperionAzureInventorySync',
+        'Invoke-ImperionCloudResourceSync',
         'Invoke-ImperionSecureScoreSync',
         'Invoke-ImperionPolicySync',
         'Invoke-ImperionPurviewComplianceSync',
