@@ -34,6 +34,10 @@ jobs:
         shell: pwsh
         run: Invoke-Pester ./tests -CI
 
+      - name: Verify vector contract is in sync with the front-end canonical
+        shell: pwsh
+        run: ./build/Test-VectorContractSync.ps1
+
   docs:
     # Documentation validation gate (CLAUDE.md §8) — mirrors the sibling repos.
     runs-on: ubuntu-latest
