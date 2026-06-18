@@ -39,8 +39,10 @@ $ErrorActionPreference = 'Stop'
 $results = [System.Collections.Generic.List[object]]::new()
 function Add-Stage { param([string] $Name, [bool] $Ok, [string] $Detail)
     $results.Add([pscustomobject]@{ Stage = $Name; Result = if ($Ok) { 'PASS' } else { 'FAIL' }; Detail = $Detail })
-    $color = if ($Ok) { 'Green' } else { 'Red' }
-    Write-Host ("[{0}] {1,-34} {2}" -f (if ($Ok) { 'PASS' } else { 'FAIL' }), $Name, $Detail) -ForegroundColor $color
+    # Use Write-Output (success stream), NOT Write-Host: Write-Host -ForegroundColor can hard-fault the
+    # process when stdout is redirected with no console (an unattended session-0 scheduled task), which
+    # try/catch cannot rescue. Plain text keeps every stage visible in redirected logs.
+    Write-Output ("[{0}] {1,-34} {2}" -f (if ($Ok) { 'PASS' } else { 'FAIL' }), $Name, $Detail)
 }
 
 $conn = $null
@@ -104,6 +106,5 @@ finally {
 }
 
 $failed = @($results | Where-Object Result -EQ 'FAIL').Count
-Write-Host ''
-Write-Host ("Chain smoke test: {0}/{1} stages passed." -f ($results.Count - $failed), $results.Count) -ForegroundColor (if ($failed) { 'Red' } else { 'Green' })
+Write-Output ("Chain smoke test: {0}/{1} stages passed." -f ($results.Count - $failed), $results.Count)
 if ($failed) { exit 1 }
