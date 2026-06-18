@@ -49,7 +49,7 @@ the higher-altitude catalog.
 | **Information protection** | `Invoke-ImperionGraphRequest` | SensitivityLabel · CustomSecurityAttribute (definitions only) | `sensitivity_labels` / `custom_security_attribute_definitions` (migration #259) | daily | #141 |
 | **m365 SharePoint** | `Invoke-ImperionGraphRequest` | SharePointSite (metadata only — no file content) | `sharepoint_sites` (migration 0078) | daily | #137 |
 | **Azure ARM** | `Invoke-ImperionArmRequest` | Subscription · ResourceGroup · Resource · DNS zone/resolve · Sentinel | `azure_*` (migrations 0038/0043) · `sentinel_*` · DNS set (ADR-0063) | daily | ADR-0005 |
-| **Azure ARM cloud-asset (CMDB, per-client)** | `Invoke-ImperionArmRequest` | `Get-ImperionCloudResource` (Subscription · ResourceGroup · Resource, fanned out per client tenant) | `cloud_subscriptions` / `cloud_resource_groups` / `cloud_resources` (pending FE migration) | daily | ADR-0023 / #201, #216 |
+| **Azure ARM cloud-asset (CMDB, per-client)** | `Invoke-ImperionArmRequest` | `Get-ImperionCloudResource` (Subscription · ResourceGroup · Resource, fanned out per client tenant) | `cloud_subscriptions` / `cloud_resource_groups` / `cloud_resources` (FE migration 0130 applied; silver `cloud_asset` 0139 + Pipeline #126 merge live) | daily | ADR-0023 / #201, #216 |
 
 ## Security posture (read-only Graph / ARM)
 
