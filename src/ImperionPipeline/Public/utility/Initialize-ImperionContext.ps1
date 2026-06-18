@@ -49,8 +49,15 @@ function Initialize-ImperionContext {
         Write-ImperionLog -Level Warn -Source 'context' -Message 'SecretStore SKIPPED (interim mode) — only Key-Vault-backed secrets are available this run.'
     }
     else {
-        $authMode = if ($script:ImperionConfig.SecretStoreAuthentication) { $script:ImperionConfig.SecretStoreAuthentication } else { 'Password' }
-        Connect-ImperionSecretStore -Authentication $authMode -CmsPasswordPath $script:ImperionConfig.CmsPasswordPath -VaultName $script:ImperionConfig.SecretVault
+        # StrictMode-safe optional-key reads (.Contains, per Get-ImperionKeyVaultSecret):
+        # SecretStoreAuthentication and CmsPasswordPath may be absent (DPAPI configs omit the CMS path).
+        $config = $script:ImperionConfig
+        $authMode = if (($config -is [System.Collections.IDictionary]) -and $config.Contains('SecretStoreAuthentication') -and $config.SecretStoreAuthentication) {
+            $config.SecretStoreAuthentication
+        }
+        else { 'Password' }
+        $cmsPath = if (($config -is [System.Collections.IDictionary]) -and $config.Contains('CmsPasswordPath')) { $config.CmsPasswordPath } else { $null }
+        Connect-ImperionSecretStore -Authentication $authMode -CmsPasswordPath $cmsPath -VaultName $config.SecretVault
     }
     Write-ImperionLog -Source 'context' -Message "Context initialized (tenant $($script:ImperionConfig.PartnerTenantId))."
 }
