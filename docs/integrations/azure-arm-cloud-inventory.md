@@ -53,10 +53,17 @@ per-tenant catch logs + skips it (fail closed — never silently mis-attributed)
 ## Tenant fan-out & cadence
 
 **Daily** — cloud inventory drifts slowly; the change-detected upsert keeps re-runs cheap.
-The task reads `IMPERION_M365_TENANT_IDS` (comma-separated client tenant ids, the same
-fan-out idiom as the `m365/*` tasks) and calls the get → post once per tenant; an empty list
-falls back to the partner tenant only (dormant-safe). Registration is deferred to server
-bringup (#102), run-as the local service account (ADR-0012).
+The scheduled task is `Imperion-CloudResources` → **`Invoke-ImperionCloudResourceSync`**
+(registered by `Register-ImperionTask`), run-as the local service account (ADR-0012).
+
+**Estate discovery (#234, supersedes the env-var loop).** The sweep enumerates the whole
+estate from the front-end-owned **`account_tenant`** registry (tenant_id ↔ account_id,
+frontend ADR-0051; curated in Settings → Tenant mapping) and calls the get → post once per
+tenant — no `IMPERION_M365_TENANT_IDS` env list. An empty registry falls back to the partner
+tenant only (dormant-safe). Adding/removing a managed tenant is a GUI action; access is
+fail-closed (no registry row ⇒ never touched). The enterprise app authenticates by
+**certificate OR secret** (frontend ADR-0103): the token wrappers use the secret when
+`ClientSecretName` is configured (SecretStore SecureString, never logged), else the cert.
 
 ## Gates (dormant-safe)
 
