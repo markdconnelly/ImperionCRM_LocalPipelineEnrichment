@@ -45,6 +45,7 @@ Register-ImperionTask -Name 'Imperion m365 Mail' `
 | **azure** | `azure/dns-zones` | DNS zones + recordsets + write-probe (ADR-0063) | **Daily** | DNS drift is slow; Reader-only + permissions read-probe; gated on 0080 prod apply |
 | **azure** | `azure/dns-resolve` | Public DNS resolution per account_domain (ADR-0063) | **Daily** | Ground-truth plane; no Microsoft auth (OS resolver + DoH); gated on 0081 account_domain |
 | **azure** | `azure/dns-merge` | DNS golden/drift silver rollup → dns_domain (ADR-0063) | **Daily, after dns-zones + dns-resolve** | Reconciles both planes vs golden; idempotent upsert; gated on 0080 + 0081 prod apply |
+| **azure** | `azure/cloud-resources` | Per-client subs/RGs/resources → CMDB cloud-asset bronze (ADR-0023, #201) | **Daily** | Cloud inventory drifts slowly; per-client-tenant fan-out (`IMPERION_M365_TENANT_IDS`); change-detected upsert keeps re-runs cheap; dormant-safe per-tenant catch; distinct from `azure/inventory` (partner-tenant posture, `azure_resources`); gated on per-client onboarding-app consent (FE 0130 bronze + 0139 silver applied; Pipeline #126 merge live) |
 | **autotask** | `autotask/companies` | Companies | **Daily** | Slow-changing |
 | **autotask** | `autotask/contacts` | Contacts | **Daily** | Slow-changing |
 | **autotask** | `autotask/contracts` | Contracts | **Daily** | Slow-changing |
