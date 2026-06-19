@@ -184,6 +184,7 @@
         'Set-ImperionDnsGoldenState',
         'Get-ImperionDnsDrift',
         'Invoke-ImperionDnsMerge',
+        'Invoke-ImperionCloudAssetMerge',
         'Set-ImperionSentinelToBronze',
         'Set-ImperionDefenderToBronze',
         'Set-ImperionEntraAuthMethodToBronze',
