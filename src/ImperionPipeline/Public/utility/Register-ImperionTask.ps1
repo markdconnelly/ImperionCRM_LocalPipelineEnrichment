@@ -80,9 +80,17 @@ function Register-ImperionTask {
         $trigger = New-ScheduledTaskTrigger -Daily -At $t.At
 
         if ($PSCmdlet.ShouldProcess($t.Name, 'Register scheduled task')) {
-            Invoke-ImperionTaskRegistration -TaskName $t.Name -TaskPath $TaskFolder -Action $action `
-                -Trigger $trigger -Settings $settings -Principal $principal -Credential $TaskCredential
-            Write-Host "Registered $TaskFolder\$($t.Name) -> $($t.Cmdlet) @ $($t.At)"
+            # Report success only on success: the seam makes Register-ScheduledTask terminating
+            # (-ErrorAction Stop), so a failed task is surfaced loudly and the loop continues to
+            # the rest instead of masking a total failure as "Registered".
+            try {
+                Invoke-ImperionTaskRegistration -TaskName $t.Name -TaskPath $TaskFolder -Action $action `
+                    -Trigger $trigger -Settings $settings -Principal $principal -Credential $TaskCredential
+                Write-Host "Registered $TaskFolder\$($t.Name) -> $($t.Cmdlet) @ $($t.At)"
+            }
+            catch {
+                Write-Warning "Failed to register $TaskFolder\$($t.Name): $($_.Exception.Message)"
+            }
         }
     }
     if ($PSCmdlet.ParameterSetName -eq 'Gmsa') {
