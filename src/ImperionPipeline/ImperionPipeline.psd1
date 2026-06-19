@@ -208,6 +208,7 @@
         'Set-ImperionAmazonBusinessOrderToBronze',
         'Set-ImperionCdwOrderToBronze',
         'Invoke-ImperionMetaMerge',
+        'Invoke-ImperionM365DirectoryMerge',
         'Invoke-ImperionITGlueExportToBronze',
         # Gold knowledge + vectorization (ADR-0009; front-end migration 0045)
         'Get-ImperionKnowledgeAccount',
