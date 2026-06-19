@@ -48,6 +48,12 @@ function Register-ImperionTask {
         @{ Name = 'Imperion-CloudResources';         Cmdlet = 'Invoke-ImperionCloudResourceSync';    At = '02:50' }
         @{ Name = 'Imperion-SecureScore';            Cmdlet = 'Invoke-ImperionSecureScoreSync';       At = '02:45' }
         @{ Name = 'Imperion-PolicySync';             Cmdlet = 'Invoke-ImperionPolicySync';            At = '03:00' }
+        # Bronze→silver merges that co-locate with on-prem ingestion (ADR-0026). Each runs
+        # AFTER its collector: CloudAssetMerge after CloudResources (02:50); M365DirectoryMerge
+        # after the M365 user/group collectors. Both are idempotent and cede the cloud copies
+        # (pipeline #134/#135) once verified in prod.
+        @{ Name = 'Imperion-CloudAssetMerge';        Cmdlet = 'Invoke-ImperionCloudAssetMerge';       At = '03:10' }
+        @{ Name = 'Imperion-M365DirectoryMerge';     Cmdlet = 'Invoke-ImperionM365DirectoryMerge';    At = '03:15' }
         # Posture silver merge runs AFTER SecureScore (02:45) + PolicySync (03:00)
         # so it classifies the night's fresh bronze (ADR-0010, frontend ADR-0051).
         @{ Name = 'Imperion-PostureMerge';           Cmdlet = 'Invoke-ImperionPostureMerge';          At = '03:20' }

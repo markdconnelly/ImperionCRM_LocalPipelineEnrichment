@@ -25,7 +25,7 @@ Describe 'Register-ImperionTask' {
     It 'builds one task action per sync cmdlet and registers nothing under -WhatIf' {
         InModuleScope ImperionPipeline {
             Register-ImperionTask -TaskIdentity 'CORP\svc-imperion$' -PwshPath 'C:\pwsh\pwsh.exe' -WhatIf
-            Should -Invoke New-ScheduledTaskAction -Times 9
+            Should -Invoke New-ScheduledTaskAction -Times 12
             Should -Invoke Invoke-ImperionTaskRegistration -Times 0
         }
     }
@@ -58,7 +58,7 @@ Describe 'Register-ImperionTask' {
     It 'gMSA mode registers a principal and never a credential (no stored password)' {
         InModuleScope ImperionPipeline {
             Register-ImperionTask -TaskIdentity 'CORP\svc-imperion$' -PwshPath 'C:\pwsh\pwsh.exe'
-            Should -Invoke Invoke-ImperionTaskRegistration -Times 9
+            Should -Invoke Invoke-ImperionTaskRegistration -Times 12
             Should -Invoke Invoke-ImperionTaskRegistration -Times 0 -Exactly -ParameterFilter {
                 $null -ne $Credential
             }
@@ -73,7 +73,7 @@ Describe 'Register-ImperionTask' {
             Register-ImperionTask -TaskCredential $credential -PwshPath 'C:\pwsh\pwsh.exe'
 
             Should -Invoke New-ScheduledTaskPrincipal -Times 0 -Exactly
-            Should -Invoke Invoke-ImperionTaskRegistration -Times 9 -ParameterFilter {
+            Should -Invoke Invoke-ImperionTaskRegistration -Times 12 -ParameterFilter {
                 $Credential.UserName -eq '.\svc-imperion' -and $null -eq $Principal
             }
             # the password never leaks into the task action command line
