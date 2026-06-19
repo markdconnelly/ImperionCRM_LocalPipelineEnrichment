@@ -69,7 +69,7 @@ Describe 'Get-ImperionCloudResource' {
             $resource.type           | Should -Be 'Microsoft.Storage/storageAccounts'
             $resource.sku            | Should -Be 'Standard_LRS'
             $resource.resource_group | Should -Be 'rg1'
-            $resource.tags           | Should -Match 'env=prod'
+            $resource.tags           | Should -Be '{"env":"prod"}'   # jsonb column → compact JSON, not k=v text (#237)
             $resource.external_id    | Should -Be '/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Storage/storageAccounts/acct1'
         }
     }

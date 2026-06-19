@@ -19,7 +19,8 @@ Describe 'Set-ImperionCloudResourceToBronze' {
     It 'routes subscription / resource-group / resource rows to their cloud_* tables by the entity discriminator' {
         InModuleScope ImperionPipeline {
             $captured = @{}
-            Mock Invoke-ImperionBronzeUpsert { $captured[$Table] = $Rows; [pscustomobject]@{ scanned = @($Rows).Count; inserted = @($Rows).Count; updated = 0; unchanged = 0 } }
+            $capturedJson = @{}
+            Mock Invoke-ImperionBronzeUpsert { $captured[$Table] = $Rows; $capturedJson[$Table] = $JsonColumns; [pscustomobject]@{ scanned = @($Rows).Count; inserted = @($Rows).Count; updated = 0; unchanged = 0 } }
 
             $sub = [pscustomobject]@{ entity = 'subscriptions'; display_name = 'Client Prod'; state = 'Enabled'; sub_tenant_id = 'client-tenant'; tenant_id = 'client-tenant'; source = 'azure_arm'; external_id = 'sub-1'; collected_at = 'n'; raw_payload = '{}'; content_hash = 'h1'; strayField = 'drop' }
             $rg  = [pscustomobject]@{ entity = 'resource_groups'; name = 'rg1'; location = 'eastus'; subscription_id = 'sub-1'; provisioning_state = 'Succeeded'; tags = 'env=prod'; tenant_id = 'client-tenant'; source = 'azure_arm'; external_id = '/subscriptions/sub-1/resourceGroups/rg1'; collected_at = 'n'; raw_payload = '{}'; content_hash = 'h2' }
@@ -39,6 +40,13 @@ Describe 'Set-ImperionCloudResourceToBronze' {
             $captured['cloud_resources'][0].type           | Should -Be 'Microsoft.Storage/storageAccounts'
             $captured['cloud_resources'][0].resource_group | Should -Be 'rg1'
             $captured['cloud_resources'][0].external_id     | Should -Be '/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Storage/storageAccounts/acct1'
+
+            # tags is a jsonb column (migration 0130) → cast alongside raw_payload (#237).
+            $capturedJson['cloud_resource_groups'] | Should -Contain 'tags'
+            $capturedJson['cloud_resources']       | Should -Contain 'tags'
+            $capturedJson['cloud_resource_groups'] | Should -Contain 'raw_payload'
+            # subscriptions have no tags column — raw_payload only.
+            $capturedJson['cloud_subscriptions']   | Should -Not -Contain 'tags'
         }
     }
 
