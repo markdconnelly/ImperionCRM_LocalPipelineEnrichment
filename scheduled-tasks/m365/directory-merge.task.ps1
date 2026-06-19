@@ -15,11 +15,15 @@
 # prod AND the collectors have run, the merge has no candidates (clean no-op) or the
 # tables are absent; the catch logs a Warn and exits cleanly so the schedule never crashes.
 #
-# Register with Register-ImperionTask (run elevated, under the gMSA/service identity):
+# Registration: this is registered by Register-ImperionTask as the task
+# '\Imperion\Imperion-M365DirectoryMerge' (the cmdlet runs directly; the $tasks array is the
+# single source of truth — Register-ImperionTask takes -TaskCredential/-TaskIdentity, NOT
+# per-task -Name/-Command). Run elevated, under the gMSA/service identity:
 #
-#   Register-ImperionTask -Name 'Imperion m365 directory-merge' `
-#     -Command 'Import-Module ImperionPipeline; Initialize-ImperionContext; & "<repo>\scheduled-tasks\m365\directory-merge.task.ps1"' `
-#     -Interval Daily
+#   Register-ImperionTask -TaskCredential (Get-Credential '.\svc-imperion')   # registers all tasks
+#   Start-ScheduledTask -TaskName 'Imperion-M365DirectoryMerge' -TaskPath '\Imperion\'   # run once now
+#
+# This file remains a standalone/manual entry point (adds the schema-gate try/catch below).
 
 Import-Module ImperionPipeline
 Initialize-ImperionContext

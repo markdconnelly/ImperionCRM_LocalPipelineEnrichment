@@ -15,11 +15,15 @@
 # CMDB cloud view stays empty until account_tenant maps a tenant to an account (Settings →
 # Tenant mapping) - unmapped rows are kept with NULL account_id and filtered by the view.
 #
-# Register with Register-ImperionTask (run elevated, under the gMSA/service identity):
+# Registration: this is registered by Register-ImperionTask as the task
+# '\Imperion\Imperion-CloudAssetMerge' (the cmdlet runs directly; the $tasks array is the
+# single source of truth — Register-ImperionTask takes -TaskCredential/-TaskIdentity, NOT
+# per-task -Name/-Command). Run elevated, under the gMSA/service identity:
 #
-#   Register-ImperionTask -Name 'Imperion azure cloud-asset-merge' `
-#     -Command 'Import-Module ImperionPipeline; Initialize-ImperionContext; & "<repo>\scheduled-tasks\azure\cloud-asset-merge.task.ps1"' `
-#     -Interval Daily
+#   Register-ImperionTask -TaskCredential (Get-Credential '.\svc-imperion')   # registers all tasks
+#   Start-ScheduledTask -TaskName 'Imperion-CloudAssetMerge' -TaskPath '\Imperion\'   # run once now
+#
+# This file remains a standalone/manual entry point (adds the schema-gate try/catch below).
 
 Import-Module ImperionPipeline
 Initialize-ImperionContext
