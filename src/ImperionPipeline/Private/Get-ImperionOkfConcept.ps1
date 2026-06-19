@@ -26,7 +26,7 @@ function Get-ImperionOkfConcept {
     )
 
     if (-not (Test-Path -LiteralPath $Path)) {
-        return [pscustomobject]@{ Exists = $false; Columns = [string[]]@(); Timestamp = $null }
+        return [pscustomobject]@{ Exists = $false; Columns = [string[]]@(); Timestamp = $null; HasAuthority = $false }
     }
 
     $lines = Get-Content -LiteralPath $Path -ErrorAction Stop
@@ -58,9 +58,25 @@ function Get-ImperionOkfConcept {
         }
     }
 
+    # Authority dimension (ADR-0104 §6, layer 3): does the concept actually STATE its
+    # source-of-record / authority rule? The orchestrator grounds on this section before
+    # acting; a concept that documents shape but not authority is the load-bearing gap the
+    # reconciliation backstop surfaces. True when the '## Source of record / authority'
+    # heading is present AND followed by at least one non-blank line.
+    $hasAuthority = $false
+    $inAuthority = $false
+    foreach ($l in $lines) {
+        if ($l -match '^\s*##\s') {
+            $inAuthority = $l -match '^\s*##\s+Source of record\s*/\s*authority\s*$'
+            continue
+        }
+        if ($inAuthority -and $l.Trim() -ne '') { $hasAuthority = $true; break }
+    }
+
     [pscustomobject]@{
-        Exists    = $true
-        Columns   = [string[]]$columns.ToArray()
-        Timestamp = $timestamp
+        Exists       = $true
+        Columns      = [string[]]$columns.ToArray()
+        Timestamp    = $timestamp
+        HasAuthority = $hasAuthority
     }
 }

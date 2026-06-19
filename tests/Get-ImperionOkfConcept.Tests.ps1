@@ -70,6 +70,41 @@ Describe 'Get-ImperionOkfConcept' {
             $r = Get-ImperionOkfConcept -Path (Join-Path ([System.IO.Path]::GetTempPath()) 'no-such-okf-file.md')
             $r.Exists | Should -BeFalse
             $r.Columns.Count | Should -Be 0
+            $r.HasAuthority | Should -BeFalse
+        }
+    }
+
+    It 'reports HasAuthority true when the authority section has content (ADR-0104 §6)' {
+        InModuleScope ImperionPipeline -Parameters @{ f = $script:conceptFile } {
+            param($f)
+            (Get-ImperionOkfConcept -Path $f).HasAuthority | Should -BeTrue
+        }
+    }
+
+    It 'reports HasAuthority false when the authority section is absent or empty' {
+        InModuleScope ImperionPipeline -Parameters @{ d = $script:tmpDir } {
+            param($d)
+            $noAuth = Join-Path $d 'no_authority.md'
+            @'
+---
+title: no_authority
+timestamp: 2026-06-18T00:00:00Z
+---
+
+# no_authority
+
+## Schema
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid | PK |
+
+## Source of record / authority
+'@ | Set-Content -LiteralPath $noAuth -Encoding utf8
+            $r = Get-ImperionOkfConcept -Path $noAuth
+            $r.Exists | Should -BeTrue
+            $r.Columns | Should -Be @('id')
+            $r.HasAuthority | Should -BeFalse
         }
     }
 }

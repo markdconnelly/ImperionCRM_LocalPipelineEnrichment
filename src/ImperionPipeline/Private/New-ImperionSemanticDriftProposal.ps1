@@ -75,6 +75,9 @@ function New-ImperionSemanticDriftProposal {
             'orphaned-concept' {
                 [void]$sb.AppendLine(('- Concept `{0}` exists but live relation `{1}` is gone/renamed. **Reconcile** (rename or retire the file).' -f $rel, $d.relation))
             }
+            'missing-authority' {
+                [void]$sb.AppendLine(('- Concept `{0}` documents the schema but states **no source-of-record / authority rule** — the section the orchestrator grounds on before acting (ADR-0104 §6). **Author** a `## Source of record / authority` section (which source wins + why; for a merge entity, the precedence order).' -f $rel))
+            }
             default {
                 if ($d.added_columns.Count) {
                     [void]$sb.AppendLine(('- **Add to `{0}` `## Schema`** (live, undocumented): {1}' -f $rel, (($d.added_columns | ForEach-Object { "``$_``" }) -join ', ')))
