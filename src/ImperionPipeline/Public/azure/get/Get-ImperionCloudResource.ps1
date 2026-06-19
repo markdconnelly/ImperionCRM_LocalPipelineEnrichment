@@ -80,7 +80,7 @@ function Get-ImperionCloudResource {
                     location          = 'location'
                     subscription_id   = { $subscriptionId }
                     provisioning_state = 'properties.provisioningState'
-                    tags              = { param($x) ConvertTo-ImperionTagString (Get-ImperionMember $x 'tags') }
+                    tags              = { param($x) ConvertTo-ImperionTagJson (Get-ImperionMember $x 'tags') }
                 }) | ForEach-Object { $rows.Add($_) }
         }
 
@@ -98,7 +98,7 @@ function Get-ImperionCloudResource {
                     sku             = 'sku.name'
                     resource_group  = { param($x) & $rgFromId (Get-ImperionMember $x 'id') }
                     subscription_id = { $subscriptionId }
-                    tags            = { param($x) ConvertTo-ImperionTagString (Get-ImperionMember $x 'tags') }
+                    tags            = { param($x) ConvertTo-ImperionTagJson (Get-ImperionMember $x 'tags') }
                 }) | ForEach-Object { $rows.Add($_) }
         }
     }

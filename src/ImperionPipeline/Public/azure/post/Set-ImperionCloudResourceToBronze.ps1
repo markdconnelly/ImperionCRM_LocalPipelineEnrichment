@@ -52,14 +52,20 @@ function Set-ImperionCloudResourceToBronze {
     begin {
         $standardEnvelope = @('tenant_id', 'source', 'external_id', 'collected_at', 'raw_payload', 'content_hash')
         # Exact column sets of the cloud_* bronze tables (front-end cloud_resource* migration).
+        # Json = columns cast to jsonb on write (the upsert default is raw_payload only). The
+        # ARM `tags` column is jsonb (migration 0130) and the collector emits a JSON string for
+        # it (ConvertTo-ImperionTagJson), so it must be cast alongside raw_payload (#237).
         $tableSpecs = @{
             subscriptions   = @{ Table = 'cloud_subscriptions'
-                Columns = @('display_name', 'state', 'sub_tenant_id') + $standardEnvelope }
+                Columns = @('display_name', 'state', 'sub_tenant_id') + $standardEnvelope
+                Json = @('raw_payload') }
             resource_groups = @{ Table = 'cloud_resource_groups'
-                Columns = @('name', 'location', 'subscription_id', 'provisioning_state', 'tags') + $standardEnvelope }
+                Columns = @('name', 'location', 'subscription_id', 'provisioning_state', 'tags') + $standardEnvelope
+                Json = @('raw_payload', 'tags') }
             resources       = @{ Table = 'cloud_resources'
                 Columns = @('name', 'type', 'location', 'kind', 'sku', 'resource_group',
-                    'subscription_id', 'tags') + $standardEnvelope }
+                    'subscription_id', 'tags') + $standardEnvelope
+                Json = @('raw_payload', 'tags') }
         }
         if ($Entity -and -not $tableSpecs.ContainsKey($Entity)) {
             throw "Set-ImperionCloudResourceToBronze: unknown cloud entity '$Entity' — no cloud_* table for it in the front-end migration."
@@ -102,7 +108,8 @@ function Set-ImperionCloudResourceToBronze {
             foreach ($entityName in $rowsByEntity.Keys) {
                 $spec = $tableSpecs[$entityName]
                 $tally = Invoke-ImperionBronzePost -Connection $conn -Table $spec.Table `
-                    -Rows $rowsByEntity[$entityName].ToArray() -LogSource 'azure_arm' -ColumnSet $spec.Columns
+                    -Rows $rowsByEntity[$entityName].ToArray() -LogSource 'azure_arm' `
+                    -ColumnSet $spec.Columns -JsonColumns $spec.Json
                 $combined.scanned += $tally.scanned; $combined.inserted += $tally.inserted
                 $combined.updated += $tally.updated; $combined.unchanged += $tally.unchanged
             }
