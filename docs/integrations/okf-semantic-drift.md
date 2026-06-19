@@ -22,10 +22,11 @@ concept file's `## Schema` table, and classifies it:
 
 | Status | Meaning |
 |---|---|
-| `in-sync` | documented columns exactly match the live relation |
+| `in-sync` | documented columns match the live relation **and** the authority rule is stated |
 | `drift` | both exist but the column sets differ (added / removed columns) |
 | `missing-concept` | a live silver relation has **no** concept file yet (needs authoring) |
 | `orphaned-concept` | a concept file exists but its live relation is gone / renamed |
+| `missing-authority` | columns match but the concept states **no** `## Source of record / authority` rule — the section the orchestrator grounds on before acting (ADR-0104 §6, layer 3). Routed to an **issue** (authoring authority prose needs a human), like `missing-concept`. |
 
 The proposal lists, per concept: the file to touch (`tables/<concept>.md`), the columns to
 **add** (live but undocumented) / **remove** (documented but gone), and a reminder to bump

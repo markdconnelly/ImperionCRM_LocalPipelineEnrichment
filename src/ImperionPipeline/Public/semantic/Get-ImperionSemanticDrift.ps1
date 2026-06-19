@@ -7,10 +7,12 @@ function Get-ImperionSemanticDrift {
         column NAMES (Get-ImperionSilverSchema — metadata only, never row data, never PII) to the
         columns documented in the matching OKF concept file (Get-ImperionOkfConcept). Classifies
         each concept:
-          in-sync          — documented columns exactly match the live relation
+          in-sync          — documented columns match AND the authority rule is stated
           drift            — relation exists + concept exists, but the column sets differ
           missing-concept  — live silver relation exists but has NO concept file (needs authoring)
           orphaned-concept — concept file exists but the live relation is gone/renamed
+          missing-authority — columns match but the concept states NO source-of-record / authority
+                              rule (ADR-0104 §6 layer 3 — the section the orchestrator grounds on)
 
         Returns one row per catalog entry with the column deltas (AddedColumns = live-but-undocumented,
         RemovedColumns = documented-but-gone) so a caller can draft a precise bundle-update proposal.
@@ -60,7 +62,10 @@ function Get-ImperionSemanticDrift {
                 if ($liveSet.Count -eq 0 -and $doc.Exists) { 'orphaned-concept' }
                 elseif ($liveSet.Count -eq 0) { 'in-sync' }                                 # not in catalog scope yet
                 elseif (-not $doc.Exists) { 'missing-concept' }
-                elseif ($added.Count -eq 0 -and $removed.Count -eq 0) { 'in-sync' }
+                elseif ($added.Count -eq 0 -and $removed.Count -eq 0) {
+                    # Columns match; the authority rule is the remaining dimension (ADR-0104 §6).
+                    if ($doc.HasAuthority) { 'in-sync' } else { 'missing-authority' }
+                }
                 else { 'drift' }
 
             $results.Add([pscustomobject]@{
@@ -69,6 +74,7 @@ function Get-ImperionSemanticDrift {
                     status          = $status
                     added_columns   = $added      # live but undocumented
                     removed_columns = $removed    # documented but gone
+                    has_authority   = $doc.HasAuthority
                     doc_timestamp   = $doc.Timestamp
                 })
         }
