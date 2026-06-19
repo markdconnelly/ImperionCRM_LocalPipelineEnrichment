@@ -7,8 +7,15 @@ function Connect-ImperionSecretStore {
         This function decrypts it with the cert's private key (Unprotect-CmsMessage) and
         unlocks the SecretStore for the rest of the run. No password ever appears in a task
         argument or in plaintext on disk. Call once at task start.
+    .PARAMETER Authentication
+        'Password' (default) = the CMS-unlock model above. 'None' = the ADR-0002 DPAPI
+        fallback: the store is bound to the task identity's profile and needs no password
+        or CMS unlock (activated 2026-06-17 because the Entra cert lacks the Document
+        Encryption EKU that Protect-CmsMessage requires). In 'None' mode CmsPasswordPath
+        is ignored and the cert is used only for token minting, not vault unlock.
     .PARAMETER CmsPasswordPath
         Path to the CMS-protected vault-password file (created by the bootstrap script).
+        Required only when -Authentication is 'Password'.
     .PARAMETER VaultName
         SecretManagement vault name. Defaults to 'ImperionStore'.
     .EXAMPLE
@@ -20,10 +27,24 @@ function Connect-ImperionSecretStore {
         Justification = 'CmsPasswordPath is a filesystem path to the CMS-encrypted blob, not a password value.')]
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][string] $CmsPasswordPath,
+        [ValidateSet('Password', 'None')][string] $Authentication = 'Password',
+        [string] $CmsPasswordPath,
         [string] $VaultName = 'ImperionStore'
     )
 
+    $script:ImperionSecretStoreVault = $VaultName
+
+    if ($Authentication -eq 'None') {
+        # DPAPI / -Authentication None (ADR-0002 fallback, activated 2026-06-17): the store is
+        # bound to the task identity's profile, so it needs no password or CMS unlock. Nothing
+        # to do beyond recording the vault name; Get-Secret resolves for the bound account.
+        Write-ImperionLog -Source 'secretstore' -Message "SecretStore '$VaultName' uses DPAPI (Authentication None); no unlock required."
+        return
+    }
+
+    if (-not $CmsPasswordPath) {
+        throw "Password-authenticated SecretStore requires -CmsPasswordPath (set CmsPasswordPath in pipeline.config.psd1, or use SecretStoreAuthentication = 'None')."
+    }
     if (-not (Test-Path $CmsPasswordPath)) {
         throw "CMS vault-password file not found: $CmsPasswordPath. Run the unattended bootstrap first."
     }
@@ -34,6 +55,5 @@ function Connect-ImperionSecretStore {
     $plaintextPassword = $null  # drop the plaintext copy promptly
 
     Unlock-SecretStore -Password $securePassword
-    $script:ImperionSecretStoreVault = $VaultName
     Write-ImperionLog -Source 'secretstore' -Message "SecretStore '$VaultName' unlocked via certificate."
 }

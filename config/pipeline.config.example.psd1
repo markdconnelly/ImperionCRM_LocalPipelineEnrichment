@@ -5,6 +5,11 @@
     PartnerTenantId = 'REPLACE_WITH_PARTNER_CSP_TENANT_ID'
 
     # Local SecretStore unlock (ADR-0002).
+    #   'Password' = CMS-unlock model (random vault password encrypted to a Document Encryption cert).
+    #   'None'     = DPAPI fallback bound to the task identity's profile (no CMS blob, no doc-enc cert).
+    # 'None' is the active model here (amended 2026-06-17): the Entra cert has only Client/Server
+    # Auth EKUs, so it cannot do Protect-CmsMessage. CmsPasswordPath is ignored when 'None'.
+    SecretStoreAuthentication = 'None'
     CmsPasswordPath = 'C:\ProgramData\Imperion\vault.cms'
     SecretVault     = 'ImperionStore'
 

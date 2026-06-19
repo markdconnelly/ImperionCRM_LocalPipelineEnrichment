@@ -10,6 +10,12 @@ function Initialize-ImperionUnattended {
         administrator. Re-runnable for rotation.
     .PARAMETER CertThumbprint
         Thumbprint of the certificate in Cert:\LocalMachine\My.
+    .PARAMETER Authentication
+        'Password' (default) = the CMS model above (random vault password encrypted to the
+        cert). 'None' = the ADR-0002 DPAPI fallback (activated 2026-06-17): configure the
+        store for password-less, profile-bound access, write NO CMS blob, and use the cert
+        only for the private-key ACL (token minting). Run 'None' AS the task identity so the
+        store lands in its profile.
     .PARAMETER VaultName
         SecretStore vault name. Default 'ImperionStore'.
     .PARAMETER CmsPasswordPath
@@ -26,6 +32,7 @@ function Initialize-ImperionUnattended {
     [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)][string] $CertThumbprint,
+        [ValidateSet('Password', 'None')][string] $Authentication = 'Password',
         [string] $VaultName = 'ImperionStore',
         [string] $CmsPasswordPath = 'C:\ProgramData\Imperion\vault.cms',
         [string] $TaskIdentity
@@ -38,22 +45,38 @@ function Initialize-ImperionUnattended {
         Register-SecretVault -Name $VaultName -ModuleName Microsoft.PowerShell.SecretStore -DefaultVault
     }
 
-    $bytes = [byte[]]::new(48)
-    [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
-    $vaultPassword = [Convert]::ToBase64String($bytes)
-    $secure = ConvertTo-SecureString $vaultPassword -AsPlainText -Force
-
-    if ($PSCmdlet.ShouldProcess($VaultName, 'Configure SecretStore for unattended access')) {
-        Set-SecretStoreConfiguration -Authentication Password -Interaction None -Password $secure -Confirm:$false
+    if ($Authentication -eq 'None') {
+        # DPAPI fallback (ADR-0002, 2026-06-17): no vault password, no CMS blob. The store is
+        # bound to THIS profile, so run this AS the task identity. The cert is used only for the
+        # private-key ACL below (token minting), not for vault unlock.
+        #
+        # Use Reset-SecretStore -Force, NOT Set-SecretStoreConfiguration: the latter raises a
+        # confirmation prompt when lowering authentication to None, which -Confirm:$false does
+        # NOT suppress and which HANGS a non-interactive (session-0) scheduled task forever.
+        # -Force suppresses it. This initializes a fresh store, so run it BEFORE loading secrets.
+        if ($PSCmdlet.ShouldProcess($VaultName, 'Initialize SecretStore for unattended DPAPI access (Authentication None)')) {
+            Reset-SecretStore -Authentication None -Interaction None -Scope CurrentUser -Force -Confirm:$false
+        }
+        Write-Host "Configured '$VaultName' for DPAPI unattended access (Authentication None); no CMS password written."
     }
+    else {
+        $bytes = [byte[]]::new(48)
+        [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+        $vaultPassword = [Convert]::ToBase64String($bytes)
+        $secure = ConvertTo-SecureString $vaultPassword -AsPlainText -Force
 
-    $dir = Split-Path -Parent $CmsPasswordPath
-    if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
-    if ($PSCmdlet.ShouldProcess($CmsPasswordPath, 'Write CMS-protected vault password')) {
-        Protect-CmsMessage -To $cert -Content $vaultPassword -OutFile $CmsPasswordPath
-        Write-Host "Wrote CMS-protected vault password to $CmsPasswordPath"
+        if ($PSCmdlet.ShouldProcess($VaultName, 'Configure SecretStore for unattended access')) {
+            Set-SecretStoreConfiguration -Authentication Password -Interaction None -Password $secure -Confirm:$false
+        }
+
+        $dir = Split-Path -Parent $CmsPasswordPath
+        if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
+        if ($PSCmdlet.ShouldProcess($CmsPasswordPath, 'Write CMS-protected vault password')) {
+            Protect-CmsMessage -To $cert -Content $vaultPassword -OutFile $CmsPasswordPath
+            Write-Host "Wrote CMS-protected vault password to $CmsPasswordPath"
+        }
+        $vaultPassword = $null
     }
-    $vaultPassword = $null
 
     if ($TaskIdentity) {
         $keyName = $null
