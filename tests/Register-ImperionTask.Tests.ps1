@@ -99,4 +99,43 @@ Describe 'Register-ImperionTask' {
             { Register-ImperionTask -TaskIdentity 'CORP\svc-imperion$' -PwshPath '' } | Should -Throw '*pwsh.exe not found*'
         }
     }
+
+    It 'reports "Registered" only on success — a failed task warns, never prints Registered (#246)' {
+        InModuleScope ImperionPipeline {
+            Mock Write-Warning { }
+            Mock Invoke-ImperionTaskRegistration { throw 'No mapping between account names and security IDs was done.' }
+            $secret = ConvertTo-SecureString 'test-only-password' -AsPlainText -Force
+            $credential = [pscredential]::new('.\svc-imperion', $secret)
+
+            Register-ImperionTask -TaskCredential $credential -PwshPath 'C:\pwsh\pwsh.exe'
+
+            # every task failed → not one "Registered" line, and each surfaced a warning
+            Should -Invoke Write-Host -Times 0 -Exactly -ParameterFilter { $Object -match '^Registered ' }
+            Should -Invoke Write-Warning -Times 12 -ParameterFilter { $Message -match 'Failed to register' }
+        }
+    }
+}
+
+Describe 'Resolve-ImperionLocalTaskUser (#246 — SID-resolvable -User)' {
+    It 'qualifies a .\local account with the machine name' {
+        InModuleScope ImperionPipeline {
+            Resolve-ImperionLocalTaskUser -UserName '.\svc-imperion' | Should -Be "$env:COMPUTERNAME\svc-imperion"
+        }
+    }
+    It 'qualifies a bare local account name' {
+        InModuleScope ImperionPipeline {
+            Resolve-ImperionLocalTaskUser -UserName 'svc-imperion' | Should -Be "$env:COMPUTERNAME\svc-imperion"
+        }
+    }
+    It 'leaves an already-qualified DOMAIN\name untouched' {
+        InModuleScope ImperionPipeline {
+            Resolve-ImperionLocalTaskUser -UserName 'CORP\svc-imperion' | Should -Be 'CORP\svc-imperion'
+        }
+    }
+    It 'leaves a gMSA principal and a UPN untouched' {
+        InModuleScope ImperionPipeline {
+            Resolve-ImperionLocalTaskUser -UserName 'CORP\svc-imperion$' | Should -Be 'CORP\svc-imperion$'
+            Resolve-ImperionLocalTaskUser -UserName 'svc@corp.example' | Should -Be 'svc@corp.example'
+        }
+    }
 }
