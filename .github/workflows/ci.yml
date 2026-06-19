@@ -55,3 +55,42 @@ jobs:
             fi
           done
           exit $missing
+
+  okf-sync:
+    # OKF cross-repo freshness gate (front-end ADR-0104 decision 6, layer 2).
+    # A PR that changes per-source bronze ingestion (which can change what feeds
+    # a silver entity) must update the matching OKF concept file in ImperionCRM
+    # and link it here (or label okf-sync). Excludes the OKF/semantic tooling
+    # itself. Escape hatch: label okf-not-affected (justify in body).
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Require an OKF concept update for bronze-ingestion changes
+        env:
+          BASE: ${{ github.event.pull_request.base.ref }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          set -euo pipefail
+          git fetch origin "$BASE" -q
+          changed="$(git diff --name-only "origin/$BASE...HEAD")"
+          echo "Changed files:"; echo "$changed"
+          relevant="$(echo "$changed" \
+            | grep -E '^src/ImperionPipeline/Public/|Invoke-ImperionBronzePost\.ps1' \
+            | grep -vE '/(semantic|knowledge|utility)/|\.Tests\.ps1$' || true)"
+          if [ -z "$relevant" ]; then
+            echo "No silver-affecting ingestion files changed - OKF gate not applicable."; exit 0
+          fi
+          echo "::notice::Silver-affecting ingestion files changed:"; echo "$relevant"
+          case ",${LABELS}," in
+            *,okf-not-affected,*) echo "Label okf-not-affected present - gate waived."; exit 0 ;;
+            *,okf-sync,*)         echo "Label okf-sync present - OKF concept updated."; exit 0 ;;
+          esac
+          body="$(jq -r '.pull_request.body // ""' "$GITHUB_EVENT_PATH")"
+          if echo "$body" | grep -qiE 'markdconnelly/ImperionCRM(#|/issues/|/pull/)[0-9]+'; then
+            echo "PR body links an ImperionCRM OKF issue/PR - OK."; exit 0
+          fi
+          echo "::error::This PR changes per-source bronze ingestion. Per front-end ADR-0104, update the matching OKF concept file in ImperionCRM and link the issue/PR here (or apply label 'okf-sync'); if it does not affect silver meaning, apply 'okf-not-affected' with a justification in the PR body."
+          exit 1
