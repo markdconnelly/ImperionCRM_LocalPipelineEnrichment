@@ -49,19 +49,23 @@ instead of minting a secret (preferred long-term; a secret is simpler to seed).
 
 ## 2. Seed the credential into Imperion (GUI)
 
-In **Settings → Credentials**, add a client M365 credential: paste the `Client Id` +
-`Secret` (or cert thumbprint), pick the owning client account. The GUI custodies the secret
-in **Key Vault** (never the database) and writes the `connection` row (scope=client,
-`provider=graph`, `account_id`, `external_account_id`=tenant, `auth_method`,
-`keyvault_secret_ref`). Then map the tenant → account in **Settings → Tenant mapping**
-(`account_tenant`).
+In **Settings → Credentials**, add a client M365 credential (the *Register a client M365
+tenant* form, ImperionCRM #950): pick the owning client account, paste the tenant id + the
+`App (client) id`, choose **Secret** or **Certificate**, and supply the secret value or the
+cert thumbprint. The GUI proxies it to the backend, which custodies the secret in **Key
+Vault** (never the database) and writes the `connection` row (scope=client, `provider='m365'`,
+`account_id`, `client_id`=the app id (migration 0147; backend #226), `auth_method`,
+`keyvault_secret_ref` | `cert_thumbprint`). Then map the tenant → account in **Settings →
+Tenant mapping** (`account_tenant`).
 
 ## 3. The pipeline picks it up
 
 On its next scheduled run the estate collectors fan out over `account_tenant`, and
-`Resolve-ImperionTenantCredential -Provider graph` mints a per-client token from the
-registry credential — reading that tenant read-only, fail-closed if the credential is
-absent/expired. **Imperion's own tenant is onboarded the same way** (client-zero, ADR-0028).
+`Resolve-ImperionTenantCredential -Provider m365` (issue #257) reads the registry row and
+returns a credential splat — `@{ ClientId; CertThumbprint }` or `@{ ClientId; ClientSecret }`
+— that the token primitives mint a per-client token from, reading that tenant read-only and
+failing closed (`-FailClosed`) when the credential is absent/expired. **Imperion's own tenant
+is onboarded the same way** (client-zero, ADR-0028).
 
 > UniFi consoles are **not** Entra apps — seed those as `provider=unifi` API-key
 > credentials in the same GUI; no app-registration script is involved.
