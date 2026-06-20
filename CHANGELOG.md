@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.12.0](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.11.0...v0.12.0) (2026-06-20)
+
+
+### Features
+
+* **azure:** estate fan-out from account_tenant + cert-or-secret enterprise-app auth ([#234](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/234)) ([#235](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/235)) ([b2e119f](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/b2e119fe6e8d95536fe80c775577c5c75012791a))
+* **merge:** own the Azure cloud_asset bronze→silver merge on-prem ([#241](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/241)) ([#242](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/242)) ([7db38f9](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/7db38f9d89ce9a7950a81d4d8db8c912699da34b))
+* **merge:** own the M365 directory-group bronze→silver merge on-prem ([#239](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/239)) ([#240](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/240)) ([193ab47](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/193ab477b22a315051d8c35829aebe5553f41528))
+* **secretstore:** support DPAPI (-Authentication None) unattended unlock ([#223](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/223)) ([#224](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/224)) ([a4ed79c](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/a4ed79c8800d16c8a8278a129de7852c7f343d34))
+* **semantic:** reconcile the authority rule, not just columns ([#175](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/175)) ([#249](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/249)) ([e5cb903](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/e5cb90342cfb5026b5e34cf3e7ea37239ba59d42))
+
+
+### Bug Fixes
+
+* **azure:** emit cloud_* tags as jsonb, not text — fixes 42804 on the resource/RG insert ([#237](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/237)) ([#238](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/238)) ([e2f7946](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/e2f7946cf5dc5ee4cc2ac4e8943c00d8ffe97e3a))
+* **tasks:** resolve '.\user' to a SID + report task registration failures honestly ([#246](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/246)) ([#247](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/247)) ([bb9feaa](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/bb9feaa9a2ad3b2a005ad8aa709abfae2fcf09d7))
+* **tasks:** wire cloud_asset + M365 directory merges into Register-ImperionTask ([#243](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/243)) ([#244](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/244)) ([c6b1a7b](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/c6b1a7be65f15c83c06beac30a6e4476e61d9608))
+
 ## [0.11.0](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.10.0...v0.11.0) (2026-06-17)
 
 
