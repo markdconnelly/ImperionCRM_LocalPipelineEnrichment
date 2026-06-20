@@ -28,18 +28,61 @@ function Get-ImperionAppCredentialArg {
     # plaintext, never logged), else the CERTIFICATE (the preferred default). Centralizing
     # this means every token wrapper supports cert OR secret with no per-call branching.
     $cfg = Get-ImperionConfig
-    if ($cfg.PSObject.Properties['ClientSecretName'] -and $cfg.ClientSecretName) {
+    # $cfg is a Hashtable (Import-PowerShellDataFile) — probe the key the IDictionary way
+    # (.Contains), NOT $cfg.PSObject.Properties[...] which never surfaces hashtable KEYS and so
+    # silently always fell through to the certificate, even when a secret was configured.
+    if (($cfg -is [System.Collections.IDictionary]) -and $cfg.Contains('ClientSecretName') -and $cfg.ClientSecretName) {
         return @{ ClientSecret = (Get-Secret -Name $cfg.ClientSecretName -Vault $cfg.SecretVault) }
     }
     return @{ CertThumbprint = $cfg.CertThumbprint }
 }
 
 function Get-ImperionGraphToken {
-    param([string] $TenantId)
+    # The per-tenant Graph-token seam (issue #250, epic #255, ADR-0028). Every m365 collector
+    # mints its token here, so per-client-app credential resolution lives in ONE place:
+    #   - no tenant / the partner (home) tenant -> the shared home enterprise-app credential
+    #     (cert or secret). The home tenant carries no client-scope `connection` row by design,
+    #     so this path stays DB-free (and avoids recursion: New-ImperionDbConnection itself mints
+    #     a token via Get-ImperionAccessToken, not through here).
+    #   - a managed CLIENT tenant -> authenticate as THAT client's OWN onboarding app, resolved
+    #     from the GUI-mapped `connection` registry (account_tenant -> account_id ->
+    #     Resolve-ImperionTenantCredential -Provider m365). The home app is NOT a fallback for a
+    #     client tenant (it is not consented there and holds no client read grants); an unmapped
+    #     or unconsented tenant FAILS CLOSED and is never touched (CLAUDE.md §3).
+    # -Connection lets a caller that already holds a connection avoid reopening one.
+    param(
+        [string] $TenantId,
+        $Connection
+    )
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
-    $cred = Get-ImperionAppCredentialArg
-    Get-ImperionAccessToken -Resource 'https://graph.microsoft.com/.default' -TenantId $TenantId -ClientId $cfg.ClientId @cred
+
+    if (-not $TenantId -or $TenantId -eq $cfg.PartnerTenantId) {
+        $homeTenant = if ($TenantId) { $TenantId } else { $cfg.PartnerTenantId }
+        $cred = Get-ImperionAppCredentialArg
+        return Get-ImperionAccessToken -Resource 'https://graph.microsoft.com/.default' -TenantId $homeTenant -ClientId $cfg.ClientId @cred
+    }
+
+    $ownConnection = -not $Connection
+    if ($ownConnection) { $Connection = New-ImperionDbConnection }
+    try {
+        $mapping = Invoke-ImperionDbQuery -Connection $Connection `
+            -Sql 'SELECT account_id FROM account_tenant WHERE tenant_id = @t::uuid LIMIT 1' `
+            -Parameters @{ t = $TenantId } | Select-Object -First 1
+        $accountId = if ($mapping) { $mapping.account_id } else { $null }
+        if (-not $accountId) {
+            throw "Tenant '$TenantId' is not mapped to an account (account_tenant) — fail closed; no Graph token minted (CLAUDE.md §3)."
+        }
+
+        # Fail closed: the resolver throws if the client has no active, consented m365 credential.
+        # The returned splat already carries ClientId + TenantId + cert/secret, so it is splatted
+        # straight into the token primitive.
+        $cred = Resolve-ImperionTenantCredential -Connection $Connection -AccountId "$accountId" `
+            -Provider 'm365' -TenantId $TenantId -FailClosed
+        return Get-ImperionAccessToken -Resource 'https://graph.microsoft.com/.default' @cred
+    }
+    finally {
+        if ($ownConnection) { $Connection.Dispose() }
+    }
 }
 
 function Get-ImperionArmToken {

@@ -86,8 +86,16 @@ through it.
    Vault.
 
 ### Provider adapters (no new token code)
-- **graph / azure (ARM):** pass the splat to `Get-ImperionGraphToken` / `Get-ImperionArmToken
-  -TenantId $TenantId`. Per-tenant token caching already isolates by tenant.
+- **graph (m365):** resolution is centralized in the `Get-ImperionGraphToken` **seam** every
+  m365 collector already funnels through (the m365 slice, #250) — rather than repeating a
+  resolve-then-splat in each of ~20 collectors (the shallow-adapter pattern the architecture
+  review warns against). For a managed client tenant (`TenantId ≠ PartnerTenantId`) the seam
+  looks up the owning account (`account_tenant`), calls the resolver `-FailClosed`, and mints
+  with the client's own app id + cert/secret; the partner/home tenant keeps the home
+  enterprise-app credential (DB-free path, no recursion through `New-ImperionDbConnection`).
+  Every collector becomes per-tenant-credential-aware with **zero collector edits**.
+- **azure (ARM):** pass the splat to `Get-ImperionArmToken -TenantId $TenantId` from the
+  cloud-resource sweep (#258). Per-tenant token caching already isolates by tenant.
 - **unifi:** `external_account_id` selects the console/site; the `@{ ApiKey }` feeds
   `Invoke-ImperionUniFiRequest`. Multiple consoles per account are multiple registry rows.
 
@@ -127,8 +135,13 @@ Vault GET per non-cert credential (cacheable for the run). No new external API c
 
 ### Operational impact
 
-- New Private cmdlet `Resolve-ImperionTenantCredential` (#257); the m365 (#250), ARM (#258),
-  and UniFi (#259) collectors are re-pointed at it.
+- New Private cmdlet `Resolve-ImperionTenantCredential` (#257); the m365 (#250 — via the
+  `Get-ImperionGraphToken` seam), ARM (#258), and UniFi (#259) collectors are re-pointed at it.
+- **Fail-closed for m365 = throw** at `Get-ImperionGraphToken` (an unmapped or unconsented
+  client tenant mints no token). The ARM sweep (`Invoke-ImperionCloudResourceSync`, LP #234)
+  already wraps each tenant in try/catch, so a throw becomes skip + `Warn` there. The m365
+  `.task.ps1` fan-out does **not** yet isolate per tenant — adding that try/catch so one
+  unconsented tenant never aborts the m365 estate run is a follow-up.
 - Until client rows are seeded, the resolver returns `$null` for every client and the estate
   stays home-only — this is **safe and visible** (a Warn per unconsented tenant), not a
   crash. Hydration of client estates is gated on onboarding data (the registry), exactly as
