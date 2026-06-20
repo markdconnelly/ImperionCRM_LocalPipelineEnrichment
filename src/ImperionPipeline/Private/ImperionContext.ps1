@@ -37,21 +37,26 @@ function Get-ImperionAppCredentialArg {
     return @{ CertThumbprint = $cfg.CertThumbprint }
 }
 
-function Get-ImperionGraphToken {
-    # The per-tenant Graph-token seam (issue #250, epic #255, ADR-0028). Every m365 collector
-    # mints its token here, so per-client-app credential resolution lives in ONE place:
+function Get-ImperionTenantAppToken {
+    # The shared per-tenant app-token seam (issues #250 m365 / #258 azure, epic #255, ADR-0028).
+    # Every per-tenant Graph / ARM collector mints its token here, so per-client-app credential
+    # resolution lives in ONE place for all providers:
     #   - no tenant / the partner (home) tenant -> the shared home enterprise-app credential
     #     (cert or secret). The home tenant carries no client-scope `connection` row by design,
     #     so this path stays DB-free (and avoids recursion: New-ImperionDbConnection itself mints
     #     a token via Get-ImperionAccessToken, not through here).
     #   - a managed CLIENT tenant -> authenticate as THAT client's OWN onboarding app, resolved
     #     from the GUI-mapped `connection` registry (account_tenant -> account_id ->
-    #     Resolve-ImperionTenantCredential -Provider m365). The home app is NOT a fallback for a
-    #     client tenant (it is not consented there and holds no client read grants); an unmapped
-    #     or unconsented tenant FAILS CLOSED and is never touched (CLAUDE.md §3).
+    #     Resolve-ImperionTenantCredential -Provider). The home app is NOT a fallback for a client
+    #     tenant (it is not consented there and holds no client read grants); an unmapped or
+    #     unconsented tenant FAILS CLOSED and is never touched (CLAUDE.md §3). The estate sweeps
+    #     (Invoke-ImperionCloudResourceSync, the m365 collectors) isolate per tenant, so a throw
+    #     becomes skip + Warn — one bad tenant never blocks the rest.
     # -Connection lets a caller that already holds a connection avoid reopening one.
     param(
+        [Parameter(Mandatory)][string] $Resource,
         [string] $TenantId,
+        [Parameter(Mandatory)][string] $Provider,
         $Connection
     )
     $cfg = Get-ImperionConfig
@@ -59,7 +64,7 @@ function Get-ImperionGraphToken {
     if (-not $TenantId -or $TenantId -eq $cfg.PartnerTenantId) {
         $homeTenant = if ($TenantId) { $TenantId } else { $cfg.PartnerTenantId }
         $cred = Get-ImperionAppCredentialArg
-        return Get-ImperionAccessToken -Resource 'https://graph.microsoft.com/.default' -TenantId $homeTenant -ClientId $cfg.ClientId @cred
+        return Get-ImperionAccessToken -Resource $Resource -TenantId $homeTenant -ClientId $cfg.ClientId @cred
     }
 
     $ownConnection = -not $Connection
@@ -70,27 +75,35 @@ function Get-ImperionGraphToken {
             -Parameters @{ t = $TenantId } | Select-Object -First 1
         $accountId = if ($mapping) { $mapping.account_id } else { $null }
         if (-not $accountId) {
-            throw "Tenant '$TenantId' is not mapped to an account (account_tenant) — fail closed; no Graph token minted (CLAUDE.md §3)."
+            throw "Tenant '$TenantId' is not mapped to an account (account_tenant) — fail closed; no $Provider token minted (CLAUDE.md §3)."
         }
 
-        # Fail closed: the resolver throws if the client has no active, consented m365 credential.
-        # The returned splat already carries ClientId + TenantId + cert/secret, so it is splatted
-        # straight into the token primitive.
+        # Fail closed: the resolver throws if the client has no active, consented credential for
+        # this provider. The returned splat already carries ClientId + TenantId + cert/secret, so
+        # it is splatted straight into the token primitive.
         $cred = Resolve-ImperionTenantCredential -Connection $Connection -AccountId "$accountId" `
-            -Provider 'm365' -TenantId $TenantId -FailClosed
-        return Get-ImperionAccessToken -Resource 'https://graph.microsoft.com/.default' @cred
+            -Provider $Provider -TenantId $TenantId -FailClosed
+        return Get-ImperionAccessToken -Resource $Resource @cred
     }
     finally {
         if ($ownConnection) { $Connection.Dispose() }
     }
 }
 
+function Get-ImperionGraphToken {
+    # m365 wrapper over the shared per-tenant seam (#250). Client tenants resolve their own
+    # onboarding-app credential (provider 'm365'); partner/home keeps the shared cred.
+    param([string] $TenantId, $Connection)
+    Get-ImperionTenantAppToken -Resource 'https://graph.microsoft.com/.default' -TenantId $TenantId -Provider 'm365' -Connection $Connection
+}
+
 function Get-ImperionArmToken {
-    param([string] $TenantId)
-    $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
-    $cred = Get-ImperionAppCredentialArg
-    Get-ImperionAccessToken -Resource 'https://management.azure.com/.default' -TenantId $TenantId -ClientId $cfg.ClientId @cred
+    # Azure ARM wrapper over the shared per-tenant seam (#258). Client tenants resolve their own
+    # app credential (provider 'azure'); partner/home keeps the shared cred. This re-points the
+    # per-client cloud-resource sweep (Get-ImperionCloudResource -> Invoke-ImperionCloudResourceSync)
+    # at the client's own credential with zero collector edits.
+    param([string] $TenantId, $Connection)
+    Get-ImperionTenantAppToken -Resource 'https://management.azure.com/.default' -TenantId $TenantId -Provider 'azure' -Connection $Connection
 }
 
 function Get-ImperionKeyVaultToken {
