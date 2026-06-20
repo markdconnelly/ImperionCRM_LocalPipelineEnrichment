@@ -86,16 +86,19 @@ through it.
    Vault.
 
 ### Provider adapters (no new token code)
-- **graph (m365):** resolution is centralized in the `Get-ImperionGraphToken` **seam** every
-  m365 collector already funnels through (the m365 slice, #250) — rather than repeating a
-  resolve-then-splat in each of ~20 collectors (the shallow-adapter pattern the architecture
-  review warns against). For a managed client tenant (`TenantId ≠ PartnerTenantId`) the seam
-  looks up the owning account (`account_tenant`), calls the resolver `-FailClosed`, and mints
-  with the client's own app id + cert/secret; the partner/home tenant keeps the home
-  enterprise-app credential (DB-free path, no recursion through `New-ImperionDbConnection`).
-  Every collector becomes per-tenant-credential-aware with **zero collector edits**.
-- **azure (ARM):** pass the splat to `Get-ImperionArmToken -TenantId $TenantId` from the
-  cloud-resource sweep (#258). Per-tenant token caching already isolates by tenant.
+- **graph (m365) + azure (ARM):** resolution is centralized in ONE private seam,
+  `Get-ImperionTenantAppToken -Resource -TenantId -Provider`, that both `Get-ImperionGraphToken`
+  (#250, `Provider='m365'`) and `Get-ImperionArmToken` (#258, `Provider='azure'`) are thin
+  wrappers over — rather than repeating a resolve-then-splat in each of ~20 collectors (the
+  shallow-adapter pattern the architecture review warns against). For a managed client tenant
+  (`TenantId ≠ PartnerTenantId`) the seam looks up the owning account (`account_tenant`), calls
+  the resolver `-FailClosed`, and mints with the client's own app id + cert/secret; the
+  partner/home tenant keeps the home enterprise-app credential (DB-free path, no recursion
+  through `New-ImperionDbConnection`). Every Graph/ARM collector becomes per-tenant-credential-
+  aware with **zero collector edits** — the per-client cloud-resource sweep
+  (`Get-ImperionCloudResource` → `Invoke-ImperionCloudResourceSync`) and the m365 collectors
+  alike. The sweeps isolate per tenant (try/catch), so a fail-closed throw becomes skip + `Warn`.
+  Per-tenant token caching already isolates by tenant.
 - **unifi:** `external_account_id` selects the console/site; the `@{ ApiKey }` feeds
   `Invoke-ImperionUniFiRequest`. Multiple consoles per account are multiple registry rows.
 
