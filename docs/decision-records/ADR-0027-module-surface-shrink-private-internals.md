@@ -1,7 +1,5 @@
-# ADR-NNNN: ImperionPipeline module surface-shrink — Private internals, ~30 public entrypoints
+# ADR-0027: ImperionPipeline module surface-shrink — Private internals, ~30 public entrypoints
 
-<!-- PLACEHOLDER NUMBER. Claim the next free ADR number at merge (CLAUDE.md / system §10.3),
-     rename this file, and fix the title + every reference. Do NOT reserve a number now. -->
 
 | Field | Value |
 |---|---|
@@ -110,4 +108,4 @@ scheduled `Invoke-*Sync` continue to resolve. Acceptance is the before/after
 - Epic: issue #225 (module surface-shrink). This sub-issue: #226 (lever A).
 - ADR-0007 — installed, cmdlet-first module (the export model this refines).
 - ADR-0009 — settled embedding stack; the `knowledge` family converted first lives here.
-- System CLAUDE.md §10.3 — ADR numbers claimed at merge (this file ships as `ADR-NNNN`).
+- System CLAUDE.md §10.3 — ADR numbers claimed at merge (this file ships as `ADR-0027`).
