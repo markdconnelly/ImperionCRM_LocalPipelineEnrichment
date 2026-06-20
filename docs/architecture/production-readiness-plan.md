@@ -34,7 +34,7 @@ Sentinel/KQM/DocuSign collectors, M365 comms bronze tables).
 | **`ImperionCRM`** (front-end) | GUI; direct DB reads; **owns DB schema + migrations** | Live. Migrations `0001–0058` applied. Agents page (ADR-0048), Board module (ADR-0049), project board (ADR-0052 #95), OAuth UI + callback route, saved views, device inventory all real. |
 | **`ImperionCRM_Backend`** | ALL processes: agent runtime, OAuth, sends, credentials, semantic search | Claude tool-use orchestrator (ADR-0036) + tier presets/budget (ADR-0037) + per-user OAuth (ADR-0038) + **Board runtime** (ADR-0039) deployed. Sends gated on consent; SMS awaits ACS config. |
 | **`ImperionCRM_Pipeline`** (cloud) | Live data: webhooks, bronze→silver merge, on-demand refresh | Webhook payload handlers **implemented** (ADR-0013): Autotask tickets land + merge inline; Graph notifications trigger GDAP-fail-closed targeted refresh. Merge covers contacts/accounts/devices/contracts/tickets/exposures/assessments. |
-| **`ImperionCRM_LocalPipelineEnrichment`** (on-prem) ← *this repo* | Heavy lifting: bulk ingestion + **all** vectorization | Mature (release **0.10.0**, 198 cmdlets, ~199 test files). Connect→get→post→task spine built across ~25 source areas; eleven knowledge composers. **Vectorization LIVE in prod** — Voyage key provisioned, ~205 `knowledge_object` rows embedded nightly. Remaining work is credential/consent gating on newer collectors (see [STATUS](../STATUS.md)). |
+| **`ImperionCRM_LocalPipelineEnrichment`** (on-prem) ← *this repo* | Heavy lifting: bulk ingestion + **all** vectorization + bulk silver merge | Mature (release **0.12.0**, ~190 cmdlets, ~200 test files). Connect→get→post→task spine built across ~25 source areas; eleven knowledge composers; **now owns the bronze→silver merge for the sources it ingests** (ADR-0026: posture/Meta/DNS + M365 directory #239 + `cloud_asset` #241). **Vectorization LIVE in prod** — Voyage key provisioned, ~205 `knowledge_object` rows embedded nightly. Remaining work is credential/consent gating on newer collectors + on-prem host provisioning #102 (see [STATUS](../STATUS.md)). |
 
 ## Operator checklist (the remaining unblocks, in order of payoff)
 
@@ -88,12 +88,24 @@ Sentinel/KQM/DocuSign collectors, M365 comms bronze tables).
       the agent via the local posture composer (gold), by design.
 
 ### `ImperionCRM_LocalPipelineEnrichment` (on-prem) ← *this repo*
+> **LP-section update 2026-06-19** — this is the synced copy; the canonical front-end copy
+> needs the same edit (file as a cross-repo follow-up per system `CLAUDE.md §11`).
 - [x] ~~Vectorization stage~~ (ADR-0009) · ~~bronze post fan-out~~ (PR #68) ·
-      ~~nine knowledge composers~~ (PR #69, v0.5.0).
-- [ ] **Operator:** real Voyage key → `-Vectorize`; knowledge re-sync; host provisioning
-      (§ checklist 1/2/8).
-- [ ] **Build:** Sentinel collector · KQM + DocuSign collectors (bronze tables exist) ·
-      M365 mail/Teams bronze tables (front-end migration first) → their post writers.
+      ~~nine knowledge composers~~ (PR #69, v0.5.0) — now **eleven** (incl. posture, social,
+      conversation_segment).
+- [x] ~~Real Voyage key → `-Vectorize`; knowledge re-sync~~ — **DONE**, live in prod (~205
+      `knowledge_object` rows embedded nightly).
+- [x] ~~Sentinel collector~~ (#97) · ~~KQM collector~~ (#98 + won-quote detail #161) ·
+      ~~DocuSign collector~~ (#99) · ~~M365 mail/Teams post writers~~ (#100) — all shipped.
+- [x] ~~PR CI gate~~ (#103, ScriptAnalyzer + Pester) · ~~release-please~~ (#104).
+- [x] ~~Bronze→silver merge for LP-ingested sources~~ (ADR-0026: M365 directory #239,
+      `cloud_asset` #241, wired #243).
+- [ ] **Operator:** on-prem host provisioning — service identity + SecretStore, retire
+      `-SkipSecretStore` interim mode (#102, § checklist 8). DPAPI-unlock fallback now
+      available (#223) where the cert lacks the CMS Document-Encryption EKU.
+- [ ] **Build tail (credential/migration-gated):** Plaud (#72), UniFi (#73), Intune apps
+      (#143/#252), EasyDMARC, Entra-hygiene/info-protection bronze migrations (FE #259/#260) —
+      collectors built, DORMANT until their gate clears.
 
 ## Recommended sequence
 

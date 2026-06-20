@@ -12,7 +12,7 @@ mirrors the system-wide standard.
 3. **Consolidated guides:** [collector inventory](collector-inventory.md) ·
    [vectorization → gold](vectorization-to-gold.md) · [IT Glue hub](it-glue-hub.md) ·
    [security-posture bronze](security-posture-bronze.md).
-4. [`decision-records/`](decision-records/) — the ADRs (ADR-0001 … ADR-0022).
+4. [`decision-records/`](decision-records/) — the ADRs (ADR-0001 … ADR-0027).
 
 ## Map of this tree
 

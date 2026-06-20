@@ -42,14 +42,14 @@ the higher-altitude catalog.
 
 | Source | Connect | Get (collector) | Bronze target | Cadence | ADR / issue |
 | --- | --- | --- | --- | --- | --- |
-| **m365 directory** | `Invoke-ImperionGraphRequest` | User · Device | `m365_contacts` / `m365_devices` (ADR-0039 shape) | daily | ADR-0005 |
+| **m365 directory** | `Invoke-ImperionGraphRequest` | User · Device · Group · GroupMember | `m365_contacts` / `m365_devices` / `m365_groups` / `m365_group_members` (ADR-0039 shape) → silver `contact_enrichment.directory_groups` **merged on-prem** by `Invoke-ImperionM365DirectoryMerge` (#239; cloud cede Pipeline #134 held until bronze fills) | daily | ADR-0005 / ADR-0026 |
 | **m365 Intune** | `Invoke-ImperionGraphRequest` | Managed device compliance · Managed app | `intune_managed_devices` / `intune_managed_apps` (pending FE migration) | daily | #75 / #143 |
 | **m365 communications (cross-org)** | `Invoke-ImperionGraphRequest` | Mail · TeamsChat · TeamsMeeting (Imperion↔client filter) | `m365_mail_messages` / `m365_teams_chats` / `m365_teams_meetings` (migration 0065) | mail/chat hourly · meetings 4h | #100 |
 | **Entra hygiene** | `Invoke-ImperionGraphRequest` | Domain · AppRegistration · RoleAssignment · Group · GroupMember · AuthMethod | `entra_domains` / `entra_app_registrations` / `entra_role_assignments` / `entra_groups` / `entra_role*` (migrations #259/#260/0077/0079) | daily | #139–#142 / #150 |
 | **Information protection** | `Invoke-ImperionGraphRequest` | SensitivityLabel · CustomSecurityAttribute (definitions only) | `sensitivity_labels` / `custom_security_attribute_definitions` (migration #259) | daily | #141 |
 | **m365 SharePoint** | `Invoke-ImperionGraphRequest` | SharePointSite (metadata only — no file content) | `sharepoint_sites` (migration 0078) | daily | #137 |
 | **Azure ARM** | `Invoke-ImperionArmRequest` | Subscription · ResourceGroup · Resource · DNS zone/resolve · Sentinel | `azure_*` (migrations 0038/0043) · `sentinel_*` · DNS set (ADR-0063) | daily | ADR-0005 |
-| **Azure ARM cloud-asset (CMDB, per-client)** | `Invoke-ImperionArmRequest` | `Get-ImperionCloudResource` (Subscription · ResourceGroup · Resource, fanned out per client tenant) | `cloud_subscriptions` / `cloud_resource_groups` / `cloud_resources` (FE migration 0130 applied; silver `cloud_asset` 0139 + Pipeline #126 merge live) | daily | ADR-0023 / #201, #216 |
+| **Azure ARM cloud-asset (CMDB, per-client)** | `Invoke-ImperionArmRequest` | `Get-ImperionCloudResource` (Subscription · ResourceGroup · Resource, **fanned out from silver `account_tenant`** #234) | `cloud_subscriptions` / `cloud_resource_groups` / `cloud_resources` (FE migration 0130 applied; tags emit as `jsonb` #237) → silver `cloud_asset` **merged on-prem** by `Invoke-ImperionCloudAssetMerge` (#241; cloud ceded `mergeCloudAssetSources`, Pipeline #135) | daily | ADR-0023 / ADR-0026 / #201, #216 |
 
 ## Security posture (read-only Graph / ARM)
 
@@ -107,6 +107,26 @@ DORMANT until the allowlist + consent.
 | --- | --- | --- | --- | --- |
 | **Scoped mail** | `Get-ImperionScopedInteractionMail` → `Set-ImperionScopedInteractionMailToBronze` | `m365_email` (migration 0120, source `m365_email`) | hourly | ADR-0022 / #199 |
 | **Scoped Teams** | `Get-ImperionScopedInteractionTeams` → `Set-ImperionScopedInteractionTeamsToBronze` | `m365_teams` (migration 0120, source `m365_teams`) | hourly | ADR-0022 / #199 |
+
+## Bronze→silver merge (LP-owned — ADR-0026, "merge co-locates with ingestion")
+
+Whichever plane *ingests* a source's bronze owns its bronze→silver merge. This repo owns the
+merge for every source it bulk-ingests — an idempotent, set-based `Invoke-Imperion*Merge` cmdlet
+run by a `.task.ps1` immediately after that source's collectors. The cloud Pipeline keeps only
+the live/webhook-driven merge (the `website_*`-fed contact/account/device/contract/ticket/
+opportunity/expense sweep + DocuSign).
+
+| Merge | Cmdlet | Silver target | Cadence | ADR / issue |
+| --- | --- | --- | --- | --- |
+| **Posture** (the precedent) | `Invoke-ImperionPostureMerge` | `posture_policy` + `tenant_posture` | daily 03:20 | ADR-0010 |
+| **DNS** | `Invoke-ImperionDnsMerge` | `dns_domain` (golden/drift) | daily | ADR-0008 / ADR-0063 (FE) |
+| **Meta** | `Invoke-ImperionMetaMerge` | social interaction silver | daily | ADR-0013 |
+| **M365 directory** | `Invoke-ImperionM365DirectoryMerge` | `contact_enrichment.directory_groups` (FE migration 0079) | daily | ADR-0026 / #239 |
+| **Azure ARM cloud-asset** | `Invoke-ImperionCloudAssetMerge` | `cloud_asset` CMDB CI (FE migration 0139; cloud ceded #135) | daily | ADR-0026 / #241 |
+
+> **Cutover is gap-free** because both the LP and cloud copies are replace-from-source on the
+> same source label: ship the LP merge first (additive), cede the cloud copy second, never cede
+> before the LP copy is verified writing in prod.
 
 ## Gold knowledge + vectorization (ADR-0009 — LIVE)
 

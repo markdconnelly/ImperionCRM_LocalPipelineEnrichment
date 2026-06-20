@@ -47,9 +47,13 @@ documentation write is a separate, scoped/gated step (CLAUDE.md §6) and is NOT 
 Datto RMM is a **strong machine device authority**. The silver `device` merge precedence is
 `website > datto_rmm > m365 > itglue` (ADR-0018 §2): below the `website` resurrection guard
 (front-end ADR-0039, untouched), above `m365`/`itglue` for device-existence + live-state. **That
-silver merge is owned by the front-end / cloud Pipeline — this on-prem collector only writes bronze
-faithfully.** The precedence change + the BCDR backup-posture field merge are proposed back to the
-front-end OKF `device` concept + `coverage-matrix.md` (system CLAUDE.md §11) at merge.
+`device` silver merge stays cloud-Pipeline owned** — it is part of the webhook/`website_*`-fed
+contact/account/**device** sweep that remains in the cloud under ADR-0026 ("merge co-locates with
+ingestion") — so this on-prem collector only writes Datto bronze faithfully. (Sources whose merge
+*this* repo owns — posture, Meta, DNS, M365 directory, `cloud_asset` — are listed in
+[`../collector-inventory.md`](../collector-inventory.md) (§ "Bronze→silver merge").)
+The precedence change + the BCDR backup-posture field merge are proposed back to the front-end OKF
+`device` concept + `coverage-matrix.md` (system CLAUDE.md §11) at merge.
 
 ## Cadence
 Daily (`scheduled-tasks/dattormm/devices.task.ps1`). Device inventory + patch/AV state is

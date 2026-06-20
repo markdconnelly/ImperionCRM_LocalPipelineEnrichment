@@ -9,6 +9,13 @@ the human (Mark) says otherwise.
 > onboarding app (pipeline ADR-0018). If you find lingering "GDAP-primary" wording or a
 > `$activeGdapRelationships`-style code path, it is stale; the onboarding-app model in §3
 > is authoritative.
+>
+> **Heads-up (2026-06-19):** the M365 / Azure estate is now **discovered from the silver
+> `account_tenant` table** (#234), not a static list — collectors fan out per consented tenant
+> and resolve each tenant's enterprise-app credential as **cert-or-secret**. The per-client app
+> credential model is still settling (backend #217 / LP #250 open). And **merge co-locates with
+> ingestion** now (ADR-0026): LP owns the bronze→silver merge for the sources it bulk-ingests —
+> if you read "silver merge is cloud-only" anywhere below, it is stale; §6 + ADR-0026 win.
 
 /handoff commits files to C:\Development\GitHub\handoff-memory\filename instead of system settings.
 when reporting information to me be extremley concise and sacrifice grammar for the sake of concision.
@@ -26,15 +33,19 @@ when reporting information to me be extremley concise and sacrifice grammar for 
 > - **`ImperionCRM_Pipeline`** (Azure Functions) — the *live-data plane* (pipeline
 >   ADR-0011, 2026-06-09): **inbound webhook receivers** (Autotask tickets, Graph change
 >   notifications), the per-client onboarding-app access model (pipeline ADR-0018; the
->   legacy GDAP fail-closed sweep is dormant code), the bronze→silver
->   **merge-sources** transform, and a caller-auth-gated **`POST /api/refresh`** for
->   targeted on-demand syncs. Its bulk-poll timers are RETIRED — this repo owns all
->   scheduled bulk ingestion — and it carries **no AI code at all**.
+>   legacy GDAP fail-closed sweep is dormant code), the **live/webhook-driven** bronze→silver
+>   **merge-sources** transform (the `website_*`-fed contact/account/device/contract/ticket/
+>   opportunity/expense sweep + DocuSign — ADR-0026), and a caller-auth-gated
+>   **`POST /api/refresh`** for targeted on-demand syncs. Its bulk-poll timers are RETIRED —
+>   this repo owns all scheduled bulk ingestion **and the bronze→silver merge for the sources
+>   it ingests** — and it carries **no AI code at all**.
 > - **`ImperionCRM_LocalPipelineEnrichment`** (this repo) — *on-prem, PowerShell,
 >   scheduled-task ingestion + enrichment + vectorization engine*. Runs unattended on
 >   Mark's home server, reads the full shared database locally, and does the **heavy,
 >   high-volume work** that was choking the website: bulk source polling → bronze, the
->   bronze→silver→gold transforms, and **all embedding/vectorization**.
+>   bronze→silver→gold transforms (**including the silver merge for every source it
+>   bulk-ingests** — posture, Meta, DNS, M365 directory, `cloud_asset`; ADR-0026), and
+>   **all embedding/vectorization**.
 >
 > **Schema is owned by the front-end repo.** This repo reads and writes the shared
 > PostgreSQL + pgvector tables but **never owns migrations** — propose schema changes
@@ -87,7 +98,9 @@ first ADR):
 | --- | --- | --- |
 | **Inbound webhooks** — Autotask ticket webhooks; Graph change-notification subscriptions + renewal | **Cloud Pipeline** | A home server behind NAT/dynamic IP cannot reliably receive signed inbound webhooks. These must stay on a public, always-on HTTPS endpoint. |
 | **Sub-minute, event-driven reactions** | **Cloud Pipeline** | Latency-sensitive; belongs next to the live app. |
+| **Live/webhook-driven bronze→silver merge** — the `website_*`-fed contact/account/device/contract/ticket/opportunity/expense sweep + DocuSign | **Cloud Pipeline** | Fired by webhooks + `POST /api/refresh` manual-edit signals; co-located with the receivers that trigger it (ADR-0026). |
 | **Scheduled / bulk source polling → bronze** (all sources in §5) | **This repo (local)** | High volume, runs on a cadence, no public surface needed. |
+| **Bulk bronze→silver merge for LP-ingested sources** — posture, Meta, DNS, M365 directory, `cloud_asset` | **This repo (local)** | **Merge co-locates with ingestion (ADR-0026):** whichever plane ingests a source's bronze owns its merge. An idempotent, set-based `Invoke-Imperion*Merge` runs in the same scheduled run as that source's collectors. |
 | **bronze → silver → gold transforms** | **This repo (local)** | CPU-heavy, batchy, idempotent. |
 | **Embedding / vectorization → pgvector** | **This repo (local)** | The heaviest, most bursty, most cost-sensitive stage — see §7. |
 
@@ -339,6 +352,17 @@ Two notes that keep this inside the system posture:
 - **Writes target the physical per-source bronze tables; silver is recomputed by
   precedence** with manual `website_*` highest — same contract as the cloud Pipeline's
   `shared/merge.ts`. Read the union views (`*_bronze_all`); write the physical tables.
+- **Merge co-locates with ingestion (ADR-0026).** For every source this repo *bulk-ingests*,
+  this repo also owns the bronze→silver merge — an idempotent, set-based `Invoke-Imperion*Merge`
+  cmdlet run by a `.task.ps1` immediately after that source's collectors (the
+  `Invoke-ImperionPostureMerge` / Meta / DNS precedent, now generalized to
+  `Invoke-ImperionM365DirectoryMerge` #239 and `Invoke-ImperionCloudAssetMerge` #241). The
+  **cloud Pipeline keeps only the live/webhook-driven merge** (the `website_*`-fed
+  contact/account/device sweep + DocuSign). Cutover is gap-free because both copies are
+  replace-from-source on the same source label — **ship the LP merge first (additive), cede the
+  cloud copy second**, and never cede before the LP copy is verified writing in prod. The merge
+  reads only its own source label and writes its own facts, so per-tenant isolation and the
+  `contact_enrichment` provenance/consent guardrails hold verbatim.
 - **PostgreSQL access — short-lived Entra token, no stored DB password.** At task start
   the cert-backed Entra service principal mints a **short-lived AAD access token** for
   Azure PostgreSQL (`pgaadauth`); PowerShell connects with that token over **TLS
@@ -366,9 +390,12 @@ decision 2026-06-09 — backend ADR-0034 / front-end ADR-0041):
   `Imperion-KnowledgeVectorize` task). Large backfills never touch Azure compute.
 - **Voyage `voyage-3-large` @ 1024, called directly.** No provider router — the system
   retired provider-agnosticism. The pinned constants (model, dimension, chunking `v1` =
-  6000 chars / 500 overlap, batch size, cost rate) live in ONE place
-  (`Get-ImperionVectorContract`); `Get-ImperionVoyageEmbedding` refuses any non-1024
-  vector. The Voyage key is the SecretStore secret `embedding-provider-key`. The backend
+  6000 chars / 500 overlap, batch size, cost rate) are **consumed from the one canonical
+  vector contract, not hard-coded a second time** (`Get-ImperionVectorContract` vendors the
+  shared values, ADR-0025 / #231) — two hand-maintained copies is exactly how a vector space
+  silently splits, so there is a single source of truth shared with the backend query side;
+  `Get-ImperionVoyageEmbedding` refuses any non-1024 vector. The Voyage key is the SecretStore
+  secret `embedding-provider-key`. The backend
   embeds only *queries* against the same contract. A local model (Ollama/ONNX) is a
   possible **future ADR** via a versioned re-embed — not dormant code.
 - **Pin one model + dimension, system-wide.** Every vector row stores `embedding_model`,

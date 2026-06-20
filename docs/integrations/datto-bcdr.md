@@ -40,8 +40,11 @@ performed by this bronze collector.
 ## Downstream consumer — field-scoped device merge (NOT done here)
 Datto BCDR contributes the **backup-posture fields** to the unified silver `device` (ADR-0018 §2:
 field-scoped merge, joining on `device_uid`) — no other source carries them, so it does not compete
-for device-identity precedence. **That silver merge is front-end / cloud-Pipeline owned — this
-collector only writes bronze.**
+for device-identity precedence. **That `device` silver merge stays cloud-Pipeline owned** — it is
+part of the webhook/`website_*`-fed contact/account/**device** sweep that remains in the cloud under
+ADR-0026 ("merge co-locates with ingestion") — **this collector only writes bronze.** (Merges this
+repo *does* own — posture, Meta, DNS, M365 directory, `cloud_asset` — are in
+[`../collector-inventory.md`](../collector-inventory.md) (§ "Bronze→silver merge").)
 
 ## Cadence
 Daily (`scheduled-tasks/dattobcdr/backups.task.ps1`). Per-device backup posture is checked daily;

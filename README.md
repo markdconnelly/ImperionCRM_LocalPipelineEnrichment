@@ -9,12 +9,18 @@ bronze, the bronze→silver→gold transforms, and **all embedding/vectorization
 PowerShell 7 · Windows Scheduled Tasks · certificate-rooted unattended auth · writes the
 one shared PostgreSQL + pgvector database.
 
-> **Status (2026-06-16):** the installed `ImperionPipeline` module is **mature and shipping**
-> (release **0.10.0**) — **198 exported cmdlets**, ~199 hermetic Pester test files, lint-clean
-> `src/`. The full **connect → get → post → scheduled-task** spine is built across ~25 source
-> areas, and the **gold knowledge + vectorization stage is LIVE in prod**: ~205
-> `knowledge_object` rows are composed and embedded with Voyage `voyage-3-large` @ 1024 by the
-> nightly `Imperion-KnowledgeVectorize` task. What remains is mostly **operator/credential
+> **Status (2026-06-19):** the installed `ImperionPipeline` module is **mature and shipping**
+> (release **0.12.0**) — **~190 exported cmdlets** (the lever-A surface-shrink, #226, has begun
+> making internal building blocks `Private` so the public surface narrows toward the ~30
+> entry-point cmdlets), ~200 hermetic Pester test files, lint-clean `src/`. The full
+> **connect → get → post → scheduled-task** spine is built across ~25 source areas, and the
+> **gold knowledge + vectorization stage is LIVE in prod**: ~205 `knowledge_object` rows are
+> composed and embedded with Voyage `voyage-3-large` @ 1024 by the nightly
+> `Imperion-KnowledgeVectorize` task. **This repo now also owns the bronze→silver _merge_ for
+> the sources it ingests** — posture, Meta, DNS, **M365 directory groups** (#239), and **Azure
+> ARM `cloud_asset`** (#241) — co-located with ingestion under **ADR-0026**; the cloud Pipeline
+> keeps only the live/webhook-driven merges and has begun ceding the rest (it ceded
+> `cloud_asset` in Pipeline #135). What otherwise remains is mostly **operator/credential
 > gating** — many newer collectors are built and tested but DORMANT until their API key /
 > consent / front-end bronze migration lands (see [`docs/STATUS.md`](docs/STATUS.md)). This is
 > the **fourth repo** in the Imperion CRM system — read [`CLAUDE.md`](./CLAUDE.md) first.
@@ -63,7 +69,7 @@ one shared PostgreSQL + pgvector database.
 | --- | --- |
 | **`ImperionCRM`** (front end) | **Live** web app (`imperioncrm.azurewebsites.net`, Entra SSO). **Owns the DB schema + migrations** (front-end ADR-0017). Authoritative UI. Surfaces client connection / onboarding-app access health. Master cross-repo doc: [`docs/architecture/system-of-systems.md`](../ImperionCRM/docs/architecture/system-of-systems.md). |
 | **`ImperionCRM_Backend`** (Functions) | *Every process*: OAuth handshakes, real sends, the orchestrator agent + sub-agents, semantic search over the gold store. AI stack settled here — Claude (generation) + Voyage (embeddings), backend ADR-0034. Identity-gated (Easy Auth + caller allowlist, backend ADR-0035). |
-| **`ImperionCRM_Pipeline`** (Functions) | *Cloud, internet-facing*: **inbound webhook receivers** (Autotask tickets, Graph change-notifications + renewal), the bronze→silver merge transform, and a caller-auth-gated `POST /api/refresh`. Bulk-poll timers RETIRED — this repo owns scheduled bulk ingestion. No AI code. |
+| **`ImperionCRM_Pipeline`** (Functions) | *Cloud, internet-facing*: **inbound webhook receivers** (Autotask tickets, Graph change-notifications + renewal), the **live/webhook-driven** bronze→silver merge (the `website_*`-fed contact/account/device/ticket/opportunity/expense sweep + DocuSign), and a caller-auth-gated `POST /api/refresh`. Bulk-poll timers RETIRED — this repo owns scheduled bulk ingestion **and the merge for the sources it ingests** (ADR-0026). No AI code. |
 | **`ImperionCRM_LocalPipelineEnrichment`** (this repo) | *On-prem, PowerShell, scheduled*: **bulk polling → bronze, bronze→silver→gold, and all vectorization**. The heavy-compute plane. |
 
 **One system, four repos, one database.** This repo **reads and writes the shared tables
@@ -178,6 +184,15 @@ closed** — an un-consented tenant is never touched, and per-tenant isolation i
 Onboarding / widening / renewing a tenant's access is a **human-approval gate**. See
 [`CLAUDE.md §3`](./CLAUDE.md).
 
+**The estate is discovered, not hand-listed (#234).** The M365 / Azure collectors no longer
+take a static tenant list — they **fan out from the silver `account_tenant` table**, so a
+tenant becomes reachable the moment the front end records its onboarding-app credential and
+drops out the moment it is removed. Each tenant's enterprise-app credential resolves as
+**cert-or-secret** (a per-client app may carry a client secret in the vault where a shared
+cert isn't consented), keeping the fail-closed contract while supporting the mixed shared-app /
+per-client-app reality. The per-client app credential model is still settling
+(backend #217 / LP #250).
+
 ---
 
 ## Data sources — the bronze catalog
@@ -228,19 +243,31 @@ flowchart LR
       B3["conversation_segment (ACS / Teams / Plaud uploads)"]
     end
     BR -->|"precedence merge (website > machine sources)"| SI
-    subgraph SI["SILVER — unified entities (front-end / cloud owned)"]
+    subgraph SI["SILVER — unified entities (merge co-located with ingestion, ADR-0026)"]
       direction TB
-      V1["account · contact · device · proposal · contract · ticket"]
-      V2["interaction · conversation_segment · credential_exposure · posture"]
+      V1["account · contact · device · proposal · contract · ticket (cloud, live/webhook merge)"]
+      V2["posture · dns_domain · meta · m365 directory · cloud_asset (LP-owned bulk merge)"]
     end
     SI -->|"compose knowledge objects"| GO["GOLD — knowledge_object (one per entity)"]
     GO -->|"chunk v1 -> Voyage voyage-3-large @ 1024 (no re-embed on unchanged hash)"| VEC[("knowledge_embedding (pgvector 1024)")]
     VEC --> AG["Backend agent reads gold + vectors"]
 ```
 
-> **Silver merge is front-end / cloud-Pipeline owned.** The on-prem collectors only write
-> bronze; the precedence merge into silver (and the OKF semantic-layer meaning) lives in the
-> front-end repo. See [`docs/database/medallion-and-write-path.md`](docs/database/medallion-and-write-path.md).
+> **Merge co-locates with ingestion (ADR-0026).** Whichever plane *ingests* a source's bronze
+> owns its bronze→silver merge. **This repo owns the merge for every source it bulk-ingests** —
+> implemented as an idempotent, set-based `Invoke-Imperion*Merge` cmdlet run by a `.task.ps1`
+> immediately after that source's collectors: posture (`Invoke-ImperionPostureMerge`, ADR-0010,
+> the precedent), Meta (ADR-0013), DNS (`Invoke-ImperionDnsMerge`), **M365 directory groups**
+> (`Invoke-ImperionM365DirectoryMerge`, #239), and **Azure ARM `cloud_asset`**
+> (`Invoke-ImperionCloudAssetMerge`, #241). The **cloud Pipeline keeps only the
+> live/webhook-driven merge** — the `website_*`-fed contact/account/device/contract/ticket/
+> opportunity/expense sweep plus DocuSign — because a NAT'd home server can't receive signed
+> inbound traffic. Cutover is gap-free: both copies are idempotent replace-from-source, so the
+> LP merge ships first (additive) and the cloud removal follows (Pipeline #135 ceded
+> `cloud_asset`; the M365-directory cede #134 is held until the LP entra-group collectors fill
+> bronze in prod). The OKF semantic-layer *meaning* of silver remains front-end-owned
+> (ADR-0086). See [`docs/decision-records/ADR-0026-merge-co-locates-with-ingestion.md`](docs/decision-records/ADR-0026-merge-co-locates-with-ingestion.md)
+> and [`docs/database/medallion-and-write-path.md`](docs/database/medallion-and-write-path.md).
 
 ### The ingestion pattern — flatten → IT Glue → Postgres
 
@@ -288,6 +315,74 @@ state**; `Get-ImperionPolicyDrift` flags **compliant / drift / ungoverned / miss
 
 ---
 
+## What's new since 0.10.0 — and why we built it this way
+
+The releases between **0.10.0** and **0.12.0** are not new sources so much as the module
+*maturing into its role* as the heavy-compute plane. Each change pulls work toward the
+on-prem node, removes a hidden cross-plane coupling, or shrinks a maintenance surface — the
+recurring theme is **deep modules behind thin adapters** (the architecture-deepening review,
+issues #228–#231).
+
+- **Merge co-locates with ingestion (ADR-0026).** *What:* the bronze→silver merge for an
+  LP-ingested source now runs here, in the same scheduled run as that source's collectors,
+  instead of waiting on the cloud Pipeline's 5-minute timer. *Why:* an LP-fed source used to
+  reach silver only when a *different* plane happened to fire, which coupled our ingestion to a
+  cloud deploy and contradicted the §1 doctrine that scheduled, compute-bound work lives on this
+  node. Co-locating makes a source's path from API to silver a single, debuggable, idempotent
+  task — and moves that CPU off metered Azure Functions. M365 directory groups (#239) and Azure
+  ARM `cloud_asset` (#241) were the first two migrations; the cloud cedes each once the LP copy
+  is verified in prod (both are replace-from-source, so running both during cutover is gap-free).
+
+- **Azure ARM cloud-resource inventory → first-class CMDB asset (ADR-0023, #217/#201).**
+  *What:* a per-client collector walks each consented tenant's subscriptions → resource groups
+  → resources into `cloud_*` bronze, which LP merges into the silver `cloud_asset` entity.
+  *Why:* the CMDB was device-and-user shaped; cloud workloads were invisible to the agent and to
+  impact analysis. Cloud assets are now a first-class configuration item with `cloud → account`
+  relationship edges and criticality, so "what does this client run in Azure, and what depends on
+  it" is answerable. (The `cloud_*` tags column is `jsonb`, not text — a 42804 insert bug found
+  and fixed in #237.)
+
+- **Vendored vector contract (ADR-0025, #231).** *What:* the pinned embedding constants (model,
+  1024 dims, chunking v1, cost rate) are now **consumed from the canonical contract** rather than
+  hard-coded a second time in `Get-ImperionVectorContract`. *Why:* the vector space must match the
+  backend agent *exactly* — two hand-maintained copies of the contract is precisely how a space
+  silently splits. One source of truth means a re-pin can never desync the producer from the
+  query side.
+
+- **One vendor secret resolver, not eight (#228).** *What:* eight near-identical
+  `Get-Imperion<Vendor>Secret` functions collapsed into a single `Resolve-ImperionVendorSecret`
+  driven by a catalog. *Why:* every new source was adding another copy of the same vault-lookup
+  boilerplate; a catalog-driven resolver makes onboarding a source *data*, not code, and gives one
+  place to audit how every credential is fetched.
+
+- **Predictive lead score (ADR-0024, #220).** *What:* an architecture for a `kind='predicted'`
+  lead score — an ML model over engagement history — alongside the existing rule-based score.
+  *Why:* records the design before the build so the gold/feature shape is agreed up front.
+
+- **DPAPI unattended unlock (#223).** *What:* the SecretStore can now unlock via
+  `-Authentication None` (DPAPI-bound to the task identity) as a documented fallback to the
+  CMS-to-cert path. *Why:* the available machine cert lacks the Document Encryption EKU that CMS
+  requires, so the crown-jewel chain (§2) needed a second, slightly-weaker but real unattended
+  unlock — chosen deliberately and recorded, not improvised (see
+  [`docs/deployment/unattended-bringup.md`](docs/deployment/unattended-bringup.md)).
+
+- **OKF drift agent reconciles authority, not just columns (#175/#249) + an okf-sync CI gate
+  (#245).** *What:* the semantic-drift agent now also checks the silver entity's *source-of-record
+  / authority* rule against the front-end OKF bundle, and a CI gate requires a bronze-ingestion
+  change to link an OKF concept update. *Why:* meaning drifts even when column names don't — if LP
+  changes which source wins for an entity, the OKF bundle must say so, or the agent reasons over a
+  stale contract.
+
+- **Module surface-shrink (epic #225, lever A #226).** *What:* internal helpers are being moved
+  to `Private`, narrowing the exported surface from ~200 toward the ~30 real entry points (the
+  knowledge family went first). *Why:* ~190 exported cmdlets is mostly essential breadth, but most
+  are building blocks no operator calls directly — privatizing them makes the public API legible
+  without touching the 9 scheduled chains. (Lever D, pruning the unscheduled surface, was triaged
+  *keep* in #227; the data-driven wrapper collapse #229 was deliberately **not** done — it would
+  trade 23 debuggable components for one monolith.)
+
+---
+
 ## Tech stack
 
 - **Installed PowerShell 7+ module** (`ImperionPipeline`, ADR-0007) — every operation is an
@@ -314,7 +409,7 @@ Install-Module Pester, PSScriptAnalyzer -Scope CurrentUser
 .\build\Install-ImperionModule.ps1 -Scope AllUsers
 
 Import-Module ImperionPipeline
-Get-Command -Module ImperionPipeline          # discover the 198 cmdlets
+Get-Command -Module ImperionPipeline          # discover the exported cmdlets (~190 today)
 Initialize-ImperionContext                    # load config + unlock SecretStore
 Invoke-Pester ./tests                         # unit tests (Pester 5)
 ```
@@ -340,13 +435,13 @@ Releases follow the cross-repo standard in the front-end repo's
 `docs/architecture/versioning-standard.md` (front-end ADR-0056): `MAJOR.FEATURE.MINOR` strict
 3-digit semver, majors are coordinated human-declared product milestones, and release-please
 (manifest mode) maintains the Release PR — never hand-edit tags or the CHANGELOG, never
-`gh release create` manually. Current release: **0.10.0**.
+`gh release create` manually. Current release: **0.12.0**.
 
 ## Documentation & decisions
 
 - **Read [`CLAUDE.md`](./CLAUDE.md) first**, then the [`docs/`](docs/) tree
   ([`docs/README.md`](docs/README.md) is the map). ADRs live in
-  [`docs/decision-records/`](docs/decision-records/) (ADR-0001 … ADR-0022). Consolidated
+  [`docs/decision-records/`](docs/decision-records/) (ADR-0001 … ADR-0027). Consolidated
   onboarding guides: [collector inventory](docs/collector-inventory.md),
   [vectorization → gold](docs/vectorization-to-gold.md), [IT Glue hub](docs/it-glue-hub.md),
   [security-posture bronze](docs/security-posture-bronze.md).
