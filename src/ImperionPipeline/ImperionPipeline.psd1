@@ -212,20 +212,13 @@
         'Invoke-ImperionM365DirectoryMerge',
         'Invoke-ImperionITGlueExportToBronze',
         # Gold knowledge + vectorization (ADR-0009; front-end migration 0045)
-        'Get-ImperionKnowledgeAccount',
-        'Get-ImperionKnowledgeContact',
-        'Get-ImperionKnowledgeContract',
-        'Get-ImperionKnowledgeTicket',
-        'Get-ImperionKnowledgeDevice',
-        'Get-ImperionKnowledgeCredentialExposure',
-        'Get-ImperionKnowledgeAssessmentArtifact',
-        'Get-ImperionKnowledgeProposal',
-        'Get-ImperionKnowledgePosture',
-        'Get-ImperionKnowledgeSocial',
-        'Get-ImperionKnowledgeConversationSegment',
-        'Set-ImperionKnowledgeObject',
-        'Split-ImperionTextChunk',
-        'Get-ImperionVoyageEmbedding',
+        # Lever A (issue #226 / ADR surface-shrink): the per-entity knowledge
+        # composers (Get-ImperionKnowledge*), the gold writer (Set-ImperionKnowledgeObject),
+        # the chunker (Split-ImperionTextChunk), and the Voyage client
+        # (Get-ImperionVoyageEmbedding) are internal building blocks of the two
+        # orchestrators below — they are now Private (src/.../Private/knowledge/) and
+        # remain callable in-module. Only the two genuine entrypoints stay exported.
+        'Invoke-ImperionKnowledgeSync',
         'Invoke-ImperionVectorizeKnowledge'
     )
     CmdletsToExport   = @()
