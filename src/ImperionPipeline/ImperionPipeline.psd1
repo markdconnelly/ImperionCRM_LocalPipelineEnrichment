@@ -23,6 +23,7 @@
         'Invoke-ImperionServicePrincipalSync',
         'Invoke-ImperionAzureInventorySync',
         'Invoke-ImperionCloudResourceSync',
+        'Invoke-ImperionUniFiDeviceSync',
         'Invoke-ImperionSecureScoreSync',
         'Invoke-ImperionPolicySync',
         'Invoke-ImperionPurviewComplianceSync',

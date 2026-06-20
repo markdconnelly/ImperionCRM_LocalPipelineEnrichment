@@ -1,13 +1,15 @@
 # unifi/devices - daily UniFi device inventory + config-compliance pull -> bronze (unifi_devices).
-# Cadence: Daily (scheduled-tasks/README.md). Composes one get + one post; keep this short
-# (CLAUDE.md §1). UniFi is a per-customer COMPANY credential in Key Vault (conn-company-unifi,
-# issue #73 locked design: JSON blob { apiKey, connectionType: console|cloud, host }), read
-# here via the cert SP - not a local SecretStore secret (CLAUDE.md §2).
+# Cadence: Daily (scheduled-tasks/README.md). One line: the multi-console sweep (CLAUDE.md §1).
 #
-# DOUBLE-GATED until operator steps land (logs + exits cleanly, never crashes the schedule):
-#   1. the conn-company-unifi credential must exist in Key Vault;
-#   2. the unifi_devices bronze table needs the front-end migration (schema handoff,
-#      docs/integrations/unifi.md) - the upsert fails loudly until it lands.
+# UniFi is now a per-CLIENT, per-CONSOLE credential in the `connection` registry (ADR-0103 /
+# backend #229), resolved per row by Invoke-ImperionUniFiDeviceSync (#259) - NOT the old single
+# conn-company-unifi JSON blob. The sweep is fail-closed per console and dormant-safe (no active
+# rows -> logs and no-ops), so it is safe to schedule before any console is registered.
+#
+# Still GATED on the front-end migration: the unifi_devices bronze table needs the schema
+# handoff (docs/integrations/unifi.md) - each console's upsert fails loudly (and is skipped)
+# until it lands. The first run after the table + an active registry row exist converges
+# (idempotent, change-detected upsert).
 #
 # Register with Register-ImperionTask (run elevated, under the gMSA/service identity):
 #
@@ -18,20 +20,4 @@
 Import-Module ImperionPipeline
 Initialize-ImperionContext
 
-try {
-    $credentialJson = Get-ImperionKeyVaultSecret -Name 'conn-company-unifi'
-    $credential = $credentialJson | ConvertFrom-Json
-
-    $deviceParameters = @{
-        ApiKey         = $credential.apiKey
-        ConnectionType = $credential.connectionType
-    }
-    if ($credential.connectionType -eq 'console') { $deviceParameters.ControllerHost = $credential.host }
-
-    Get-ImperionUniFiDevice @deviceParameters | Set-ImperionUniFiDeviceToBronze
-}
-catch {
-    # Credential or schema gate: log loudly and exit; the operator provisions the missing
-    # piece and the next run converges (idempotent upsert).
-    Write-ImperionLog -Level Warn -Source 'unifi' -Message "UniFi device sync skipped: $($_.Exception.Message)"
-}
+Invoke-ImperionUniFiDeviceSync
