@@ -17,14 +17,29 @@ Both authenticate with an **`X-API-Key`** header. Paging: cloud uses a `nextToke
 cursor; console uses `offset`/`limit` with `totalCount` (both handled by
 `Invoke-ImperionUniFiRequest`; property names are assumptions — confirm per controller).
 
-## Credential (per customer — company credential)
+## Credential (per managed client, per console — the credential registry)
 
-Key Vault **`conn-company-unifi`** (the Settings company-credential card pattern, like
-`conn-company-darkwebid`): a JSON blob `{ "apiKey": "...", "connectionType":
-"console"|"cloud", "host": "<console host>" }`, read at task time via the cert SP
-(`Get-ImperionKeyVaultSecret`). One client's credential is already provisioned.
-**Frontend follow-up:** extending the company-credential provider enum with `unifi`
-(analog of migration 0042) goes through the schema-handoff process.
+UniFi is a **per-client, per-console** credential resolved from the front-end-owned
+`connection` registry (ADR-0103 / backend #229), **not** a single company JSON blob. Each
+managed-client UniFi console is one `connection` row:
+
+- `scope='client'`, `provider='unifi'`, `status='active'`, linked to the owning customer
+  `account` (`account_id`);
+- `external_account_id` = the console/site id (the per-console natural key — one account may
+  map **many** consoles, many rows);
+- `auth_method='api_key'`, `keyvault_secret_ref` = the Key Vault secret NAME holding the API
+  key (`conn-client-unifi-<consoleId>`; the value never lands in the DB);
+- `provider_config` (jsonb, FE migration 0151 / backend #233) = the **non-secret** console
+  config `{ connectionType: 'console'|'cloud', controllerHost? }` (`controllerHost` present
+  only for `console`).
+
+The admin registers/rotates a console in the GUI (Settings → Credentials), which POSTs the
+backend custody endpoint (`POST /api/connections/client/unifi`); custody writes the key to
+Key Vault and the row to the registry. The local sweep then resolves each console's key via
+`Resolve-ImperionTenantCredential -Provider unifi` → `@{ ApiKey }` and reads `provider_config`
+for the API family + host. **Per-console isolation is absolute** — every bronze row carries
+its owning tenant (the account's mapped Microsoft tenant, else the account id), and a console
+with no usable credential / consent is skipped, never touched (fail closed, §3/§8).
 
 ## SCHEMA GATE — bronze table does not exist yet
 
@@ -47,9 +62,10 @@ Also queued behind the handoff (issue #73 acceptance): compliance/policy columns
 silver `device`, the `unifi` source in the device merge, and the Devices-page surfacing —
 all front-end/pipeline work.
 
-**Until the migration lands, the task is DOUBLE-GATED** (credential + table): it logs a
-Warn and exits cleanly; the first run after the grants land converges (idempotent,
-change-detected upsert).
+**Until the migration lands, the sweep is GATED on the table** (and per-console on an active
+registry row): each console logs a Warn and is skipped; the first run after the grants land +
+a console is registered converges (idempotent, change-detected upsert). The sweep itself is
+dormant-safe — no active rows means it logs and no-ops.
 
 ## Cadence & fields
 
@@ -63,9 +79,19 @@ signal) · `adopted` · `last_seen`.
 - `Invoke-ImperionUniFiRequest` — connect: X-API-Key + nextToken/offset paging.
 - `Get-ImperionUniFiDevice` — get: `-ConnectionType console` (sites → devices) or
   `cloud` (per-host device groups); flatten to the proposed bronze shape (source `unifi`).
+  Takes a single explicit `-ApiKey` (the per-console primitive).
 - `Set-ImperionUniFiDeviceToBronze` — post: `Invoke-ImperionBronzePost` adapter,
   `-ColumnSet` projection, change-detected upsert.
-- Task: `scheduled-tasks/unifi/devices.task.ps1` (daily, double-gated).
+- **`Invoke-ImperionUniFiDeviceSync`** — the scheduled multi-console fan-out (#259):
+  enumerates the active client UniFi `connection` rows, resolves each console's key +
+  `provider_config` from the registry, composes `Get-ImperionUniFiDevice` →
+  `Set-ImperionUniFiDeviceToBronze` over one shared connection, stamps the owning tenant,
+  and is **fail-closed per console** (a bad console is logged + skipped, never blocks the
+  rest). Dormant-safe: no active rows → logs and no-ops. Supersedes the single-key shape.
+- `Resolve-ImperionAccountTenant` (private) — owning-tenant isolation key for an
+  account-scoped source: the account's mapped Microsoft tenant (`account_tenant`), else the
+  account id.
+- Task: `scheduled-tasks/unifi/devices.task.ps1` (daily) → `Invoke-ImperionUniFiDeviceSync`.
 
 ## Assumptions to confirm on first live run
 
