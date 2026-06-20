@@ -5,17 +5,13 @@ making changes.** This is the **fourth repo** in the Imperion CRM system; it doe
 stand alone. When a decision here conflicts with a quick instinct, this file wins unless
 the human (Mark) says otherwise.
 
-> **Heads-up (2026-06-12):** GDAP is **scrapped** — client M365 access is the per-client
-> onboarding app (pipeline ADR-0018). If you find lingering "GDAP-primary" wording or a
-> `$activeGdapRelationships`-style code path, it is stale; the onboarding-app model in §3
-> is authoritative.
->
-> **Heads-up (2026-06-19):** the M365 / Azure estate is now **discovered from the silver
-> `account_tenant` table** (#234), not a static list — collectors fan out per consented tenant
-> and resolve each tenant's enterprise-app credential as **cert-or-secret**. The per-client app
-> credential model is still settling (backend #217 / LP #250 open). And **merge co-locates with
-> ingestion** now (ADR-0026): LP owns the bronze→silver merge for the sources it bulk-ingests —
-> if you read "silver merge is cloud-only" anywhere below, it is stale; §6 + ADR-0026 win.
+> **Volatile status lives in [`docs/STATE.md`](docs/STATE.md)** — dated heads-up /
+> stale-wording guards, in-flight migrations (ADR-0026 merge cutover, ADR-0103 credential
+> registry), and open follow-ups. Read it for the *current* picture; this file is the
+> durable contract. Two durable framing rules that used to be "heads-up" here: **GDAP is
+> scrapped** (per-client onboarding app is the only M365 access model, §3), and **merge
+> co-locates with ingestion** (LP owns the bronze→silver merge for sources it bulk-ingests,
+> ADR-0026, §6).
 
 /handoff commits files to C:\Development\GitHub\handoff-memory\filename instead of system settings.
 when reporting information to me be extremley concise and sacrifice grammar for the sake of concision.
@@ -61,6 +57,13 @@ when reporting information to me be extremley concise and sacrifice grammar for 
 ---
 
 ## 1. What this repo is — and why it exists
+
+> The **architectural principles** below — the cloud/local plane boundary (§1), the
+> certificate root of trust (§2), per-client onboarding-app access (§3), schema-ownership
+> by the front-end repo (§5/§6), merge-co-locates-with-ingestion (§6, ADR-0026), and the
+> pinned vector contract (§7) — are **non-negotiable**, changeable only by a documented ADR
+> (`docs/decision-records/`). The NOT-list is explicit: this repo serves **no UI, exposes
+> no inbound network surface, owns no schema/migrations, and holds no live webhooks**.
 
 The **on-prem data-pipeline engine** for Imperion CRM, written in **PowerShell** and run
 as **Windows Scheduled Tasks** on Mark's home server. It exists to solve one problem:
@@ -199,10 +202,8 @@ follows the cloud Pipeline's model exactly (see `ImperionCRM_Pipeline/CLAUDE.md 
 - **Per-tenant isolation is absolute** — every ingested row is tagged with its owning
   customer tenant; **no cross-tenant reads** in any query path.
 
-Residual GDAP machinery (the fail-closed sweep / health checks) is **dormant code**: it
-skips cleanly because no partner app is configured and reports zero usable tenants. Do
-not build against it; do not treat it as a live fallback (its retirement is tracked as a
-separate follow-up).
+Residual GDAP machinery is **dormant code** — do not build against it or treat it as a
+live fallback (status / retirement: [`docs/STATE.md`](docs/STATE.md)).
 
 **Onboarding / widening / renewing a client's onboarding-app access is a security event**
 and a human-approval gate (§8).
@@ -289,12 +290,10 @@ Notes that bind to the existing system:
 - **`m365`, not `365`.** Digit-led source keys are prefixed `m` (existing convention).
 - **Schema reconciliation is required before coding.** The existing physical bronze
   tables follow `{source}_companies` / `{source}_contacts` / `{source}_devices`
-  (pipeline `shared/medallion.ts`). The names above use a `_bronze` suffix. **Pick one
+  (pipeline `shared/medallion.ts`); the names above use a `_bronze` suffix. **Pick one
   convention with the front-end repo and let its migration define the real tables** —
-  do not create tables from PowerShell. Several of these sources are **new** to the
-  schema (`kqm_proposal`, `docusign_contract`, `autotask_contract`, `autotask_ticket`,
-  the `*_devices` set) and need front-end migrations first. Track this as an ADR + a
-  cross-repo checklist.
+  do not create tables from PowerShell. *(Which sources are still new-to-schema and
+  awaiting a front-end migration: [`docs/STATE.md`](docs/STATE.md).)*
 - **Read-only sources via the per-client onboarding app where applicable.** `m365_*`
   flows through the per-client onboarding app (§3). Autotask / IT Glue / Apollo / KQM /
   DocuSign use their own API keys from the vault.
@@ -355,14 +354,14 @@ Two notes that keep this inside the system posture:
 - **Merge co-locates with ingestion (ADR-0026).** For every source this repo *bulk-ingests*,
   this repo also owns the bronze→silver merge — an idempotent, set-based `Invoke-Imperion*Merge`
   cmdlet run by a `.task.ps1` immediately after that source's collectors (the
-  `Invoke-ImperionPostureMerge` / Meta / DNS precedent, now generalized to
-  `Invoke-ImperionM365DirectoryMerge` #239 and `Invoke-ImperionCloudAssetMerge` #241). The
-  **cloud Pipeline keeps only the live/webhook-driven merge** (the `website_*`-fed
-  contact/account/device sweep + DocuSign). Cutover is gap-free because both copies are
-  replace-from-source on the same source label — **ship the LP merge first (additive), cede the
-  cloud copy second**, and never cede before the LP copy is verified writing in prod. The merge
-  reads only its own source label and writes its own facts, so per-tenant isolation and the
-  `contact_enrichment` provenance/consent guardrails hold verbatim.
+  `Invoke-ImperionPostureMerge` / Meta / DNS precedent, generalized to M365 directory and
+  `cloud_asset`). The **cloud Pipeline keeps only the live/webhook-driven merge** (the
+  `website_*`-fed contact/account/device sweep + DocuSign). Cutover is gap-free because both
+  copies are replace-from-source on the same source label — **ship the LP merge first
+  (additive), cede the cloud copy second**, and never cede before the LP copy is verified
+  writing in prod. The merge reads only its own source label and writes its own facts, so
+  per-tenant isolation and the `contact_enrichment` provenance/consent guardrails hold
+  verbatim. *(Per-source cutover status: [`docs/STATE.md`](docs/STATE.md).)*
 - **PostgreSQL access — short-lived Entra token, no stored DB password.** At task start
   the cert-backed Entra service principal mints a **short-lived AAD access token** for
   Azure PostgreSQL (`pgaadauth`); PowerShell connects with that token over **TLS
@@ -413,8 +412,10 @@ decision 2026-06-09 — backend ADR-0034 / front-end ADR-0041):
 
 ## 8. Security posture ("Mythos Proof") & working agreement
 
-Inherits the system-wide posture (front-end `CLAUDE.md §5`, §9) and the cloud Pipeline's
-§7. Specifics for an unattended on-prem node:
+Inherits the system-wide posture — the shared baseline is
+`ImperionCRM/docs/security/unified-security-standard.md` (every repo conforms; do not fork
+or restate it) — plus the front-end `CLAUDE.md §5`/§9 and the cloud Pipeline's §7.
+Specifics for an unattended on-prem node:
 
 - **No inbound network surface.** This repo receives nothing from the internet (that's the
   cloud Pipeline's job). It makes **outbound** calls only.
@@ -500,6 +501,17 @@ onboarding-app access, or touching the prod database.
 Before each task, restate the plan briefly and flag anything conflicting with §2 (cert /
 least privilege), §3 (per-client onboarding-app access), the schema-ownership rule (§5/§6), or the security posture
 (§8).
+
+## Current state
+
+Kept SHORT by design — the **volatile current state** lives in
+[`docs/STATE.md`](docs/STATE.md): dated heads-up / stale-wording guards, in-flight
+migrations (the ADR-0026 merge cutover, the ADR-0103 credential registry), open
+follow-ups, and the architecture-deepening backlog. This `CLAUDE.md` carries only the
+durable contract; read `docs/STATE.md` for what is currently shipped, held, or
+Mark-gated.
+
+---
 
 ## Agent skills
 
