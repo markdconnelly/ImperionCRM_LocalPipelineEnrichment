@@ -56,7 +56,7 @@ when reporting information to me be extremley concise and sacrifice grammar for 
 
 ---
 
-## 1. What this repo is — and why it exists
+## 1. What this project is — and why it exists
 
 > The **architectural principles** below — the cloud/local plane boundary (§1), the
 > certificate root of trust (§2), per-client onboarding-app access (§3), schema-ownership
@@ -210,7 +210,7 @@ and a human-approval gate (§8).
 
 ---
 
-## 4. Tech stack & conventions (PowerShell)
+## 4. Technology stack & conventions (PowerShell)
 
 - **PowerShell 7+ (pwsh)**, cross-edition-clean. No Windows PowerShell 5.1-only APIs.
 - **Installed module, cmdlet-first (ADR-0007).** This ships as the versioned
