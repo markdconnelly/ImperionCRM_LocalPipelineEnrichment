@@ -4,9 +4,17 @@ _Snapshot of where the `ImperionPipeline` module stands. Updated as layers land.
 
 ## Summary
 
-- Module shipping at release **0.10.0**: **198 exported cmdlets**, ~199 hermetic Pester test
-  files, **0 PSScriptAnalyzer findings** across `src/` + `build/`. The module imports clean on
-  PowerShell 7.
+- Module shipping at release **0.12.0**: **~190 exported cmdlets** (the lever-A surface-shrink,
+  #226, has begun making internal helpers `Private`, narrowing the export list toward the ~30
+  real entry points), ~200 hermetic Pester test files, **0 PSScriptAnalyzer findings** across
+  `src/` + `build/`. The module imports clean on PowerShell 7.
+- **This repo now owns the bronze→silver _merge_ for the sources it bulk-ingests** (ADR-0026,
+  "merge co-locates with ingestion"): posture / Meta / DNS (the precedent) plus the new **M365
+  directory groups** (`Invoke-ImperionM365DirectoryMerge`, #239) and **Azure ARM `cloud_asset`**
+  (`Invoke-ImperionCloudAssetMerge`, #241), both wired into `Register-ImperionTask` (#243). The
+  cloud Pipeline keeps only the live/webhook-driven merge and has ceded `cloud_asset` (Pipeline
+  #135); the M365-directory cede (Pipeline #134) is **held** until the LP entra-group collectors
+  fill `m365_groups` / `m365_group_members` bronze in prod.
 - **Gold knowledge + vectorization LIVE in prod.** ~205 `knowledge_object` rows are composed
   from silver and **embedded with Voyage `voyage-3-large` @ 1024** by `Invoke-ImperionKnowledgeSync
   -Vectorize` (the nightly `Imperion-KnowledgeVectorize` task, 04:30). The Voyage key is
@@ -70,10 +78,43 @@ source → connect → get → post → scheduled task → bronze target → cad
 - **Citation views** for conversation segments (`conversation_segment_citation`, front-end
   ADR-0068) trace a retrieved vector back to its source conversation + diarized turn.
 
-### Semantic-layer drift (front-end ADR-0086, #175)
-- `Invoke-ImperionSemanticDriftSync` detects live-silver-vs-OKF-bundle drift (column **names
-  only** — no data, no PII) and **proposes** a sync against the front-end bundle. Dry-run by
-  default; never forks/edits the bundle; humans approve.
+### Bronze→silver merge (ADR-0026 — LP owns the merge for LP-ingested sources)
+- `Invoke-ImperionPostureMerge` (classify `posture_policy` + roll up `tenant_posture`, ADR-0010
+  — the precedent), `Invoke-ImperionDnsMerge` (golden/drift → `dns_domain`), the Meta merge
+  (ADR-0013), and now **`Invoke-ImperionM365DirectoryMerge`** (Entra group membership →
+  `contact_enrichment.directory_groups`, #239) + **`Invoke-ImperionCloudAssetMerge`** (`cloud_*`
+  → silver `cloud_asset` CMDB CI, #241). Each is an idempotent, set-based, replace-from-source
+  merge run by a `.task.ps1` immediately after its source's collectors (`Register-ImperionTask`
+  ordering, #243).
+
+### Azure ARM cloud-resource inventory + CMDB cloud-asset (ADR-0023, #217/#201)
+- `Get-ImperionCloudResource` walks each consented tenant's subscriptions → resource groups →
+  resources into `cloud_*` bronze (the estate fan-out from `account_tenant`, #234), merged into
+  the silver `cloud_asset` entity — now a first-class CMDB configuration item with `cloud →
+  account` edges + criticality (front-end #653, migration 0144 prod-applied). `cloud_*` tags
+  emit as `jsonb` (42804 insert bug fixed, #237).
+
+### Semantic-layer drift (front-end ADR-0086, #175/#249)
+- `Invoke-ImperionSemanticDriftSync` detects live-silver-vs-OKF-bundle drift and **proposes** a
+  sync against the front-end bundle. It now reconciles **the source-of-record / authority rule,
+  not just column names** (#249) — no data, no PII. Dry-run by default; never forks/edits the
+  bundle; humans approve. A cross-repo **okf-sync CI gate** (#245) requires a bronze-ingestion
+  change to link an OKF concept update (front-end ADR-0104).
+
+### Maturation refactors (architecture-deepening review, #225–#231)
+- **One vendor secret resolver, not eight** — `Resolve-ImperionVendorSecret` + a catalog
+  replaces eight near-identical `Get-Imperion<Vendor>Secret` clones (#228).
+- **Vendored vector contract** — `Get-ImperionVectorContract` consumes the one canonical
+  contract instead of a second hard-coded copy (ADR-0025 / #231), so the producer can never
+  desync from the backend query side.
+- **DPAPI unattended unlock** — SecretStore can unlock via `-Authentication None` (DPAPI-bound
+  to the task identity) as a documented fallback where the cert lacks the Document Encryption
+  EKU CMS needs (#223).
+- **Module surface-shrink** — lever A privatized the knowledge-family internals (#226); lever D
+  triaged the unscheduled surface *keep* (#227); the data-driven wrapper collapse #229 was
+  deliberately **not** done (it would trade 23 debuggable components for one monolith).
+- **Predictive lead score** — architecture recorded for a `kind='predicted'` ML lead score
+  (ADR-0024 / #220), build pending.
 
 ### Quality pass
 - Every public + private function has hermetic tests (mocking the network/secret/DB seams),
@@ -100,6 +141,11 @@ exact gate.
 4. **Composer breadth** — each further entity (IT Glue docs corpus, etc.) is one new composer
    + one line in `Invoke-ImperionKnowledgeSync`. Coverage is the goal, tracked in the
    production-readiness plan.
+5. **M365-directory merge cede (Pipeline #134)** — the LP `Invoke-ImperionM365DirectoryMerge`
+   is built + wired, but the cloud copy can only be ceded once the LP entra-group collectors
+   actually fill `m365_groups` / `m365_group_members` bronze in prod (today empty → the merge
+   has zero candidates and writes nothing). Verify the LP merge writes `contact_enrichment`
+   in prod first, *then* cede.
 
 ## Toolchain note
 
@@ -110,8 +156,11 @@ them.
 
 ## Cross-repo note
 
-The cloud `ImperionCRM_Pipeline` is limited to inbound webhooks + GUI-refresh polling; **all
-bulk loads are owned by this repo**. The downstream **silver merge** (bronze → unified entities,
-precedence) and the **OKF semantic-layer meaning** are front-end / cloud-Pipeline owned; this
-repo proposes silver-shape / source-of-record / join changes back to the front-end OKF bundle at
-merge (system `CLAUDE.md §11`). See [`cross-repo-action-items.md`](cross-repo-action-items.md).
+The cloud `ImperionCRM_Pipeline` is limited to inbound webhooks + GUI-refresh polling + the
+**live/webhook-driven** silver merge; **all bulk loads — and the bulk bronze→silver merge for the
+sources this repo ingests — are owned by this repo** (ADR-0026). The cloud keeps the
+`website_*`-fed contact/account/device/contract/ticket/opportunity/expense sweep + DocuSign. The
+**OKF semantic-layer meaning** of silver stays front-end-owned (ADR-0086); this repo proposes
+silver-shape / source-of-record / join changes back to the front-end OKF bundle at merge (system
+`CLAUDE.md §11`), and the okf-sync CI gate (#245) enforces it. See
+[`cross-repo-action-items.md`](cross-repo-action-items.md).

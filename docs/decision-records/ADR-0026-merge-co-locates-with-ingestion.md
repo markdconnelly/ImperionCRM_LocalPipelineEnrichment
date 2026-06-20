@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | **Repo** | local-pipeline |
-| **Status** | Proposed |
+| **Status** | Accepted (implemented 2026-06-19 — M365 directory #239 + cloud_asset #241 merges shipped and wired into `Register-ImperionTask` #243; cloud ceded `cloud_asset` via Pipeline #135; M365-directory cede Pipeline #134 held until the LP entra-group collectors fill `m365_groups`/`m365_group_members` bronze in prod) |
 | **Date** | 2026-06-18 |
 | **Deciders** | Mark (human), Claude Code |
 | **Cross-references** | ADR-0010 (posture silver bulk merge — the precedent this generalizes) · ADR-0013 (Meta ingestion + merge) · pipeline ADR-0011 (live-data plane / merge-sources) · pipeline ADR-0012 (the merge runner) · frontend ADR-0042 (four-repo division of labour) |

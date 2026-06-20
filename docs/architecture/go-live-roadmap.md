@@ -139,15 +139,19 @@ bronze post writers, 9 gold composers, idempotent vectorization (ADR-0009).
 
 1. **Backend ingestion engines** — M365 Graph email/Teams → `interaction` timeline
    first (per-user OAuth from Phase 2 feeds it), then Plaud, then social.
-2. **M365 mail/Teams bronze tables** — front-end migration first, then the local
-   repo's post writers (collectors already built and waiting).
+2. **M365 mail/Teams bronze tables** — front-end migration landed; the local repo's post
+   writers shipped (#100). ✅ (local side done; gated on onboarding-app consent for live runs.)
 3. **Lead-capture receivers** (backend) — schema exists; handlers don't.
 4. **LLM enrichment endpoints** (backend) — `contact_enrichment` facts + pre-discovery
    draft answers; consent gate is already in place.
 5. **Real sends behind the consent gate** — replace the front end's logged-to-timeline
    stubs (`sendMessageAction`, campaign platform push) with backend calls.
-6. **Remaining collectors** (local) — Sentinel, KQM, DocuSign (bronze tables exist;
-   KQM shape is still an assumption — verify against live access first).
+6. ~~**Remaining collectors** (local) — Sentinel, KQM, DocuSign~~ — **SHIPPED** (2026-06-19
+   update): Sentinel (#97), KQM header + won-quote detail (#98/#160/#161), DocuSign (#99) all
+   merged. The on-prem build tail is now credential/migration gating, not missing code (see
+   the local repo's [STATUS](../STATUS.md)). Plus the local module gained the **bronze→silver
+   merge** for its ingested sources (ADR-0026) and a much wider source roster (cloud-asset CMDB,
+   QBO finance, Datto/myITprocess RMM, Amazon/CDW logistics, scoped interaction).
 
 ## Sequencing rationale
 

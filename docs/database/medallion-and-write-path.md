@@ -25,9 +25,17 @@ Every source pull flattens to a `[PSCustomObject]` table carrying the same envel
   (device-existence + live-state) above `m365`/`itglue` but below the `website`
   resurrection guard; Datto BCDR contributes **backup-posture fields** to the same
   `device` (field-scoped merge, joining on `device_uid`), not device-identity precedence.
-  This **silver merge is front-end / cloud-Pipeline owned** — the on-prem collectors only
-  write bronze; the precedence + BCDR field-merge are proposed back to the front-end OKF
-  `device` concept + `coverage-matrix.md` at merge (system CLAUDE.md §11).
+  This particular **`device` silver merge stays cloud-Pipeline owned** — it is part of the
+  live/webhook + `website_*`-fed contact/account/device sweep, which remains in the cloud under
+  **ADR-0026** (a NAT'd home server can't receive the signed webhooks that trigger it). The
+  on-prem collectors only write the Datto/m365/IT Glue bronze; the precedence + BCDR field-merge
+  are proposed back to the front-end OKF `device` concept + `coverage-matrix.md` at merge (system
+  CLAUDE.md §11).
+  > **But not all silver merge is cloud-owned.** Under ADR-0026 ("merge co-locates with
+  > ingestion"), this repo owns the bronze→silver merge for the sources it *bulk-ingests* —
+  > posture, Meta, DNS, M365 directory groups (#239), and Azure ARM `cloud_asset` (#241) — via
+  > idempotent `Invoke-Imperion*Merge` cmdlets. Only the webhook/`website_*`-fed sweep
+  > (contact/account/device/contract/ticket/opportunity/expense + DocuSign) stays in the cloud.
 - **Gold** — summaries + knowledge objects across **CRM and support**, feeding the agent.
 
 ## The post-writer scaffold (one deep module)

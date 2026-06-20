@@ -12,7 +12,7 @@ flowchart LR
     subgraph CLOUD["Azure"]
       FE["ImperionCRM (web app)"]
       BE["ImperionCRM_Backend (agent, sends, semantic search)"]
-      PL["ImperionCRM_Pipeline (webhooks + GUI-refresh only)"]
+      PL["ImperionCRM_Pipeline (webhooks + GUI-refresh + live/webhook merge)"]
     end
     subgraph HOME["Home server (this repo) — scheduled tasks"]
       T1["m365 / Entra / Azure + Sentinel inventory -> IT Glue + bronze"]
@@ -37,6 +37,10 @@ flowchart LR
 - **Ingestion pattern:** flatten → (IT Glue document + relate, ops only) → Postgres bronze
   ([database/medallion-and-write-path.md](../database/medallion-and-write-path.md), ADR-0006;
   [it-glue-hub.md](../it-glue-hub.md)).
+- **Merge co-locates with ingestion (ADR-0026):** this repo owns the bronze→silver merge for the
+  sources it bulk-ingests (posture, Meta, DNS, M365 directory #239, `cloud_asset` #241) — an
+  idempotent `Invoke-Imperion*Merge` run after each source's collectors. The cloud Pipeline keeps
+  only the live/webhook-driven merge.
 - **DB:** short-lived Entra token, TLS, table-scoped role (ADR-0003).
 - **Change detection:** content hash + watermark — "if nothing changed, move on"
   ([operations/change-detection.md](../operations/change-detection.md)).
@@ -54,6 +58,7 @@ per-`(source, entity)` collectors writing bronze; the full map is in
 | **CRM / sales** | Autotask, IT Glue, Apollo, KQM, DocuSign, website, Meta (FB/IG) | ADR-0005, ADR-0013 |
 | **Support / operational** | Autotask tickets, IT Glue export, m365 devices, Plaud | ADR-0005, ADR-0006 |
 | **RMM / managed estate** | Datto RMM, Datto BCDR, myITprocess, UniFi | ADR-0018 |
+| **Cloud / CMDB** | Azure ARM cloud-resource inventory → silver `cloud_asset` CI (estate fan-out from `account_tenant`, on-prem merge) | ADR-0023, ADR-0026 |
 | **Security posture** | Secure Score, policy drift, Entra hygiene, info protection, incidents, Purview, Dark Web ID, Telivy, EasyDMARC, DNS | ADR-0008, ADR-0010, ADR-0011, ADR-0019 |
 | **Finance / BI** | QuickBooks Online (full pull), MileIQ | ADR-0014, ADR-0017, ADR-0020 |
 | **Logistics / procurement** | Amazon Business orders, CDW orders | ADR-0021 |
