@@ -20,6 +20,8 @@
         'Initialize-ImperionUnattended',
         'Register-ImperionTask',
         # Sync cmdlets (scheduled-task entry points)
+        'Invoke-ImperionAutotaskContractSync',
+        'Invoke-ImperionAutotaskTicketSync',
         'Invoke-ImperionServicePrincipalSync',
         'Invoke-ImperionAzureInventorySync',
         'Invoke-ImperionCloudResourceSync',

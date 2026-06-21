@@ -41,6 +41,12 @@ function Register-ImperionTask {
     if (-not $PwshPath) { throw 'pwsh.exe not found on PATH; pass -PwshPath.' }
 
     $tasks = @(
+        # Autotask bulk reconcile -> bronze (#287). Tickets also arrive in real time via the cloud
+        # Pipeline webhooks (ADR-0001); this is the daily catch-up. NOTE: the registry-doc cadence
+        # for tickets is 15-30 min — the daily trigger here is a deliberate (documented) bulk
+        # cadence until the $tasks schema gains sub-daily repetition (epic #286).
+        @{ Name = 'Imperion-AutotaskContracts';      Cmdlet = 'Invoke-ImperionAutotaskContractSync'; At = '01:15' }
+        @{ Name = 'Imperion-AutotaskTickets';        Cmdlet = 'Invoke-ImperionAutotaskTicketSync';    At = '01:30' }
         @{ Name = 'Imperion-EntraServicePrincipals'; Cmdlet = 'Invoke-ImperionServicePrincipalSync'; At = '02:00' }
         @{ Name = 'Imperion-AzureInventory';         Cmdlet = 'Invoke-ImperionAzureInventorySync';   At = '02:30' }
         # Per-client Azure ARM cloud-resource inventory → CMDB cloud-asset bronze (#201/#234,
