@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.13.0](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.12.0...v0.13.0) (2026-06-21)
+
+
+### Features
+
+* **creds:** resolve per-tenant m365 app credential at the Graph-token seam ([#250](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/250)) ([#267](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/267)) ([4369d6f](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/4369d6fca1fec687618bd168bd36928f40754cfa))
+* **creds:** Resolve-ImperionTenantCredential resolver core ([#257](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/257)) ([#265](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/265)) ([f60e9b3](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/f60e9b32b7f33d7eee02b3a905923dd3d0873d39))
+* **creds:** UniFi multi-console sweep resolving per-client API keys from the registry ([#259](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/259)) ([#269](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/269)) ([061ac4a](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/061ac4a5e14bd2f3d721c79cf30540530820b713))
+* **creds:** wire Azure ARM cloud-resource sync to the per-tenant resolver ([#258](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/258)) ([#268](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/268)) ([dbc58b0](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/dbc58b0aed4295abe819019cf4431e48ad36b07c))
+* **onboarding:** New-ImperionClientOnboardingApp.ps1 — per-client read-only Entra app ([#261](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/261)) ([#262](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/262)) ([b9ca147](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/b9ca147bf6a3e253e8a0dc64418536b9ad521a02))
+
 ## [0.12.0](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.11.0...v0.12.0) (2026-06-20)
 
 
