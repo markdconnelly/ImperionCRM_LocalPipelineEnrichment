@@ -24,7 +24,7 @@ one shared PostgreSQL + pgvector database.
 > this README links it rather than restating it.
 
 > **Status (2026-06-19):** the installed `ImperionPipeline` module is **mature and shipping**
-> (release **0.12.0**) — **~190 exported cmdlets** (the lever-A surface-shrink, #226, has begun
+> (release **0.12.0**) — **~200 exported cmdlets** (the lever-A surface-shrink, #226 / ADR-0027, has begun
 > making internal building blocks `Private` so the public surface narrows toward the ~30
 > entry-point cmdlets), ~200 hermetic Pester test files, lint-clean `src/`. The full
 > **connect → get → post → scheduled-task** spine is built across ~25 source areas, and the
@@ -430,7 +430,7 @@ Install-Module Pester, PSScriptAnalyzer -Scope CurrentUser
 .\build\Install-ImperionModule.ps1 -Scope AllUsers
 
 Import-Module ImperionPipeline
-Get-Command -Module ImperionPipeline          # discover the exported cmdlets (~190 today)
+Get-Command -Module ImperionPipeline          # discover the exported cmdlets (~200 today, shrinking toward ~30)
 Initialize-ImperionContext                    # load config + unlock SecretStore
 Invoke-Pester ./tests                         # unit tests (Pester 5)
 ```

@@ -1,4 +1,4 @@
-# Imperion CRM — cross-repo production-readiness plan
+# Imperion OS — cross-repo production-readiness plan
 
 > **You are in: `ImperionCRM_LocalPipelineEnrichment` — synced copy.** Canonical: `ImperionCRM/docs/architecture/production-readiness-plan.md`.
 > Update the canonical and re-sync. **As of 2026-06-10 (post build-sprint).** This repo's section is marked **← this repo** below.

@@ -1,6 +1,6 @@
 # Architecture — on-prem pipeline plane
 
-The fourth repo in the Imperion CRM system: an **on-prem, PowerShell, scheduled-task**
+The fourth repo in the Imperion OS system: an **on-prem, PowerShell, scheduled-task**
 ingestion/enrichment/vectorization engine. Outbound-only; no inbound surface. Writes the
 shared PostgreSQL + pgvector DB the website reads and the backend agent queries. The master
 cross-repo map is the front-end's
