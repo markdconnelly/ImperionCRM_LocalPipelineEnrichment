@@ -5,6 +5,15 @@ retrieves. This repo owns **all** embedding (it moved off the website precisely 
 the heaviest, burstiest, most cost-sensitive stage). **The stage is LIVE in prod** — ~205
 `knowledge_object` rows are composed and embedded nightly.
 
+> **This is memory consolidation.** In Imperion OS (data-as-kernel + second-brain-as-OS) this
+> nightly pass is the **hippocampus writing long-term memory**: facts (silver) are *composed
+> into knowledge* (gold) and *encoded for recall* (vectors). The pinned Voyage contract is the
+> **fixed encoding of long-term memory**, and the citation views below are **recall with
+> attribution** — the agent can cite its source rather than hallucinate. The full
+> second-brain superiority argument is the front-end canonical doc
+> [`data-design-for-agents.md`](https://github.com/markdconnelly/ImperionCRM/blob/main/docs/architecture/data-design-for-agents.md)
+> (linked, not duplicated).
+
 > **Deeper reference:** the as-built lifecycle, target schema, idempotency layers, and
 > citation views are in [`database/vector-lifecycle.md`](database/vector-lifecycle.md). This
 > page is the onboarding narrative. ADRs: **ADR-0009** (settled embedding stack, this repo) ·
@@ -84,8 +93,9 @@ matching its own `(embedding_model, chunking_version)`; other versions coexist u
 then pruned (the SP's scoped `DELETE` on `knowledge_embedding`). A **dimension** change needs a
 new `vector(N)` column — a front-end migration.
 
-## Citation views (conversation segments, front-end ADR-0068)
+## Citation views — recall with attribution (conversation segments, front-end ADR-0068)
 
+Recall in a second brain must be *verifiable* — memory the agent can cite, not invent.
 A retrieved `knowledge_embedding` whose object is `entity_type='conversation_segment'` resolves
 to its source conversation + diarized turn through the **`conversation_segment_citation`** view
 (DDL source-of-record in [`../sql/`](../sql/), pending front-end migration), so the backend can

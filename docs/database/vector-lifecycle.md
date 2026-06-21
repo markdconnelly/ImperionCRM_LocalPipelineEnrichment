@@ -5,6 +5,14 @@ module v0.3.0). The **target schema is front-end `db/migrations/0045` + ADR-0041
 (`ImperionCRM`) — this repo is its sole producer; the backend agent reads it (and embeds
 only *queries*, backend ADR-0034).
 
+> **The encoding of long-term memory.** This lifecycle is the **encoding step of memory
+> consolidation** in Imperion OS's second-brain model: gold knowledge is chunked and embedded
+> into a *fixed* vector space (Voyage `voyage-3-large` @ 1024, pinned by ADR-0009/0025) so the
+> agents recall by meaning. One model + dimension, system-wide, is what keeps the producer's
+> memory space identical to the recall side; content-hash idempotency means re-consolidating
+> unchanged memory is free. See the front-end superiority doc
+> [`data-design-for-agents.md`](https://github.com/markdconnelly/ImperionCRM/blob/main/docs/architecture/data-design-for-agents.md).
+
 ## The pipeline (as built)
 
 ```mermaid

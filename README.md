@@ -1,13 +1,27 @@
-# Imperion CRM — Local Pipeline & Enrichment (on-prem)
+# Imperion OS — Memory & Enrichment Plane (on-prem)
 
-**The on-prem, PowerShell, scheduled-task engine that does the heavy lifting.** It runs
-unattended on Mark's home server, reads the full shared database locally, and takes the
-bulk data-pipeline work **off the website and off Azure compute**: bulk source polling →
-bronze, the bronze→silver→gold transforms, and **all embedding/vectorization** into
-`pgvector`.
+**The long-term-memory / consolidation plane (the hippocampus) of Imperion OS.** It runs
+unattended on Mark's home server, reads the full shared database locally, and does the
+work that turns raw perception into durable, recallable memory **off the website and off
+Azure compute**: bulk source polling → bronze, the bronze→silver→gold transforms, and
+**all embedding/vectorization** into `pgvector`. Experiences (bronze) are refined into
+facts (silver), composed into knowledge (gold), and encoded for recall (vectors) — the
+sleep-time consolidation pass of a second brain.
 
 PowerShell 7 · Windows Scheduled Tasks · certificate-rooted unattended auth · writes the
 one shared PostgreSQL + pgvector database.
+
+> **This repo in the OS.** Imperion OS is positioned as an *agentic operating system* —
+> **data-as-kernel + second-brain-as-OS**. In that model this repo is **memory
+> consolidation**: the nightly pass that consolidates perceptions into long-term memory the
+> agents recall, with attribution (citation views = recall the agent can *cite*, not
+> hallucinate). That consolidated memory is **identity-scoped** — it flows into the tiered
+> knowledge model (canon / company / personal, knowledge-tiers epic #966) behind the RLS
+> access spine (#967), so personal brains stay private and company canon stays shared: the
+> OS permission model applied to memory. The full superiority argument — why a curated,
+> consolidated, cited memory beats a pile of documents — is the canonical front-end doc
+> **[`data-design-for-agents.md`](https://github.com/markdconnelly/ImperionCRM/blob/main/docs/architecture/data-design-for-agents.md)**;
+> this README links it rather than restating it.
 
 > **Status (2026-06-19):** the installed `ImperionPipeline` module is **mature and shipping**
 > (release **0.12.0**) — **~190 exported cmdlets** (the lever-A surface-shrink, #226, has begun
@@ -23,19 +37,20 @@ one shared PostgreSQL + pgvector database.
 > `cloud_asset` in Pipeline #135). What otherwise remains is mostly **operator/credential
 > gating** — many newer collectors are built and tested but DORMANT until their API key /
 > consent / front-end bronze migration lands (see [`docs/STATUS.md`](docs/STATUS.md)). This is
-> the **fourth repo** in the Imperion CRM system — read [`CLAUDE.md`](./CLAUDE.md) first.
+> the **fourth repo** in the Imperion OS system — read [`CLAUDE.md`](./CLAUDE.md) first.
 
 > **Why this repo exists:** heavy pipeline processing was choking the website. The bulk of
 > the pipeline now runs here, on a machine Mark controls, on its own schedule — leaving the
 > live web app and the cloud functions for interactive, low-latency work.
 
-> **The goal:** capture **all** the data the company knows — CRM (leads, accounts,
-> contacts, proposals, contracts), support (tickets, devices, the IT Glue / 365 operational
-> picture), **security posture** (Secure Score, policy drift, incidents, Purview),
-> **finance** (QuickBooks Online), and **logistics** (Amazon Business / CDW procurement) —
-> flow it to gold, and embed it, so the **front-end AI agents are aware of everything** once
-> these pipelines are running. Built as **many small jobs** (one per source+entity), not a
-> monolith.
+> **The goal *is* the second-brain thesis:** capture **all** the data the company knows —
+> CRM (leads, accounts, contacts, proposals, contracts), support (tickets, devices, the IT
+> Glue / 365 operational picture), **security posture** (Secure Score, policy drift,
+> incidents, Purview), **finance** (QuickBooks Online), and **logistics** (Amazon Business /
+> CDW procurement) — consolidate it to gold, and encode it as vectors, so the **front-end AI
+> agents are aware of everything** once these pipelines are running. "Aware of everything" is
+> exactly what a second brain promises; this repo is the organ that makes it durable and
+> recallable. Built as **many small jobs** (one per source+entity), not a monolith.
 
 ---
 
@@ -287,7 +302,13 @@ path; pure CRM/finance/logistics data flattens **straight to Postgres**. IT Glue
 **scoped and gated** (system posture). See [`docs/it-glue-hub.md`](docs/it-glue-hub.md) and
 [`CLAUDE.md §6`](./CLAUDE.md).
 
-## Vectorization — local orchestration, Voyage pinned (LIVE, ADR-0009)
+## Vectorization — encoding long-term memory, Voyage pinned (LIVE, ADR-0009)
+
+Vectorization is the **encoding step of memory consolidation**: composed gold knowledge is
+chunked and embedded into a fixed vector space so the agents can *recall by meaning*. The
+pinned Voyage contract (ADR-0009/0025) is the **fixed encoding of long-term memory** — one
+model, one dimension, system-wide — so what this plane writes and what the backend agent
+later recalls share the same memory space.
 
 All embedding work runs here. Composing the gold corpus, chunking (v1 = 6000 chars / 500
 overlap), dedup-by-hash, batching, retry, cost accounting, and the `pgvector` upsert happen
@@ -454,6 +475,32 @@ Releases follow the cross-repo standard in the front-end repo's
   are **per-repo** — qualify cross-repo references by repo name.
 - Documentation is a required deliverable and a security control: **code without docs is
   incomplete** (system-wide `CLAUDE.md`).
+
+### Further reading — agent memory & the second-brain thesis
+
+The canonical superiority argument lives in the front-end
+[`data-design-for-agents.md`](https://github.com/markdconnelly/ImperionCRM/blob/main/docs/architecture/data-design-for-agents.md)
+(linked, not duplicated). A deep-research pass found that the memory patterns advocated by
+the open second-brain projects below were **~70% already realized here** via gold + Voyage;
+the knowledge-tiers work (#966/#967) closed the rest by **borrowing those patterns, not
+taking them as dependencies**.
+
+- **[MemPalace](https://github.com/MemPalace/mempalace)** — "the best-benchmarked
+  open-source AI memory system"; verbatim history + semantic recall, organized as
+  wings/rooms/drawers, fully local. (Our gold→pgvector recall is the same shape, identity-scoped.)
+- **[Open Brain / OB1](https://github.com/NateBJones-Projects/OB1)** — "the infrastructure
+  layer for your thinking … one database, one AI gateway — any AI plugs in." (Our shared
+  PostgreSQL + pgvector store, read by the backend agent, is exactly this one-database memory.)
+- **[claude-mem](https://docs.claude-mem.ai/introduction)** — a persistent memory
+  *compression* system for Claude Code: capture tool observations, generate semantic
+  summaries. (Mirrors our bronze→silver→gold consolidation: refine perception into compact
+  recallable knowledge.)
+- **["How I Finally Sorted My Claude Code Memory"](https://www.youngleaders.tech/p/how-i-finally-sorted-my-claude-code-memory)**
+  — structured, categorized memory files beat context sprawl. (The per-entity
+  `knowledge_object` granularity is the same instinct at corpus scale.)
+- **Voyage / Anthropic RAG** — `voyage-3-large` is Anthropic's recommended embeddings
+  provider for Claude RAG; the pinned 1024-dim contract (§above) is the fixed encoding of
+  this memory.
 
 ---
 
