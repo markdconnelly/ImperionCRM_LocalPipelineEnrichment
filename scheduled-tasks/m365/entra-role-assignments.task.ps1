@@ -9,8 +9,8 @@
 # role_display_name + principal_type are the hygiene signal a benchmark reads.
 #
 # GATED: until the front-end entra_role_assignments migration (#260) is applied to prod the
-# post fails loudly; the catch below logs a Warn and exits cleanly so the schedule never
-# crashes.
+# post fails loudly; the estate-sweep helper logs a Warn per tenant and continues so the
+# schedule never crashes.
 #
 # Register with Register-ImperionTask (run elevated, under the gMSA/service identity):
 #
@@ -21,19 +21,8 @@
 Import-Module ImperionPipeline
 Initialize-ImperionContext
 
-try {
-    $tenantIds = @($env:IMPERION_M365_TENANT_IDS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    if ($tenantIds.Count -eq 0) {
-        Get-ImperionEntraRoleAssignment | Set-ImperionEntraRoleAssignmentToBronze
-    }
-    else {
-        foreach ($tenantId in $tenantIds) {
-            Get-ImperionEntraRoleAssignment -TenantId $tenantId | Set-ImperionEntraRoleAssignmentToBronze
-        }
-    }
-}
-catch {
-    # Schema/permission gate: log loudly and exit; the operator lands the #260 prod apply
-    # and the next run converges (idempotent, change-detected upsert).
-    Write-ImperionLog -Level Warn -Source 'm365' -Message "Entra role-assignments sync skipped: $($_.Exception.Message)"
+Invoke-ImperionM365EstateSweep -Label 'Entra role-assignments' -PerTenant {
+    param($TenantId)
+    if ($TenantId) { Get-ImperionEntraRoleAssignment -TenantId $TenantId | Set-ImperionEntraRoleAssignmentToBronze }
+    else { Get-ImperionEntraRoleAssignment | Set-ImperionEntraRoleAssignmentToBronze }
 }

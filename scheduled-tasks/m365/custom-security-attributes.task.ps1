@@ -10,8 +10,8 @@
 # heavier PII-bearing surface deferred to a follow-up (docs/integrations/information-protection.md).
 #
 # GATED: until the front-end custom_security_attribute_definitions migration (#259) is applied
-# to prod the post fails loudly; the catch below logs a Warn and exits cleanly so the schedule
-# never crashes.
+# to prod the post fails loudly; the estate-sweep helper logs a Warn per tenant and continues
+# so the schedule never crashes.
 #
 # Register with Register-ImperionTask (run elevated, under the gMSA/service identity):
 #
@@ -22,19 +22,8 @@
 Import-Module ImperionPipeline
 Initialize-ImperionContext
 
-try {
-    $tenantIds = @($env:IMPERION_M365_TENANT_IDS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    if ($tenantIds.Count -eq 0) {
-        Get-ImperionCustomSecurityAttribute | Set-ImperionCustomSecurityAttributeToBronze
-    }
-    else {
-        foreach ($tenantId in $tenantIds) {
-            Get-ImperionCustomSecurityAttribute -TenantId $tenantId | Set-ImperionCustomSecurityAttributeToBronze
-        }
-    }
-}
-catch {
-    # Schema/permission gate: log loudly and exit; the operator lands the #259 prod apply
-    # and the next run converges (idempotent, change-detected upsert).
-    Write-ImperionLog -Level Warn -Source 'm365' -Message "Custom security attribute definitions sync skipped: $($_.Exception.Message)"
+Invoke-ImperionM365EstateSweep -Label 'Custom security attribute definitions' -PerTenant {
+    param($TenantId)
+    if ($TenantId) { Get-ImperionCustomSecurityAttribute -TenantId $TenantId | Set-ImperionCustomSecurityAttributeToBronze }
+    else { Get-ImperionCustomSecurityAttribute | Set-ImperionCustomSecurityAttributeToBronze }
 }

@@ -8,7 +8,7 @@
 # (per-tenant isolation: each row is stamped with its owning tenant).
 #
 # GATED: until front-end migration 0077 is applied to prod the post fails loudly; the
-# catch below logs a Warn and exits cleanly so the schedule never crashes.
+# estate-sweep helper logs a Warn per tenant and continues so the schedule never crashes.
 #
 # Register with Register-ImperionTask (run elevated, under the gMSA/service identity):
 #
@@ -19,19 +19,8 @@
 Import-Module ImperionPipeline
 Initialize-ImperionContext
 
-try {
-    $tenantIds = @($env:IMPERION_M365_TENANT_IDS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    if ($tenantIds.Count -eq 0) {
-        Get-ImperionEntraAuthMethod | Set-ImperionEntraAuthMethodToBronze
-    }
-    else {
-        foreach ($tenantId in $tenantIds) {
-            Get-ImperionEntraAuthMethod -TenantId $tenantId | Set-ImperionEntraAuthMethodToBronze
-        }
-    }
-}
-catch {
-    # Schema/permission gate: log loudly and exit; the operator lands the 0077 prod apply
-    # and the next run converges (idempotent, change-detected upsert).
-    Write-ImperionLog -Level Warn -Source 'm365' -Message "Entra auth-methods sync skipped: $($_.Exception.Message)"
+Invoke-ImperionM365EstateSweep -Label 'Entra auth-methods' -PerTenant {
+    param($TenantId)
+    if ($TenantId) { Get-ImperionEntraAuthMethod -TenantId $TenantId | Set-ImperionEntraAuthMethodToBronze }
+    else { Get-ImperionEntraAuthMethod | Set-ImperionEntraAuthMethodToBronze }
 }

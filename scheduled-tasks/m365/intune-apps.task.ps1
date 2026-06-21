@@ -9,8 +9,8 @@
 #
 # GATED: needs (1) the DeviceManagementApps.Read.All read grant admin-consented on the
 # Onboarding app and (2) the intune_managed_apps bronze table from the front-end migration
-# (schema handoff, ImperionCRM #261) - until both land the get/post fail loudly; the catch
-# below logs a Warn and exits cleanly so the schedule never crashes.
+# (schema handoff, ImperionCRM #261) - until both land the get/post fail loudly; the
+# estate-sweep helper logs a Warn per tenant and continues so the schedule never crashes.
 #
 # Register with Register-ImperionTask (run elevated, under the gMSA/service identity):
 #
@@ -21,19 +21,8 @@
 Import-Module ImperionPipeline
 Initialize-ImperionContext
 
-try {
-    $tenantIds = @($env:IMPERION_M365_TENANT_IDS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    if ($tenantIds.Count -eq 0) {
-        Get-ImperionIntuneManagedApp | Set-ImperionIntuneManagedAppToBronze
-    }
-    else {
-        foreach ($tenantId in $tenantIds) {
-            Get-ImperionIntuneManagedApp -TenantId $tenantId | Set-ImperionIntuneManagedAppToBronze
-        }
-    }
-}
-catch {
-    # Schema/permission gate: log loudly and exit; the operator lands the grant / migration
-    # and the next run converges (idempotent, change-detected upsert).
-    Write-ImperionLog -Level Warn -Source 'm365' -Message "Intune managed-app sync skipped: $($_.Exception.Message)"
+Invoke-ImperionM365EstateSweep -Label 'Intune managed-apps' -PerTenant {
+    param($TenantId)
+    if ($TenantId) { Get-ImperionIntuneManagedApp -TenantId $TenantId | Set-ImperionIntuneManagedAppToBronze }
+    else { Get-ImperionIntuneManagedApp | Set-ImperionIntuneManagedAppToBronze }
 }

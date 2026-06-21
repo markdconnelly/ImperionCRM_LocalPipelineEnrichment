@@ -8,8 +8,8 @@
 # each row is stamped with its owning tenant).
 #
 # GATED: the intune_managed_devices bronze table needs the front-end migration (schema
-# handoff, issue #75 comment) - until it lands the post fails loudly; the catch below logs
-# a Warn and exits cleanly so the schedule never crashes.
+# handoff, issue #75 comment) - until it lands the post fails loudly; the estate-sweep
+# helper logs a Warn per tenant and continues so the schedule never crashes.
 #
 # Register with Register-ImperionTask (run elevated, under the gMSA/service identity):
 #
@@ -20,19 +20,8 @@
 Import-Module ImperionPipeline
 Initialize-ImperionContext
 
-try {
-    $tenantIds = @($env:IMPERION_M365_TENANT_IDS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    if ($tenantIds.Count -eq 0) {
-        Get-ImperionM365Device | Set-ImperionIntuneManagedDeviceToBronze
-    }
-    else {
-        foreach ($tenantId in $tenantIds) {
-            Get-ImperionM365Device -TenantId $tenantId | Set-ImperionIntuneManagedDeviceToBronze
-        }
-    }
-}
-catch {
-    # Schema/permission gate: log loudly and exit; the operator lands the migration /
-    # consent and the next run converges (idempotent, change-detected upsert).
-    Write-ImperionLog -Level Warn -Source 'm365' -Message "Intune managed-device sync skipped: $($_.Exception.Message)"
+Invoke-ImperionM365EstateSweep -Label 'Intune managed-devices' -PerTenant {
+    param($TenantId)
+    if ($TenantId) { Get-ImperionM365Device -TenantId $TenantId | Set-ImperionIntuneManagedDeviceToBronze }
+    else { Get-ImperionM365Device | Set-ImperionIntuneManagedDeviceToBronze }
 }
