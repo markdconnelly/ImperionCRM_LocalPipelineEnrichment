@@ -1,7 +1,7 @@
 # CLAUDE.md — ImperionCRM_LocalPipelineEnrichment
 
 Guidance for Claude Code working on this repository. **Read this file fully before
-making changes.** This is the **fourth repo** in the Imperion CRM system; it does not
+making changes.** This is the **fourth repo** in the Imperion OS system; it does not
 stand alone. When a decision here conflicts with a quick instinct, this file wins unless
 the human (Mark) says otherwise.
 
