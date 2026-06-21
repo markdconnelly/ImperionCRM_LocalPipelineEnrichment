@@ -3,6 +3,16 @@
 This repo produces bronze/silver/gold rows + vectors into the shared PostgreSQL + pgvector
 DB. It **never owns migrations** (front-end ADR-0017); it reads the ERD as a contract.
 
+> **The medallion flow *is* memory consolidation.** In Imperion OS (data-as-kernel +
+> second-brain-as-OS) this write path is the **hippocampus** turning perception into durable
+> long-term memory: **bronze = raw experience** (lossless capture), **silver = facts**
+> (refined, deduped, precedence-merged), **gold = knowledge** (composed, agent-ready), and
+> **vectors = the encoding for recall**. The "capture all the data" coverage goal below is the
+> second-brain thesis; the consolidated memory it produces is **identity-scoped** (canon /
+> company / personal, behind the RLS access spine). Full argument:
+> [`data-design-for-agents.md`](https://github.com/markdconnelly/ImperionCRM/blob/main/docs/architecture/data-design-for-agents.md)
+> (front-end canonical, linked not duplicated).
+
 ## The flat-table spine
 Every source pull flattens to a `[PSCustomObject]` table carrying the same envelope:
 

@@ -65,8 +65,12 @@ when reporting information to me be extremley concise and sacrifice grammar for 
 > (`docs/decision-records/`). The NOT-list is explicit: this repo serves **no UI, exposes
 > no inbound network surface, owns no schema/migrations, and holds no live webhooks**.
 
-The **on-prem data-pipeline engine** for Imperion CRM, written in **PowerShell** and run
-as **Windows Scheduled Tasks** on Mark's home server. It exists to solve one problem:
+The **on-prem memory-consolidation engine** for Imperion OS, written in **PowerShell** and
+run as **Windows Scheduled Tasks** on Mark's home server. In the OS metaphor (data-as-kernel
++ second-brain-as-OS) this repo is the **hippocampus**: it consolidates raw perception
+(bronze) into durable, addressable long-term memory (gold + vectors) the agents recall.
+Experiences are refined into facts (silver), composed into knowledge (gold), and encoded for
+recall (vectors) — a nightly, sleep-time consolidation pass. It exists to solve one problem:
 
 > **Heavy data-pipeline processing was choking the website.** Bulk polling of every
 > source, the bronze→silver→gold transforms, and (above all) embedding generation are
@@ -80,12 +84,18 @@ This repo writes into the **same shared PostgreSQL + pgvector database** the web
 reads and the backend agent queries. It is a **producer of bronze/silver/gold rows and
 vectors**, nothing else — it serves no UI and exposes no inbound network surface.
 
-**The objective: capture _all_ the data the company knows — CRM *and* support — so the
-front-end AI agents are aware of everything once these pipelines are running.** Leads,
-accounts, contacts, proposals, and contracts (the CRM front) plus tickets, devices, and
-the IT Glue / 365 operational picture (the support front) all land here, flow to gold,
-and get embedded (§7) so the orchestrator agent can reason over the **complete** company
-knowledge base. Coverage is the goal; gaps are bugs.
+**The objective is the second-brain thesis: capture _all_ the data the company knows — CRM
+*and* support — so the front-end AI agents are aware of everything once these pipelines are
+running.** Leads, accounts, contacts, proposals, and contracts (the CRM front) plus tickets,
+devices, and the IT Glue / 365 operational picture (the support front) all land here, are
+consolidated to gold, and get encoded as vectors (§7) so the orchestrator agent can recall
+over the **complete** company knowledge base — with attribution (citation views are recall
+the agent can *cite*, not hallucinate). That consolidated memory is **identity-scoped**: it
+feeds the tiered knowledge model (canon / company / personal, knowledge-tiers epic #966)
+behind the RLS access spine (#967), so personal brains stay private and company canon stays
+shared — the OS permission model applied to memory. The full superiority argument is the
+front-end canonical doc `docs/architecture/data-design-for-agents.md` (linked, not restated
+here). Coverage is the goal; gaps are bugs.
 
 **Prefer many small jobs over one big job.** Mark is fine either way; the standard here is
 **one scheduled task per (source, entity)** rather than a monolith — smaller jobs schedule
