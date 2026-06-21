@@ -8,7 +8,7 @@
 # isolation: each row is stamped with its owning tenant).
 #
 # GATED: until front-end migration 0076 is applied to prod the post fails loudly; the
-# catch below logs a Warn and exits cleanly so the schedule never crashes.
+# estate-sweep helper logs a Warn per tenant and continues so the schedule never crashes.
 # NOTE: the defender_incident_ticket_link table (ADR-0059) is NOT written here - the
 # incident<->Autotask pairing belongs to the linking flows, not the collector.
 #
@@ -21,19 +21,8 @@
 Import-Module ImperionPipeline
 Initialize-ImperionContext
 
-try {
-    $tenantIds = @($env:IMPERION_M365_TENANT_IDS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    if ($tenantIds.Count -eq 0) {
-        Get-ImperionDefenderObject | Set-ImperionDefenderToBronze
-    }
-    else {
-        foreach ($tenantId in $tenantIds) {
-            Get-ImperionDefenderObject -TenantId $tenantId | Set-ImperionDefenderToBronze
-        }
-    }
-}
-catch {
-    # Schema/permission gate: log loudly and exit; the operator lands the 0076 prod apply
-    # and the next run converges (idempotent, change-detected upsert).
-    Write-ImperionLog -Level Warn -Source 'defender' -Message "Defender XDR sync skipped: $($_.Exception.Message)"
+Invoke-ImperionM365EstateSweep -Source 'defender' -Label 'Defender XDR' -PerTenant {
+    param($TenantId)
+    if ($TenantId) { Get-ImperionDefenderObject -TenantId $TenantId | Set-ImperionDefenderToBronze }
+    else { Get-ImperionDefenderObject | Set-ImperionDefenderToBronze }
 }

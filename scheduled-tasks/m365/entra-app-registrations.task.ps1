@@ -9,8 +9,8 @@
 # signal a benchmark reads.
 #
 # GATED: until the front-end entra_app_registrations migration (#260) is applied to prod the
-# post fails loudly; the catch below logs a Warn and exits cleanly so the schedule never
-# crashes.
+# post fails loudly; the estate-sweep helper logs a Warn per tenant and continues so the
+# schedule never crashes.
 #
 # Register with Register-ImperionTask (run elevated, under the gMSA/service identity):
 #
@@ -21,19 +21,8 @@
 Import-Module ImperionPipeline
 Initialize-ImperionContext
 
-try {
-    $tenantIds = @($env:IMPERION_M365_TENANT_IDS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    if ($tenantIds.Count -eq 0) {
-        Get-ImperionEntraAppRegistration | Set-ImperionEntraAppRegistrationToBronze
-    }
-    else {
-        foreach ($tenantId in $tenantIds) {
-            Get-ImperionEntraAppRegistration -TenantId $tenantId | Set-ImperionEntraAppRegistrationToBronze
-        }
-    }
-}
-catch {
-    # Schema/permission gate: log loudly and exit; the operator lands the #260 prod apply
-    # and the next run converges (idempotent, change-detected upsert).
-    Write-ImperionLog -Level Warn -Source 'm365' -Message "Entra app-registrations sync skipped: $($_.Exception.Message)"
+Invoke-ImperionM365EstateSweep -Label 'Entra app-registrations' -PerTenant {
+    param($TenantId)
+    if ($TenantId) { Get-ImperionEntraAppRegistration -TenantId $TenantId | Set-ImperionEntraAppRegistrationToBronze }
+    else { Get-ImperionEntraAppRegistration | Set-ImperionEntraAppRegistrationToBronze }
 }

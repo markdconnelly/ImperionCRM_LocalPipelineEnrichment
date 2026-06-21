@@ -11,8 +11,8 @@
 # group-object task (entra-groups, issue #150).
 #
 # GATED: migration 0079 is applied to prod (2026-06-12); were m365_group_members ever absent
-# the post fails loudly and the catch below logs a Warn and exits cleanly so the schedule
-# never crashes.
+# the post fails loudly and the estate-sweep helper logs a Warn per tenant and continues so
+# the schedule never crashes.
 #
 # Register with Register-ImperionTask (run elevated, under the gMSA/service identity):
 #
@@ -23,19 +23,8 @@
 Import-Module ImperionPipeline
 Initialize-ImperionContext
 
-try {
-    $tenantIds = @($env:IMPERION_M365_TENANT_IDS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    if ($tenantIds.Count -eq 0) {
-        Get-ImperionM365GroupMember | Set-ImperionM365GroupMemberToBronze
-    }
-    else {
-        foreach ($tenantId in $tenantIds) {
-            Get-ImperionM365GroupMember -TenantId $tenantId | Set-ImperionM365GroupMemberToBronze
-        }
-    }
-}
-catch {
-    # Schema/permission gate: log loudly and exit; the next run converges (idempotent,
-    # change-detected upsert).
-    Write-ImperionLog -Level Warn -Source 'm365' -Message "Entra group membership sync skipped: $($_.Exception.Message)"
+Invoke-ImperionM365EstateSweep -Label 'Entra group membership' -PerTenant {
+    param($TenantId)
+    if ($TenantId) { Get-ImperionM365GroupMember -TenantId $TenantId | Set-ImperionM365GroupMemberToBronze }
+    else { Get-ImperionM365GroupMember | Set-ImperionM365GroupMemberToBronze }
 }

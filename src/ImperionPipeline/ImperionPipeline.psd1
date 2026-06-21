@@ -42,6 +42,7 @@
         'Get-ImperionSemanticDrift',
         'Invoke-ImperionSemanticDriftSync',
         # Building blocks (reusable helpers)
+        'Invoke-ImperionM365EstateSweep',
         'Write-ImperionLog',
         'Get-ImperionContentHash',
         'ConvertTo-ImperionFlatObject',

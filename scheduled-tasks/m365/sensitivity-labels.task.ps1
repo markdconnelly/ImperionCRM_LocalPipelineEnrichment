@@ -9,7 +9,8 @@
 # runs in the front-end posture merge (#259), not here.
 #
 # GATED: until the front-end sensitivity_labels migration (#259) is applied to prod the post
-# fails loudly; the catch below logs a Warn and exits cleanly so the schedule never crashes.
+# fails loudly; the estate-sweep helper logs a Warn per tenant and continues so the schedule
+# never crashes.
 #
 # Register with Register-ImperionTask (run elevated, under the gMSA/service identity):
 #
@@ -20,19 +21,8 @@
 Import-Module ImperionPipeline
 Initialize-ImperionContext
 
-try {
-    $tenantIds = @($env:IMPERION_M365_TENANT_IDS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    if ($tenantIds.Count -eq 0) {
-        Get-ImperionSensitivityLabel | Set-ImperionSensitivityLabelToBronze
-    }
-    else {
-        foreach ($tenantId in $tenantIds) {
-            Get-ImperionSensitivityLabel -TenantId $tenantId | Set-ImperionSensitivityLabelToBronze
-        }
-    }
-}
-catch {
-    # Schema/permission gate: log loudly and exit; the operator lands the #259 prod apply
-    # and the next run converges (idempotent, change-detected upsert).
-    Write-ImperionLog -Level Warn -Source 'm365' -Message "Sensitivity labels sync skipped: $($_.Exception.Message)"
+Invoke-ImperionM365EstateSweep -Label 'Sensitivity labels' -PerTenant {
+    param($TenantId)
+    if ($TenantId) { Get-ImperionSensitivityLabel -TenantId $TenantId | Set-ImperionSensitivityLabelToBronze }
+    else { Get-ImperionSensitivityLabel | Set-ImperionSensitivityLabelToBronze }
 }
