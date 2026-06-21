@@ -1,4 +1,4 @@
-# Imperion CRM — go-live roadmap
+# Imperion OS — go-live roadmap
 
 > **You are in: `ImperionCRM_LocalPipelineEnrichment` — synced copy.** Canonical:
 > `ImperionCRM/docs/architecture/go-live-roadmap.md`. Update the canonical and re-sync. **As of 2026-06-10.** Companion to the
