@@ -72,7 +72,7 @@ Describe 'Get-ImperionKqmOpportunity' {
             Mock Get-ImperionKeyVaultSecret { 'kv-value' }
             Mock Invoke-ImperionKqmRequest { @() }
             Get-ImperionKqmOpportunity | Out-Null
-            Should -Invoke Get-ImperionKeyVaultSecret -Times 1 -ParameterFilter { $Name -eq 'KQM-API-Key' }
+            Should -Invoke Get-ImperionKeyVaultSecret -Times 1 -ParameterFilter { $Name -eq 'conn-company-quotemanager' }
             Should -Invoke Invoke-ImperionKqmRequest -Times 1 -ParameterFilter { $ApiKey -eq 'kv-value' }
         }
     }
