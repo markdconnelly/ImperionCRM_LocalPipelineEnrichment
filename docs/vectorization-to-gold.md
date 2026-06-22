@@ -55,14 +55,22 @@ refreshed the silver/gold inputs.
 `Invoke-ImperionKnowledgeCompose` spine (#106) which owns the tenant default, connection
 lifecycle, related-row caches, the row emit + `content_hash` over title+body, and the metric
 log. Entity types: **account · contact · contract · ticket · device · exposure · assessment ·
-proposal · posture · social · conversation_segment**. A new entity is a SQL query + a
+proposal · posture · social · conversation_segment · memory**. A new entity is a SQL query + a
 `-Compose` scriptblock — the row shape and idempotency contract live in one place.
 
 > **PII / safety boundaries (enforced in the composers):** `exposure` carries
 > `credential_exposure` **facts only** — no raw breach payloads, no plaintext credentials ever
 > reach gold. `posture` is one object per tenant (Secure Score + drift counts + named gaps),
 > not per-policy detail. `conversation_segment` excludes purged conversations both in the query
-> and the citation view.
+> and the citation view. `memory` (deliberate-capture memory threads, LP #300 / front-end
+> ADR-0113/0115/0116) rolls each conversation's verbatim `memory_drawer` rows into ONE
+> `entity_type='memory'` object (`entity_ref = conversation_id`), with `wing`/`room`/`agent_slug`
+> in `metadata` — the **exact facet keys the backend recall path filters on** (`recallMemory`'s
+> `metadata @>` containment). Drawer bodies are PII-bearing verbatim memory; they flow
+> bronze→gold→Voyage like transcript segments, embedded **in place** (never copied off-box). The
+> verbatim is the drill-down target (ADR-0113: reason over the gold summary, recall the verbatim).
+> _(This is the gold path; the original #300 sketch of an inline `memory_drawer.embedding` column
+> was superseded by ADR-0114 §9 — there is no inline personal vector.)_
 
 ## The pinned vector contract (ADR-0009 / front-end ADR-0041)
 
