@@ -61,16 +61,21 @@ function Get-ImperionMyItProcessRecommendation {
         }
     }
 
-    # Documented myITprocess recommendation fields lead each chain; column set mirrors front-end
-    # migration 0119 (myitprocess_recommendations).
+    # The VERIFIED live key (prod recommendations payload, #303) leads each chain; the old
+    # doc-modeled guesses stay as fallbacks. Column set mirrors front-end migration 0119
+    # (myitprocess_recommendations). Live shape: { id, name, type, priority, status,
+    # budgetMonth, client{id,name}, initiative{id}, description, hours, ... }.
+    #   assessment_name has NO live source — the recommendations endpoint carries only
+    #   initiative{id} (no review/assessment name), so it intentionally lands NULL
+    #   (raw_payload stays lossless). Add a head here if a named endpoint surfaces one.
     $map = [ordered]@{
-        account_ref          = { param($r) & $firstOf $r @('clientId', 'accountId', 'client.id', 'account.id') }
+        account_ref          = { param($r) & $firstOf $r @('client.id', 'clientId', 'accountId', 'account.id') }
         assessment_name      = { param($r) & $firstOf $r @('assessmentName', 'assessment.name', 'reviewName') }
-        recommendation_title = { param($r) & $firstOf $r @('title', 'recommendationTitle', 'name') }
-        category             = { param($r) & $firstOf $r @('category', 'categoryName', 'category.name') }
+        recommendation_title = { param($r) & $firstOf $r @('name', 'title', 'recommendationTitle') }
+        category             = { param($r) & $firstOf $r @('type', 'category', 'categoryName', 'category.name') }
         priority             = { param($r) & $firstOf $r @('priority', 'priorityName', 'urgency') }
         status               = { param($r) & $firstOf $r @('status', 'statusName', 'state') }
-        target_date          = { param($r) & $firstOf $r @('targetDate', 'dueDate', 'plannedDate') }
+        target_date          = { param($r) & $firstOf $r @('budgetMonth', 'targetDate', 'dueDate', 'plannedDate') }
     }
 
     $recommendations | ConvertTo-ImperionFlatObject -PropertyMap $map -Source 'myitprocess' -TenantId $TenantId -ExternalIdProperty 'id'
