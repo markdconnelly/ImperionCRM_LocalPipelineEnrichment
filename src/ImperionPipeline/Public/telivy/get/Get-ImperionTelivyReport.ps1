@@ -28,10 +28,9 @@ function Get-ImperionTelivyReport {
     )
 
     $cfg = Get-ImperionConfig
-    $names = Get-ImperionSecretNames
     if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
 
-    $apiKey = Get-ImperionSecretValue -Name $names.TelivyApiKey
+    $apiKey = Resolve-ImperionTelivyApiKey
     $records = Invoke-ImperionTelivyRequest -ApiKey $apiKey -Uri ('{0}/reports?page[size]=100' -f $BaseUri.TrimEnd('/'))
 
     $map = [ordered]@{

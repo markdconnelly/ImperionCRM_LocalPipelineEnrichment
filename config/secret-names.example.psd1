@@ -2,6 +2,13 @@
     # Stable secret NAMES (not values) stored in the SecretStore. Values are added by the
     # bootstrap/operator with Set-Secret; rotated per docs/operations/secret-rotation.md.
     # The values below are the ACTUAL SecretStore secret titles (confirmed with Mark).
+    #
+    # NOTE (issue #291): IT Glue, KQM (registry provider 'quotemanager') and Telivy now resolve
+    # their company API key DIRECTLY from Key Vault under the standardized credential-registry
+    # name conn-company-<provider> (the same secret the cloud reads). The SecretStore mirror
+    # titles below for those three (ITGlueReadKey, KqmApiKey/KqmApiKeyVaultSecret, TelivyApiKey)
+    # are NO LONGER consulted for collection and are retained only pending the cleanup follow-up.
+    # The IT Glue *write* path (Set-ImperionITGlueFlexibleAsset, ITGlueWriteKey) is unchanged.
 
     # IT Glue — one API key in the vault; the export (read) and flexible-asset (write) paths
     # both use it (no separate read/write keys exist).

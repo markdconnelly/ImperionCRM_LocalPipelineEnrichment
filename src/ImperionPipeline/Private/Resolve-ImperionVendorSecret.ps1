@@ -39,15 +39,20 @@ function Resolve-ImperionVendorSecret {
         throw "Unknown vendor secret '$Vendor': no entry in Get-ImperionVendorSecretCatalog."
     }
 
+    # SecretStoreKey / VaultSecretConfigKey are OPTIONAL per entry — index access ($spec['Key'])
+    # returns $null for an absent key (member access $spec.Key would throw under StrictMode), so a
+    # KV-only entry (issue #291: itglue/telivy/kqm) cleanly skips the SecretStore mirror tier.
+    $secretStoreKey = $spec['SecretStoreKey']
+    $vaultConfigKey = $spec['VaultSecretConfigKey']
     $secretNames = Get-ImperionSecretNames
-    if ($script:ImperionSecretStoreVault -and
-        $secretNames -is [System.Collections.IDictionary] -and $secretNames.Contains($spec.SecretStoreKey)) {
-        $Value = Get-ImperionSecretValue -Name $secretNames[$spec.SecretStoreKey]
+    if ($script:ImperionSecretStoreVault -and $secretStoreKey -and
+        $secretNames -is [System.Collections.IDictionary] -and $secretNames.Contains($secretStoreKey)) {
+        $Value = Get-ImperionSecretValue -Name $secretNames[$secretStoreKey]
     }
     if (-not $Value) {
         $keyVaultSecretName =
-            if ($secretNames -is [System.Collections.IDictionary] -and $secretNames.Contains($spec.VaultSecretConfigKey)) {
-                $secretNames[$spec.VaultSecretConfigKey]
+            if ($vaultConfigKey -and $secretNames -is [System.Collections.IDictionary] -and $secretNames.Contains($vaultConfigKey)) {
+                $secretNames[$vaultConfigKey]
             }
             else { $spec.VaultDefault }
         $Value = Get-ImperionKeyVaultSecret -Name $keyVaultSecretName
