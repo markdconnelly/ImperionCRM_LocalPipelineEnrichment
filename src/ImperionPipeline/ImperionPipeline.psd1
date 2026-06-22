@@ -277,7 +277,9 @@
         # orchestrators below — they are now Private (src/.../Private/knowledge/) and
         # remain callable in-module. Only the two genuine entrypoints stay exported.
         'Invoke-ImperionKnowledgeSync',
-        'Invoke-ImperionVectorizeKnowledge'
+        'Invoke-ImperionVectorizeKnowledge',
+        # Curated Vault local-sync — LP arm (SCAFFOLD / not-yet-wired; issue #306 / ADR-0114 §8)
+        'Invoke-ImperionVaultSync'
     )
     CmdletsToExport   = @()
     VariablesToExport = @()
