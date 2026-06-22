@@ -100,6 +100,12 @@ function Register-ImperionTask {
         @{ Name = 'Imperion-MileIqDrives';           Cmdlet = 'Invoke-ImperionMileIqDriveSync';           At = '01:50' }
         @{ Name = 'Imperion-PlaudRecordings';        Cmdlet = 'Invoke-ImperionPlaudRecordingSync';        At = '01:55' }
         @{ Name = 'Imperion-DocuSignEnvelopes';      Cmdlet = 'Invoke-ImperionDocuSignEnvelopeSync';      At = '02:05' }
+        # Pax8 (company OAuth2 client-credentials; #279/#1042). Companies first — the join spine
+        # the other three carry company_id against; the merge (#280) laterals on it.
+        @{ Name = 'Imperion-Pax8Companies';          Cmdlet = 'Invoke-ImperionPax8CompanySync';           At = '02:06' }
+        @{ Name = 'Imperion-Pax8Subscriptions';      Cmdlet = 'Invoke-ImperionPax8SubscriptionSync';      At = '02:07' }
+        @{ Name = 'Imperion-Pax8Licenses';           Cmdlet = 'Invoke-ImperionPax8LicenseSync';           At = '02:08' }
+        @{ Name = 'Imperion-Pax8Orders';             Cmdlet = 'Invoke-ImperionPax8OrderSync';             At = '02:09' }
         # IT Glue (company API key)
         @{ Name = 'Imperion-ITGlueOrganizations';    Cmdlet = 'Invoke-ImperionITGlueOrganizationSync';    At = '02:10' }
         @{ Name = 'Imperion-ITGlueContacts';         Cmdlet = 'Invoke-ImperionITGlueContactSync';         At = '02:12' }

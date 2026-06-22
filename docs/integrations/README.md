@@ -31,6 +31,12 @@ until creds + confirm-before-live):
   backing the front-end CMDB cloud-asset CI type (epic #201 / #216, ADR-0023). Fanned out per
   consented client tenant; **gated** on the front-end `cloud_*` migration (dormant until applied).
 
+**Procurement / distribution** (MSP-wide company credentials, gated on provisioning):
+- [`pax8-integration.md`](pax8-integration.md) — Pax8 distributor companies / subscriptions /
+  licenses / orders → `pax8_companies` / `pax8_subscriptions` / `pax8_licenses` / `pax8_orders`
+  (#279, epic #1042; the #1041 license-cost-recon spine). Auth: OAuth2 client-credentials →
+  short-lived bearer. Merge co-locates with ingestion (sibling #280, ADR-0026).
+
 **Spikes / assessments** (not yet wired collectors):
 - [`graph-usage-reports-spike.md`](graph-usage-reports-spike.md) — Microsoft Graph usage
   reports (`Reports.Read.All`) for client analytics (#144). Verdict: **defer** — build a

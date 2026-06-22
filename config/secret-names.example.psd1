@@ -121,6 +121,21 @@
     CdwApiKey                    = 'cdw-api-key'
     CdwApiKeyVaultSecret         = 'CDW-API-Key'
 
+    # Pax8 (issue #279, epic #1042) — the MSP's single distributor-account, a COMPANY credential
+    # (Imperion's own Pax8 account, NOT per-client). OAuth2 client-credentials: TWO parts — a
+    # client id + a client secret — exchanged for a short-lived bearer by Invoke-ImperionPax8Request
+    # (the body carries the secret; the retry core redacts it). Resolution in
+    # Resolve-ImperionPax8Credential mirrors the Datto/CDW pattern per half:
+    #   1. SecretStore title below (when the vault is unlocked this run) — mirror of the KV value
+    #   2. Key Vault secret below, read by the cert SP (the ORIGINAL, kv-imperioncrm-prd)
+    # GATED: until both are provisioned (Mark-gated), each collector's task logs the gap + exits
+    # cleanly. The front-end bronze migration 0161 (pax8_companies/subscriptions/licenses/orders)
+    # is authored; the post writer fails loudly if a table is absent. See docs/integrations/pax8-integration.md.
+    Pax8ClientId                 = 'pax8-client-id'
+    Pax8ClientIdVaultSecret      = 'Pax8-Client-Id'
+    Pax8ClientSecret             = 'pax8-client-secret'
+    Pax8ClientSecretVaultSecret  = 'Pax8-Client-Secret'
+
     # Voyage AI key for the vectorization stage (ADR-0009; pinned voyage-3-large @ 1024,
     # front-end ADR-0041). Resolution order in Get-ImperionVoyageEmbedding:
     #   1. SecretStore title below (when the vault is unlocked this run) — mirror of the KV value

@@ -1,0 +1,48 @@
+function Set-ImperionPax8CompanyToBronze {
+    <#
+    .SYNOPSIS
+        Write flattened Pax8 company rows into the pax8_companies bronze table.
+    .DESCRIPTION
+        Post-layer writer (CLAUDE.md §6) — a thin adapter over Invoke-ImperionBronzePost (issue
+        #105). Takes the flat, fully-enveloped rows from Get-ImperionPax8Company and upserts them
+        (standard envelope, change-detected) projected to exactly the pax8_companies column set
+        (front-end migration 0161); extras survive in raw_payload. NEVER creates the table — fails
+        loudly at the upsert if it is absent (schema owned by the front end, ADR-0005).
+        Idempotent/resumable. Pass an open -Connection to share one across a batch.
+        Requires Initialize-ImperionContext.
+    .PARAMETER Row
+        Flat bronze rows from Get-ImperionPax8Company (accepted from the pipeline).
+    .PARAMETER Connection
+        Optional open Npgsql connection to reuse. Opened from config + disposed when omitted.
+    .PARAMETER Table
+        Target bronze table. Defaults to pax8_companies.
+    .OUTPUTS
+        The upsert tally { scanned; inserted; updated; unchanged }.
+    .EXAMPLE
+        Get-ImperionPax8Company | Set-ImperionPax8CompanyToBronze
+    #>
+    [CmdletBinding(SupportsShouldProcess)]
+    [OutputType([pscustomobject])]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSShouldProcess', '',
+        Justification = 'ShouldProcess is delegated to the shared scaffold Invoke-ImperionBronzePost via -CallerCmdlet $PSCmdlet (issue #105).')]
+    param(
+        [Parameter(ValueFromPipeline)][AllowNull()] $Row,
+        $Connection,
+        [string] $Table = 'pax8_companies'
+    )
+
+    begin {
+        $tableColumns = @(
+            'pax8_company_id', 'name', 'status',
+            'tenant_id', 'source', 'external_id', 'collected_at', 'raw_payload', 'content_hash'
+        )
+        $collected = [System.Collections.Generic.List[object]]::new()
+    }
+    process {
+        foreach ($r in $Row) { if ($null -ne $r) { $collected.Add($r) } }
+    }
+    end {
+        Invoke-ImperionBronzePost -CallerCmdlet $PSCmdlet -Connection $Connection `
+            -Rows $collected.ToArray() -Table $Table -LogSource 'pax8' -ColumnSet $tableColumns
+    }
+}
