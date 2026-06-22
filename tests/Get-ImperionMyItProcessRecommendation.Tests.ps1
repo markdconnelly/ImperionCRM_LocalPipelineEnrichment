@@ -58,7 +58,10 @@ Describe 'Get-ImperionMyItProcessRecommendation' {
             Mock Invoke-ImperionMyItProcessRequest { , @() }
             Get-ImperionMyItProcessRecommendation | Out-Null
             Should -Invoke Resolve-ImperionMyItProcessApiKey -Times 1
-            Should -Invoke Invoke-ImperionMyItProcessRequest -Times 1 -ParameterFilter { $ApiKey -eq 'resolved-key' }
+            Should -Invoke Invoke-ImperionMyItProcessRequest -Times 1 -ParameterFilter {
+                $ApiKey -eq 'resolved-key' -and
+                $Uri -eq 'https://reporting.live.myitprocess.com/public-api/v1/recommendations'
+            }
         }
     }
 }

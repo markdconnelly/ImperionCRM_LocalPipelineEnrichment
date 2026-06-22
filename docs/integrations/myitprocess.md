@@ -14,7 +14,7 @@ pull-only scheduled bulk pull lands into Postgres bronze (`myitprocess_recommend
 ## Source & auth
 | Source | API | Auth |
 | --- | --- | --- |
-| myITprocess | myITprocess REST API (`https://api.myitprocess.com/api/v1`) | **`api_token` header** (URLs are NOT secret-bearing). Key Vault `conn-company-myitprocess` (cert SP) — the standardized credential-registry secret, read as a JSON blob and the `apiKey` field extracted (#292 → #299). KV-only; the legacy SecretStore `myitprocess-api-key` / KV `myITprocess-API-Key` are retired |
+| myITprocess | myITprocess Reporting API (`https://reporting.live.myitprocess.com/public-api/v1`) — verified live, #297 | **`mitp-api-key` header** (URLs are NOT secret-bearing). Key Vault `conn-company-myitprocess` (cert SP) — the standardized credential-registry secret, read as a JSON blob and the `apiKey` field extracted (#292 → #299). KV-only; the legacy SecretStore `myitprocess-api-key` / KV `myITprocess-API-Key` are retired |
 
 - **MSP-wide vendor credential** (ADR-0018 §2) — Imperion's own vCIO account, not per-client.
 - **Read-only / pull-only** (no webhooks reach a home server — ADR-0001).
@@ -55,13 +55,16 @@ recommendations change slowly; stagger from the Datto tasks.
 2. ~~Front-end `myitprocess_recommendations` bronze migration~~ — **SHIPPED + prod-applied**
    (migration 0119, #674).
 
-## Still assumptions (no live access yet) — CONFIRM BEFORE LIVE
-Modeled from the documented myITprocess API; **unverified** until the key lands (fallback chain +
-lossless `raw_payload`):
-- The base host, the auth header name (`api_token` vs `Authorization`), the resource path
-  (`/recommendations`), the `data` collection wrapper, and the pagination scheme.
-- Field names/casing (`id`, `clientId`, `assessmentName`, `title`, `category`, `priority`,
-  `status`, `targetDate`).
+## Verified vs still-assumed (#297)
+**Verified live (2026-06-21, a direct GET returned HTTP 200):** base host
+`https://reporting.live.myitprocess.com/public-api/v1`, auth header `mitp-api-key`, resource path
+`/recommendations`, and the response wrapper `{ page, pageSize, totalCount, items }` — paging stops
+on `totalCount` (server-page-size safe), short-page heuristic only as a no-`totalCount` fallback.
+Corroborated by the Celerium MyITProcess-PowerShellWrapper + Kaseya Swagger.
+
+**Still assumed** (fallback chain + lossless `raw_payload` cover a miss — re-verify on the first
+prod pull): the per-column SOURCE field names/casing (`id`, `clientId`, `assessmentName`, `title`,
+`category`, `priority`, `status`, `targetDate`).
 
 ## Cross-references
 - This repo: **ADR-0018**, ADR-0001, ADR-0005, ADR-0006 (CRM/advisory exception — IT Glue skipped),
