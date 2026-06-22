@@ -74,5 +74,20 @@ function Get-ImperionVendorSecretCatalog {
             VaultDefault         = 'AmazonBusiness-Token'
             ErrorMessage         = 'Amazon Business access token unavailable: pass -Token, provision the SecretStore secret named by AmazonBusinessToken, or the Key Vault secret named by AmazonBusinessTokenVaultSecret (issue #198).'
         }
+        # Pax8 (issue #279, epic #1042) — the MSP's single distributor-account OAuth2
+        # client-credentials app: TWO parts (client id + client secret). Both resolve through
+        # the same three-tier shape; Resolve-ImperionPax8Credential returns them as a pair.
+        pax8clientid = @{
+            SecretStoreKey       = 'Pax8ClientId'
+            VaultSecretConfigKey = 'Pax8ClientIdVaultSecret'
+            VaultDefault         = 'Pax8-Client-Id'
+            ErrorMessage         = 'Pax8 client id unavailable: provision the SecretStore secret named by Pax8ClientId, or the Key Vault secret named by Pax8ClientIdVaultSecret (issue #279, epic #1042).'
+        }
+        pax8secret = @{
+            SecretStoreKey       = 'Pax8ClientSecret'
+            VaultSecretConfigKey = 'Pax8ClientSecretVaultSecret'
+            VaultDefault         = 'Pax8-Client-Secret'
+            ErrorMessage         = 'Pax8 client secret unavailable: provision the SecretStore secret named by Pax8ClientSecret, or the Key Vault secret named by Pax8ClientSecretVaultSecret (issue #279, epic #1042).'
+        }
     }
 }
