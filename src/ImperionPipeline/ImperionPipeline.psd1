@@ -95,6 +95,8 @@
         # Semantic-layer (OKF) drift agent (issue #175 / ADR-0086)
         'Get-ImperionSemanticDrift',
         'Invoke-ImperionSemanticDriftSync',
+        # Semantic-layer (OKF) bundle vectorizer (issue #176 / ADR-0086 + ADR-0041)
+        'Invoke-ImperionSemanticConceptSync',
         # Building blocks (reusable helpers)
         'Invoke-ImperionM365EstateSweep',
         'Write-ImperionLog',
