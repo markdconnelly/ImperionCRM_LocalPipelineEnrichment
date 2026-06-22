@@ -58,10 +58,13 @@ generalized.
 (`Resolve-ImperionTenantCredential` #257) wired into the m365 (#250) and ARM (#258)
 collectors.
 
-- **UniFi trio COMPLETE (2026-06-20):** BE #233/PR234 provider_config + **LP #259/PR269
-  multi-console sweep** + FE #964/PR965 register form.
-- **Mark-gated / still pending:** prod-apply migrations 0150 + 0151, plus the LP
-  `unifi_devices` bronze (#73). The registry is **EMPTY in prod**.
+- **UniFi COMPLETE (collector + bronze):** BE #233/PR234 provider_config + **LP #259/PR269
+  multi-console sweep** + FE #964/PR965 register form + **FE migration `0162` `unifi_devices`
+  bronze (#1053/#73) — prod-applied (table live, EMPTY pending a registered console)**. The
+  on-prem writer/collector docs are reconciled to the landed table (#281).
+- **Mark-gated / still pending:** prod-apply migrations 0150 + 0151; register a client UniFi
+  console (the registry is **EMPTY in prod**, so the sweep self-gates + no-ops). Follow-up:
+  on-prem `Invoke-ImperionUniFiMerge` bronze→silver `device` (ADR-0026, #73 acceptance).
 
 ---
 

@@ -13,15 +13,15 @@ function Invoke-ImperionUniFiRequest {
           `https://api.ui.com/v1/...` — cursor paging (`nextToken` in the body, echoed as
           a query parameter).
 
-        Both send the per-customer API key as the `X-API-Key` header. Pure and
-        StrictMode-safe: the key is passed in (company credential — Key Vault
-        `conn-company-unifi` JSON blob), so the function holds no secret and is mockable.
+        Both send the per-console API key as the `X-API-Key` header. Pure and
+        StrictMode-safe: the key is passed in (per-client/per-console credential resolved
+        from the `connection` registry, ADR-0103), so the function holds no secret and is mockable.
 
         CONFIRM BEFORE LIVE USE: items/paging property names (`data`, `nextToken`,
         `offset`/`totalCount`) are ASSUMPTIONS from the published UniFi API docs — verify
         against the live controller on the first pull, per connection type.
     .PARAMETER ApiKey
-        UniFi API key (per-customer company credential), sent as X-API-Key.
+        UniFi API key (per-client/per-console registry credential), sent as X-API-Key.
     .PARAMETER Uri
         Full request URL (base + path) for the first page.
     .PARAMETER ItemsProperty

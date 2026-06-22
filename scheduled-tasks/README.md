@@ -58,7 +58,7 @@ Register-ImperionTask -Name 'Imperion m365 Mail' `
 | **telivy** | `telivy/assessments` | Assessments | **Daily** | Assessments change slowly |
 | **darkwebid** | `darkwebid/compromises` | Compromises | **Daily** | Vendor refreshes ~daily |
 | **docusign** | `docusign/envelopes` | Envelopes (contracts) | **Daily** | Signing lifecycle is slow; gated on secrets |
-| **unifi** | `unifi/devices` | Devices + config compliance | **Daily** | Per-customer credential; double-gated (credential + pending bronze migration) |
+| **unifi** | `unifi/devices` | Devices + config compliance | **Daily** | Per-client/per-console registry credential; gated on a registered console (bronze table `unifi_devices`/0162 landed) |
 | **plaud** | `plaud/recordings` | Recordings (note + transcript) | **Daily** | Per-user OAuth token; double-gated (token freshness + pending bronze migration) |
 | **posture** | `posture/service-principals` | Service principals | **Daily** | Credential-expiry watch |
 | **posture** | `posture/secure-score` | Secure Score | **Daily** | One snapshot/day |

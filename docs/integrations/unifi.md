@@ -41,11 +41,13 @@ for the API family + host. **Per-console isolation is absolute** — every bronz
 its owning tenant (the account's mapped Microsoft tenant, else the account id), and a console
 with no usable credential / consent is skipped, never touched (fail closed, §3/§8).
 
-## SCHEMA GATE — bronze table does not exist yet
+## Bronze table — landed (front-end migration 0162)
 
-`unifi_devices` needs a **front-end migration** (schema is owned there, ADR-0017; this
-repo never creates tables). Proposed DDL (standard local-pipeline envelope, migration-0038
-style — submit via the schema handoff):
+`unifi_devices` is the front-end-owned bronze table (schema is owned there, ADR-0017; this
+repo never creates tables). It landed in **front-end migration `0162`** (#1053/#73) and is
+**prod-applied** — the table exists with the local-pipeline write grant, but is **EMPTY**
+until a console is registered. Shape (standard local-pipeline envelope, all-text bronze;
+true types + lossless payload in `raw_payload`):
 
 ```sql
 CREATE TABLE IF NOT EXISTS unifi_devices (
@@ -56,16 +58,18 @@ CREATE TABLE IF NOT EXISTS unifi_devices (
   PRIMARY KEY (tenant_id, source, external_id)
 );
 -- + GRANT SELECT, INSERT, UPDATE ON unifi_devices TO "imperion-localpipeline";
+-- + CREATE INDEX ix_unifi_devices_mac ON unifi_devices (mac);  -- merge natural key
 ```
 
-Also queued behind the handoff (issue #73 acceptance): compliance/policy columns on
-silver `device`, the `unifi` source in the device merge, and the Devices-page surfacing —
-all front-end/pipeline work.
+Merge target is silver `device` (network-infrastructure class, NOT `cloud_asset`); the
+`device` OKF concept already names `unifi` as a contributing source (0162). The on-prem
+bronze→silver `Invoke-ImperionUniFiMerge` (merge co-locates with ingestion, ADR-0026) and
+the Devices-page compliance surfacing are tracked follow-ups (issue #73 acceptance).
 
-**Until the migration lands, the sweep is GATED on the table** (and per-console on an active
-registry row): each console logs a Warn and is skipped; the first run after the grants land +
-a console is registered converges (idempotent, change-detected upsert). The sweep itself is
-dormant-safe — no active rows means it logs and no-ops.
+**The sweep self-gates per console on an active registry row:** with no active client UniFi
+`connection` rows the sweep logs and no-ops (dormant-safe); a console with no usable
+credential is logged + skipped. The first run after a console is registered converges
+(idempotent, change-detected upsert).
 
 ## Cadence & fields
 
@@ -78,7 +82,7 @@ signal) · `adopted` · `last_seen`.
 
 - `Invoke-ImperionUniFiRequest` — connect: X-API-Key + nextToken/offset paging.
 - `Get-ImperionUniFiDevice` — get: `-ConnectionType console` (sites → devices) or
-  `cloud` (per-host device groups); flatten to the proposed bronze shape (source `unifi`).
+  `cloud` (per-host device groups); flatten to the `unifi_devices` bronze shape (source `unifi`).
   Takes a single explicit `-ApiKey` (the per-console primitive).
 - `Set-ImperionUniFiDeviceToBronze` — post: `Invoke-ImperionBronzePost` adapter,
   `-ColumnSet` projection, change-detected upsert.
@@ -91,7 +95,8 @@ signal) · `adopted` · `last_seen`.
 - `Resolve-ImperionAccountTenant` (private) — owning-tenant isolation key for an
   account-scoped source: the account's mapped Microsoft tenant (`account_tenant`), else the
   account id.
-- Task: `scheduled-tasks/unifi/devices.task.ps1` (daily) → `Invoke-ImperionUniFiDeviceSync`.
+- Task: registered scheduled task `Imperion-UniFiDevices` (daily, 02:20; `Register-ImperionTask`,
+  ADR-0007 — no loose entry scripts) → `Invoke-ImperionUniFiDeviceSync`.
 
 ## Assumptions to confirm on first live run
 
