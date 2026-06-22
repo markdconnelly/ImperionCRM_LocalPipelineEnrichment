@@ -1,5 +1,6 @@
 #Requires -Modules Pester
 # Hermetic tests for Get-ImperionIntuneManagedApp: Graph token + request mocked in module scope.
+# The collector fans out managedDevices -> per-device detectedApps (issue #252, FE migration 0148).
 
 BeforeAll {
     $module = Join-Path (Split-Path -Parent $PSScriptRoot) 'src\ImperionPipeline\ImperionPipeline.psd1'
@@ -15,38 +16,59 @@ Describe 'Get-ImperionIntuneManagedApp' {
         }
     }
 
-    It 'flattens managed apps to the standard bronze envelope' {
+    It 'flattens each per-device detected app to the 0148 bronze envelope (composite external_id)' {
         InModuleScope ImperionPipeline {
-            Mock Invoke-ImperionGraphRequest {
+            Mock Invoke-ImperionGraphRequest -ParameterFilter { $Uri -match 'managedDevices' -and $Uri -notmatch 'detectedApps' } {
+                , @([pscustomobject]@{ id = 'dev-1'; deviceName = 'SRV-DC1'; serialNumber = 'SN-1' })
+            }
+            Mock Invoke-ImperionGraphRequest -ParameterFilter { $Uri -match 'detectedApps' } {
                 , @([pscustomobject]@{
-                        id = 'app-1'; '@odata.type' = '#microsoft.graph.win32LobApp'
-                        displayName = '7-Zip'; publisher = 'Igor Pavlov'; publishingState = 'published'
-                        isFeatured = $true; isAssigned = $true; version = '23.01'
+                        id = 'app-9'; displayName = '7-Zip'; publisher = 'Igor Pavlov'
+                        version = '23.01'; platform = 'windows'; sizeInByte = 1500000
                     })
             }
-            $rows = Get-ImperionIntuneManagedApp
-            $rows[0].display_name     | Should -Be '7-Zip'
-            $rows[0].app_type         | Should -Be 'win32LobApp'   # @odata.type namespace trimmed
-            $rows[0].publisher        | Should -Be 'Igor Pavlov'
-            $rows[0].publishing_state | Should -Be 'published'
-            $rows[0].is_featured      | Should -Be 'true'          # bool coerced to text
-            $rows[0].version          | Should -Be '23.01'
-            $rows[0].source           | Should -Be 'm365'
-            $rows[0].external_id      | Should -Be 'app-1'
-        }
-    }
 
-    It 'leaves app_type null when @odata.type is absent and does not throw on sparse apps' {
-        InModuleScope ImperionPipeline {
-            Mock Invoke-ImperionGraphRequest { , @([pscustomobject]@{ id = 'app-2'; displayName = 'Bare App' }) }
-            { Get-ImperionIntuneManagedApp } | Should -Not -Throw
             $rows = @(Get-ImperionIntuneManagedApp)
-            $rows[0].display_name | Should -Be 'Bare App'
-            $rows[0].app_type     | Should -BeNullOrEmpty
+            $rows.Count | Should -Be 1
+            $rows[0].managed_device_id | Should -Be 'dev-1'
+            $rows[0].serial_number     | Should -Be 'SN-1'
+            $rows[0].device_name       | Should -Be 'SRV-DC1'
+            $rows[0].app_id            | Should -Be 'app-9'
+            $rows[0].display_name      | Should -Be '7-Zip'
+            $rows[0].publisher         | Should -Be 'Igor Pavlov'
+            $rows[0].version           | Should -Be '23.01'
+            $rows[0].platform          | Should -Be 'windows'
+            $rows[0].size_in_bytes     | Should -Be '1500000'   # numeric coerced to text
+            $rows[0].app_type          | Should -Be 'detected'  # this feed is the detected-inventory half
+            $rows[0].install_state     | Should -BeNullOrEmpty   # detectedApp carries no install state
+            $rows[0].source            | Should -Be 'm365'
+            $rows[0].external_id       | Should -Be 'dev-1:app-9'  # managed_device_id + app_id
         }
     }
 
-    It 'collects from the requested tenant via GDAP token' {
+    It 'queries detectedApps per device and tolerates a device with no apps' {
+        InModuleScope ImperionPipeline {
+            Mock Invoke-ImperionGraphRequest -ParameterFilter { $Uri -match 'managedDevices' -and $Uri -notmatch 'detectedApps' } {
+                , @(
+                    [pscustomobject]@{ id = 'dev-1'; deviceName = 'A'; serialNumber = 'S1' },
+                    [pscustomobject]@{ id = 'dev-2'; deviceName = 'B'; serialNumber = 'S2' }
+                )
+            }
+            # dev-1 has one app, dev-2 has none.
+            Mock Invoke-ImperionGraphRequest -ParameterFilter { $Uri -match 'dev-1/detectedApps' } {
+                , @([pscustomobject]@{ id = 'app-1'; displayName = 'App One' })
+            }
+            Mock Invoke-ImperionGraphRequest -ParameterFilter { $Uri -match 'dev-2/detectedApps' } { , @() }
+
+            $rows = @(Get-ImperionIntuneManagedApp)
+            $rows.Count | Should -Be 1
+            $rows[0].external_id | Should -Be 'dev-1:app-1'
+            Should -Invoke Invoke-ImperionGraphRequest -Times 1 -ParameterFilter { $Uri -match 'dev-1/detectedApps' }
+            Should -Invoke Invoke-ImperionGraphRequest -Times 1 -ParameterFilter { $Uri -match 'dev-2/detectedApps' }
+        }
+    }
+
+    It 'collects from the requested tenant via the per-client onboarding-app token' {
         InModuleScope ImperionPipeline {
             Mock Invoke-ImperionGraphRequest { , @() }
             Get-ImperionIntuneManagedApp -TenantId 'customer-9' | Out-Null

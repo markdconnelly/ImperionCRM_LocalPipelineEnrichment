@@ -1,6 +1,6 @@
 #Requires -Modules Pester
-# Hermetic test for Set-ImperionIntuneManagedAppToBronze: standard envelope, projected to
-# the PROPOSED intune_managed_apps column set (front-end migration pending, ImperionCRM #261).
+# Hermetic test for Set-ImperionIntuneManagedAppToBronze: standard envelope, projected to the
+# intune_managed_apps column set (front-end migration 0148, per-device app inventory — issue #252).
 
 BeforeAll {
     $module = Join-Path (Split-Path -Parent $PSScriptRoot) 'src\ImperionPipeline\ImperionPipeline.psd1'
@@ -8,7 +8,7 @@ BeforeAll {
 }
 
 Describe 'Set-ImperionIntuneManagedAppToBronze' {
-    It 'projects rows to the proposed intune_managed_apps column set and change-detect upserts' {
+    It 'projects rows to the 0148 intune_managed_apps column set and change-detect upserts' {
         InModuleScope ImperionPipeline {
             Mock Write-ImperionLog { }
             Mock New-ImperionDbConnection {
@@ -21,11 +21,12 @@ Describe 'Set-ImperionIntuneManagedAppToBronze' {
 
             $rows = @(
                 [pscustomobject]@{
-                    app_type = 'win32LobApp'; display_name = '7-Zip'; publisher = 'Igor Pavlov'
-                    publishing_state = 'published'; is_featured = 'true'; is_assigned = 'true'
-                    version = '23.01'; last_modified_date_time = '2026-06-11T01:00:00Z'
+                    managed_device_id = 'dev-1'; serial_number = 'SN-1'; device_name = 'SRV-DC1'
+                    app_id = 'app-9'; display_name = '7-Zip'; publisher = 'Igor Pavlov'
+                    version = '23.01'; platform = 'windows'; app_type = 'detected'
+                    size_in_bytes = '1500000'
                     future_extra = 'dropme'
-                    tenant_id = 't1'; source = 'm365'; external_id = 'app-1'
+                    tenant_id = 't1'; source = 'm365'; external_id = 'dev-1:app-9'
                     collected_at = 'now'; raw_payload = '{}'; content_hash = 'h1'
                 }
             )
@@ -35,16 +36,16 @@ Describe 'Set-ImperionIntuneManagedAppToBronze' {
             $script:captured.NoChange | Should -BeFalse
             $projected = $script:captured.Rows[0]
             ($projected.PSObject.Properties.Name | Sort-Object) | Should -Be (@(
-                    'app_type', 'display_name', 'description', 'publisher', 'publishing_state',
-                    'is_featured', 'is_assigned', 'version', 'owner', 'developer', 'notes',
-                    'information_url', 'privacy_information_url', 'dependent_app_count',
-                    'superseding_app_count', 'superseded_app_count', 'created_date_time',
-                    'last_modified_date_time',
+                    'managed_device_id', 'serial_number', 'device_name',
+                    'app_id', 'display_name', 'publisher', 'version', 'platform',
+                    'install_state', 'install_state_detail', 'app_type',
+                    'size_in_bytes', 'last_modified_date_time',
                     'tenant_id', 'source', 'external_id', 'collected_at', 'raw_payload', 'content_hash'
                 ) | Sort-Object)
-            $projected.publishing_state | Should -Be 'published'
-            $projected.app_type         | Should -Be 'win32LobApp'
-            $projected.owner            | Should -BeNullOrEmpty   # missing on input -> projected as NULL
+            $projected.managed_device_id | Should -Be 'dev-1'
+            $projected.app_id            | Should -Be 'app-9'
+            $projected.app_type          | Should -Be 'detected'
+            $projected.install_state     | Should -BeNullOrEmpty   # missing on input -> projected as NULL
             $tally.scanned | Should -Be 1
         }
     }
@@ -56,7 +57,7 @@ Describe 'Set-ImperionIntuneManagedAppToBronze' {
             Mock Invoke-ImperionBronzeUpsert { throw 'should not upsert' }
 
             (@() | Set-ImperionIntuneManagedAppToBronze).scanned | Should -Be 0
-            $row = [pscustomobject]@{ display_name = 'a'; external_id = 'app'; content_hash = 'h' }
+            $row = [pscustomobject]@{ display_name = 'a'; external_id = 'dev:app'; content_hash = 'h' }
             { $row | Set-ImperionIntuneManagedAppToBronze -WhatIf } | Should -Not -Throw
             Should -Invoke Invoke-ImperionBronzeUpsert -Times 0
         }
