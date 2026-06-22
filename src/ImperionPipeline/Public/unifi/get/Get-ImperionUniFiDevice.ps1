@@ -13,22 +13,22 @@ function Get-ImperionUniFiDevice {
         - **-ConnectionType cloud** (site WITHOUT a gateway): Site Manager API —
           `https://api.ui.com/v1/devices` (devices grouped per host).
 
-        AUTH: UniFi is a per-customer COMPANY credential (Key Vault `conn-company-unifi`
-        JSON blob: apiKey + connectionType + host — backend Settings card writes it), so
-        the key is passed in by the caller/task; this function holds no secret.
+        AUTH: this is the per-console PRIMITIVE — it takes one explicit `-ApiKey` and holds
+        no secret. UniFi keys are per-client, per-console credentials in the front-end
+        `connection` registry (ADR-0103); the scheduled fan-out Invoke-ImperionUniFiDeviceSync
+        (#259) resolves each console's key from the registry and calls this once per console.
 
-        Flat columns target the PROPOSED `unifi_devices` bronze table — the front-end
-        migration does NOT exist yet (schema handoff, see docs/integrations/unifi.md and
-        the issue #73 comment): name, model, mac, ip_address, site, status,
-        firmware_version, firmware_updatable (the config-compliance signal: an available
-        but unapplied firmware/config update), adopted, last_seen. Everything else stays
-        lossless in raw_payload.
+        Flat columns target the `unifi_devices` bronze table (front-end migration 0162,
+        #1053/#73; see docs/integrations/unifi.md): name, model, mac, ip_address, site,
+        status, firmware_version, firmware_updatable (the config-compliance signal: an
+        available but unapplied firmware/config update), adopted, last_seen. Everything else
+        stays lossless in raw_payload.
 
         CONFIRM BEFORE LIVE USE: endpoint paths, paging, and field names are ASSUMPTIONS
         from the published UniFi API docs — verify per connection type on the first pull.
         Returns rows; does not write. Requires Initialize-ImperionContext.
     .PARAMETER ApiKey
-        UniFi API key (company credential), sent as X-API-Key.
+        UniFi API key for this console (per-client/per-console registry credential), sent as X-API-Key.
     .PARAMETER ConnectionType
         'console' (Network Integration API on the customer console) or 'cloud'
         (Site Manager API at api.ui.com).

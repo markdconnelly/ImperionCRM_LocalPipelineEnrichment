@@ -1,6 +1,6 @@
 #Requires -Modules Pester
 # Hermetic test for Set-ImperionUniFiDeviceToBronze: standard envelope, projected to the
-# PROPOSED unifi_devices column set (front-end migration pending, issue #73). Mocked DB seams.
+# unifi_devices column set (front-end migration 0162, #1053/#73). Mocked DB seams.
 
 BeforeAll {
     $module = Join-Path (Split-Path -Parent $PSScriptRoot) 'src\ImperionPipeline\ImperionPipeline.psd1'
@@ -8,7 +8,7 @@ BeforeAll {
 }
 
 Describe 'Set-ImperionUniFiDeviceToBronze' {
-    It 'projects rows to the proposed unifi_devices column set and change-detect upserts' {
+    It 'projects rows to the unifi_devices column set and change-detect upserts' {
         InModuleScope ImperionPipeline {
             Mock Write-ImperionLog { }
             Mock New-ImperionDbConnection {
