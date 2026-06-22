@@ -1,6 +1,6 @@
 #Requires -Modules Pester
 # Hermetic tests for Set-ImperionEntraDomainToBronze: standard envelope, projected to the
-# exact entra_domains column set (front-end schema issue #260; local issue #142).
+# exact entra_domains column set (front-end migration 0136 / #260; local issue #219/#142).
 
 BeforeAll {
     $module = Join-Path (Split-Path -Parent $PSScriptRoot) 'src\ImperionPipeline\ImperionPipeline.psd1'
@@ -36,11 +36,13 @@ Describe 'Set-ImperionEntraDomainToBronze' {
             $script:captured.NoChange | Should -BeFalse
             $projected = $script:captured.Rows[0]
             ($projected.PSObject.Properties.Name | Sort-Object) | Should -Be (@(
-                    'domain_name', 'authentication_type', 'is_default', 'is_initial', 'is_root',
-                    'is_verified', 'is_admin_managed', 'supported_services',
-                    'password_validity_period_in_days', 'password_notification_window_in_days',
+                    'domain_name', 'is_verified', 'is_default', 'is_initial', 'authentication_type',
+                    'supported_services',
                     'tenant_id', 'source', 'external_id', 'collected_at', 'raw_payload', 'content_hash'
                 ) | Sort-Object)
+            # is_root / is_admin_managed / password_* are NOT 0136 columns — dropped from the
+            # flat projection (they survive in raw_payload).
+            ($projected.PSObject.Properties.Name -contains 'is_root') | Should -BeFalse
             ($projected.PSObject.Properties.Name -contains 'future_extra') | Should -BeFalse
             $projected.external_id | Should -Be 'imperionllc.com'
             $tally.scanned | Should -Be 1

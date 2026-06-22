@@ -1,5 +1,5 @@
 #Requires -Modules Pester
-# Hermetic tests for Get-ImperionEntraDomain: Graph token + request mocked (issue #142).
+# Hermetic tests for Get-ImperionEntraDomain: Graph token + request mocked (issue #219/#142).
 
 BeforeAll {
     $module = Join-Path (Split-Path -Parent $PSScriptRoot) 'src\ImperionPipeline\ImperionPipeline.psd1'
@@ -30,7 +30,7 @@ Describe 'Get-ImperionEntraDomain' {
         }
     }
 
-    It 'flattens /domains to the schema-260 columns + standard envelope (id = the FQDN)' {
+    It 'flattens /domains to the migration-0136 columns + standard envelope (id = the FQDN)' {
         InModuleScope ImperionPipeline {
             $rows = @(Get-ImperionEntraDomain)
             $rows.Count | Should -Be 2
@@ -63,7 +63,7 @@ Describe 'Get-ImperionEntraDomain' {
         }
     }
 
-    It 'collects from the requested tenant (GDAP)' {
+    It 'collects from the requested tenant (per-client onboarding app)' {
         InModuleScope ImperionPipeline {
             Mock Invoke-ImperionGraphRequest { , @() }
             Get-ImperionEntraDomain -TenantId 'customer-9' | Out-Null

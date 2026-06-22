@@ -127,12 +127,13 @@ CLAUDE.md §1); filed as front-end issue **ImperionCRM#663**.
 
 ### e. Entra tenant hygiene — [`sql/entra_tenant_hygiene_schema.sql`](../../sql/entra_tenant_hygiene_schema.sql)
 - `entra_domains`, `entra_app_registrations`, `entra_role_assignments` — standard envelope,
-  logical source `m365` (local issue #142 / front-end request **ImperionCRM#260**, which also
-  owns the benchmark-vs-standard surface). The directory-config gap left by
+  logical source `m365` (local issue #219/#142 / front-end request **ImperionCRM#260**, which
+  also owns the benchmark-vs-standard surface). **LANDED as migration `0136` (prod-applied;
+  includes the `imperion-localpipeline` SELECT/INSERT/UPDATE grant).** The collector flat
+  columns are reconciled to 0136 (#219). The directory-config gap left by
   `m365_service_principals` (the per-tenant app *instance*): registrations are the app
   *definition*; domains + role assignments are the tenant's verification + privileged-membership
-  posture. Add the three to the `imperion-localpipeline` grant list (SELECT/INSERT/UPDATE, no
-  DELETE) in the same migration or a follow-on grant migration.
+  posture.
 
 ### f. Information protection — [`sql/information_protection_schema.sql`](../../sql/information_protection_schema.sql)
 - `sensitivity_labels`, `custom_security_attribute_definitions` — standard envelope, logical

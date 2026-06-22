@@ -1,6 +1,6 @@
 #Requires -Modules Pester
 # Hermetic tests for Set-ImperionEntraAppRegistrationToBronze: standard envelope, projected
-# to the exact entra_app_registrations column set (front-end schema issue #260; local #142).
+# to the exact entra_app_registrations column set (front-end migration 0136 / #260; local #219/#142).
 
 BeforeAll {
     $module = Join-Path (Split-Path -Parent $PSScriptRoot) 'src\ImperionPipeline\ImperionPipeline.psd1'
@@ -23,11 +23,10 @@ Describe 'Set-ImperionEntraAppRegistrationToBronze' {
                 [pscustomobject]@{
                     app_id = 'client-guid-1'; display_name = 'Imperion Onboarding'
                     sign_in_audience = 'AzureADMyOrg'; publisher_domain = 'imperionllc.com'
-                    verified_publisher = 'Imperion LLC'; identifier_uris = 'api://client-guid-1'
-                    tags = 'internal'; required_resource_access_count = '2'
-                    key_credentials_count = '1'; key_credential_next_expiry = '2027-01-01T00:00:00Z'
-                    pwd_credentials_count = '2'; pwd_credential_next_expiry = '2026-07-01T00:00:00Z'
                     created_date_time = '2025-06-01T00:00:00Z'
+                    key_credential_count = '1'; password_credential_count = '2'
+                    earliest_credential_expiry = '2026-07-01T00:00:00Z'; has_expired_credential = 'false'
+                    verified_publisher = 'Imperion LLC'   # not a 0136 column — should be dropped
                     future_extra = 'dropme'
                     tenant_id = 't1'; source = 'm365'; external_id = 'app-obj-1'
                     collected_at = 'now'; raw_payload = '{}'; content_hash = 'h1'
@@ -39,14 +38,14 @@ Describe 'Set-ImperionEntraAppRegistrationToBronze' {
             $script:captured.NoChange | Should -BeFalse
             $projected = $script:captured.Rows[0]
             ($projected.PSObject.Properties.Name | Sort-Object) | Should -Be (@(
-                    'app_id', 'display_name', 'sign_in_audience', 'publisher_domain', 'verified_publisher',
-                    'identifier_uris', 'tags', 'required_resource_access_count',
-                    'key_credentials_count', 'key_credential_next_expiry',
-                    'pwd_credentials_count', 'pwd_credential_next_expiry', 'created_date_time',
+                    'app_id', 'display_name', 'sign_in_audience', 'publisher_domain', 'created_date_time',
+                    'key_credential_count', 'password_credential_count',
+                    'earliest_credential_expiry', 'has_expired_credential',
                     'tenant_id', 'source', 'external_id', 'collected_at', 'raw_payload', 'content_hash'
                 ) | Sort-Object)
+            ($projected.PSObject.Properties.Name -contains 'verified_publisher') | Should -BeFalse
             ($projected.PSObject.Properties.Name -contains 'future_extra') | Should -BeFalse
-            $projected.pwd_credential_next_expiry | Should -Be '2026-07-01T00:00:00Z'
+            $projected.earliest_credential_expiry | Should -Be '2026-07-01T00:00:00Z'
             $tally.scanned | Should -Be 1
         }
     }
