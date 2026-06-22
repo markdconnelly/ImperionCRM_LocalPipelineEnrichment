@@ -10,10 +10,11 @@ function Get-ImperionMyItProcessRecommendation {
         CRM/advisory exception — the borderline case called out in ADR-0018 §1). Returns rows;
         does not write. Requires Initialize-ImperionContext.
 
-        AUTH: myITprocess is an MSP-WIDE vendor credential resolved SecretStore-first /
-        Key Vault-fallback by Resolve-ImperionMyItProcessApiKey and sent as the `api_token` header
-        (URLs are NOT secret-bearing). GATED: until the key is provisioned (Mark-gated), the
-        resolver throws and the scheduled task logs the gap and exits cleanly.
+        AUTH: myITprocess is an MSP-WIDE vendor credential resolved from Key Vault
+        (`conn-company-myitprocess`, JSON blob → `apiKey` field) by Resolve-ImperionMyItProcessApiKey
+        and sent as the `mitp-api-key` header (URLs are NOT secret-bearing). GATED: until the key
+        is provisioned (Mark-gated), the resolver throws and the scheduled task logs the gap and
+        exits cleanly.
 
         TARGET: bronze `myitprocess_recommendations` (front-end-owned schema, migration 0119
         SHIPPED + prod-applied, front-end #674). external_id = the recommendation id (stable) →
@@ -21,16 +22,18 @@ function Get-ImperionMyItProcessRecommendation {
         account→client tenant mapping is downstream silver (front-end); this bronze stamps the
         partner tenant and preserves the raw account ref.
 
-        CONFIRM BEFORE LIVE USE: the field names below are modeled from the documented myITprocess
-        API but UNVERIFIED until the key lands. Each flat column keeps a fallback chain; misses
-        land NULL and raw_payload is lossless (the KQM/EasyDMARC precedent).
+        FIELD MAP: the base host/header/wrapper are verified live (issue #297); the per-column
+        SOURCE field names below are still modeled from the docs — each keeps a fallback chain so
+        a miss lands NULL and raw_payload stays lossless (the KQM/EasyDMARC precedent). Re-verify
+        the chain heads against a real `items[]` row on the first successful prod pull (#297).
     .PARAMETER TenantId
         Owning tenant stamped on each row; defaults to the partner tenant (the recommendation's
         client account is preserved as account_ref; live tenant mapping is downstream silver).
     .PARAMETER BaseUri
-        myITprocess API base. Default 'https://api.myitprocess.com/api/v1' (placeholder — confirm).
+        myITprocess Reporting API base. Default 'https://reporting.live.myitprocess.com/public-api/v1'
+        (verified live, #297).
     .PARAMETER ApiKey
-        myITprocess API key override. Defaults to the SecretStore/Key Vault resolution.
+        myITprocess API key override. Defaults to the Key Vault credential-registry resolution.
     .EXAMPLE
         Get-ImperionMyItProcessRecommendation | Set-ImperionMyItProcessRecommendationToBronze
     #>
@@ -38,7 +41,7 @@ function Get-ImperionMyItProcessRecommendation {
     [OutputType([pscustomobject])]
     param(
         [string] $TenantId,
-        [string] $BaseUri = 'https://api.myitprocess.com/api/v1',
+        [string] $BaseUri = 'https://reporting.live.myitprocess.com/public-api/v1',
         [string] $ApiKey
     )
 
