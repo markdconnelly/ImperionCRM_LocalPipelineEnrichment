@@ -56,6 +56,16 @@ function Resolve-ImperionVendorSecret {
             }
             else { $spec.VaultDefault }
         $Value = Get-ImperionKeyVaultSecret -Name $keyVaultSecretName
+
+        # conn-company-<provider> secrets are a JSON credential blob, not a bare key
+        # (backend credentials.ts: setSecret(name, JSON.stringify(fields))). When the entry
+        # declares BlobField, extract that field; a bare-string secret (legacy vendors that
+        # omit BlobField, or a value that does not parse as a JSON object) passes through
+        # unchanged. The extracted value is returned to the caller and never logged (#299).
+        $blobField = $spec['BlobField']
+        if ($Value -and $blobField) {
+            $Value = ConvertFrom-ImperionCredentialBlob -Value $Value -Field $blobField
+        }
     }
     if (-not $Value -and $spec.ErrorMessage) {
         throw $spec.ErrorMessage

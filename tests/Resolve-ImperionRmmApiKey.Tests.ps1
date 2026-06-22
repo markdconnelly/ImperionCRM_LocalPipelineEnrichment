@@ -72,12 +72,12 @@ Describe 'RMM/managed-estate key resolvers' {
         }
     }
 
-    Context 'Resolve-ImperionMyItProcessApiKey' {
-        It 'falls back to the Key Vault original when the mirror is absent' {
+    Context 'Resolve-ImperionMyItProcessApiKey (rerouted to conn-company blob, #292/#299)' {
+        It 'extracts apiKey from the conn-company-myitprocess JSON blob (NOT the legacy name)' {
             InModuleScope ImperionPipeline {
                 $script:ImperionSecretStoreVault = 'vault'
-                Mock Get-ImperionSecretValue { $null }
-                Mock Get-ImperionKeyVaultSecret { if ($Name -eq 'myITprocess-API-Key') { 'kv-key' } }
+                Mock Get-ImperionSecretValue { throw 'myITprocess is KV-only now — the SecretStore mirror must not be read' }
+                Mock Get-ImperionKeyVaultSecret { if ($Name -eq 'conn-company-myitprocess') { '{"apiKey":"kv-key"}' } else { throw "wrong name $Name" } }
                 Resolve-ImperionMyItProcessApiKey | Should -Be 'kv-key'
             }
         }
