@@ -8,9 +8,18 @@ IT Glue plays **two roles** (ADR-0006):
 
 ## Auth
 - REST API base `https://api.itglue.com` (or your region's base).
-- Header `x-api-key: <key>` — the **IT Glue API key from the SecretStore**.
+- Header `x-api-key: <key>` — the IT Glue API key resolved by
+  **`Resolve-ImperionVendorSecret`** (#228, the one shared vendor resolver). The standardized
+  source is **Key Vault `conn-company-itglue`** (the credential-registry secret), read as a JSON
+  blob by the cert SP and the `apiKey` field extracted via `ConvertFrom-ImperionCredentialBlob`
+  (#291/#293). KV is the source of truth; a SecretStore mirror exists only for fully-offline
+  unattended runs. **Never log the key.**
 - **Read-only key for the export; a scoped writer key for the hub** (separate keys
   recommended so the export can never mutate).
+
+> **Live in bronze (prod, 2026-06-22):** IT Glue hydration is flowing — **716 rows**
+> (27 `itglue_companies` + 234 `itglue_contacts` + 455 `itglue_devices`) after the
+> credential-registry rewire (#293). See [`../STATE.md`](../STATE.md).
 
 ## API shape (JSON:API)
 Records are `{ "data": [ { "id", "type", "attributes": {...}, "relationships": {...} } ] }`.
