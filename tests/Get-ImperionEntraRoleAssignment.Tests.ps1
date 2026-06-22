@@ -1,5 +1,5 @@
 #Requires -Modules Pester
-# Hermetic tests for Get-ImperionEntraRoleAssignment: Graph token + request mocked (issue #142).
+# Hermetic tests for Get-ImperionEntraRoleAssignment: Graph token + request mocked (issue #219/#142).
 
 BeforeAll {
     $module = Join-Path (Split-Path -Parent $PSScriptRoot) 'src\ImperionPipeline\ImperionPipeline.psd1'
@@ -17,14 +17,14 @@ Describe 'Get-ImperionEntraRoleAssignment' {
                     [pscustomobject]@{
                         id = 'assignment-1'; roleDefinitionId = 'role-ga'; principalId = 'user-mark'
                         directoryScopeId = '/'; appScopeId = $null
-                        roleDefinition = [pscustomobject]@{ displayName = 'Global Administrator'; isBuiltIn = $true; templateId = '62e90394-69f5-4237-9190-012177145e10' }
+                        roleDefinition = [pscustomobject]@{ displayName = 'Global Administrator'; isPrivileged = $true; isBuiltIn = $true; templateId = '62e90394-69f5-4237-9190-012177145e10' }
                         principal = ([pscustomobject]@{ displayName = 'Mark Connelly'; userPrincipalName = 'mark@imperionllc.com' } |
                             Add-Member -PassThru -NotePropertyName '@odata.type' -NotePropertyValue '#microsoft.graph.user')
                     }
                     [pscustomobject]@{
                         id = 'assignment-2'; roleDefinitionId = 'role-reader'; principalId = 'sp-app'
                         directoryScopeId = '/'
-                        roleDefinition = [pscustomobject]@{ displayName = 'Directory Readers'; isBuiltIn = $true }
+                        roleDefinition = [pscustomobject]@{ displayName = 'Directory Readers'; isPrivileged = $false; isBuiltIn = $true }
                         principal = ([pscustomobject]@{ displayName = 'Imperion Pipeline App' } |
                             Add-Member -PassThru -NotePropertyName '@odata.type' -NotePropertyValue '#microsoft.graph.servicePrincipal')
                     }
@@ -33,7 +33,7 @@ Describe 'Get-ImperionEntraRoleAssignment' {
         }
     }
 
-    It 'flattens role assignments with expanded role + principal to the schema-260 columns' {
+    It 'flattens role assignments with expanded role + principal to the migration-0136 columns' {
         InModuleScope ImperionPipeline {
             $rows = @(Get-ImperionEntraRoleAssignment)
             $rows.Count | Should -Be 2
@@ -41,22 +41,25 @@ Describe 'Get-ImperionEntraRoleAssignment' {
             $ga = $rows | Where-Object { $_.external_id -eq 'assignment-1' }
             $ga.role_definition_id     | Should -Be 'role-ga'
             $ga.role_display_name      | Should -Be 'Global Administrator'
-            $ga.role_is_builtin        | Should -Be 'true'
+            $ga.is_privileged          | Should -Be 'true'          # from the expanded roleDefinition
             $ga.principal_id           | Should -Be 'user-mark'
             $ga.principal_display_name | Should -Be 'Mark Connelly'
             $ga.principal_type         | Should -Be 'user'          # @odata.type trimmed to bare type
-            $ga.principal_upn          | Should -Be 'mark@imperionllc.com'
             $ga.directory_scope_id     | Should -Be '/'
+            $ga.assignment_type        | Should -Be 'Assigned'      # active assignment (this endpoint)
+            # principal_upn / role_is_builtin are NOT 0136 flat columns (they live in raw_payload).
+            ($ga.PSObject.Properties.Name -contains 'principal_upn') | Should -BeFalse
             $ga.source                 | Should -Be 'm365'
             $ga.tenant_id              | Should -Be 'partner'
         }
     }
 
-    It 'resolves a service-principal principal type' {
+    It 'resolves a service-principal principal type and a non-privileged role' {
         InModuleScope ImperionPipeline {
             $sp = @(Get-ImperionEntraRoleAssignment) | Where-Object { $_.external_id -eq 'assignment-2' }
             $sp.principal_type      | Should -Be 'servicePrincipal'
             $sp.role_display_name   | Should -Be 'Directory Readers'
+            $sp.is_privileged       | Should -Be 'false'
         }
     }
 

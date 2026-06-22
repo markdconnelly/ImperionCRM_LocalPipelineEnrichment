@@ -3,26 +3,31 @@ function Get-ImperionEntraRoleAssignment {
     .SYNOPSIS
         Collect a tenant's Entra directory role assignments and flatten them to bronze rows.
     .DESCRIPTION
-        Get-layer collector (CLAUDE.md §6) for tenant-hygiene privileged-access (issue #142;
-        front-end schema issue #260, table entra_role_assignments). Mints a Graph token for
-        the tenant (GDAP for customer tenants), pages
+        Get-layer collector (CLAUDE.md §6) for tenant-hygiene privileged-access (issue #219/#142;
+        front-end migration 0136 / #260, table entra_role_assignments). Mints a Graph token for
+        the tenant (client tenants via the per-client onboarding app, §3), pages
         /roleManagement/directory/roleAssignments — application permission
         RoleManagement.Read.Directory, read-only — with $expand=roleDefinition,principal so
-        each assignment carries the human-readable role name and the principal's
-        display/type without a second lookup, and flattens each to the standard flat-table
-        envelope, source 'm365', external_id = the role-assignment id.
+        each assignment carries the human-readable role name (and its isPrivileged flag) and the
+        principal's display/type without a second lookup, and flattens each to the standard
+        flat-table envelope, source 'm365', external_id = the role-assignment id.
 
-        This is the privileged-role-membership hygiene feed: who holds Global Administrator
-        and other directory roles, the directory scope of each grant, and the principal type
-        (user / group / servicePrincipal). A benchmark reads role_display_name +
-        principal_type to flag over-broad or unexpected privileged grants.
+        This is the privileged-role-membership hygiene feed: who holds Global Administrator and
+        other directory roles, whether the role is privileged (is_privileged, from the expanded
+        roleDefinition), the directory scope of each grant, and the principal type
+        (user / group / servicePrincipal). A benchmark reads is_privileged + role_display_name +
+        principal_type to flag over-broad or unexpected privileged grants. This endpoint returns
+        ACTIVE assignments, so assignment_type is 'Assigned'; PIM-eligible ('Activated')
+        assignments come from a separate schedule endpoint (future enhancement).
 
-        Booleans/collections coerce to text via the standard scalar coercion; the full
-        expanded objects live losslessly in raw_payload (bronze flat columns are all-text).
+        Flat columns are EXACTLY the migration-0136 entra_role_assignments set; the full expanded
+        objects (role template/built-in, principal UPN, app scope, …) live losslessly in
+        raw_payload (bronze over-collects; the flat columns are the 0136 filter).
 
         Returns rows; does not write. Requires Initialize-ImperionContext.
     .PARAMETER TenantId
-        Tenant to collect from; defaults to the partner tenant. Customer tenants use GDAP.
+        Tenant to collect from; defaults to the partner tenant. Client tenants resolve via the
+        per-client onboarding app (§3).
     .OUTPUTS
         Flat bronze rows (source 'm365') ready for Set-ImperionEntraRoleAssignmentToBronze.
     .EXAMPLE
@@ -46,7 +51,7 @@ function Get-ImperionEntraRoleAssignment {
         -Uri 'https://graph.microsoft.com/v1.0/roleManagement/directory/roleAssignments?$expand=roleDefinition,principal' `
         -AccessToken $token
 
-    # Schema issue #260 flat columns (entra_role_assignments). external_id = id.
+    # Migration 0136 flat columns (entra_role_assignments). external_id = id.
     # principal '@odata.type' (e.g. '#microsoft.graph.user') is trimmed to a bare type.
     # principal carries '@odata.type' (a dotted member name); read principal then that exact
     # member with Get-ImperionMember — Get-ImperionPropertyPath would split the dots wrongly.
@@ -57,16 +62,16 @@ function Get-ImperionEntraRoleAssignment {
         if ($odataType) { ($odataType -replace '^#microsoft\.graph\.', '') } else { $null }
     }
     $map = [ordered]@{
-        role_definition_id   = 'roleDefinitionId'
-        role_display_name    = 'roleDefinition.displayName'
-        role_is_builtin      = 'roleDefinition.isBuiltIn'
-        role_template_id     = 'roleDefinition.templateId'
-        principal_id         = 'principalId'
+        role_definition_id     = 'roleDefinitionId'
+        role_display_name      = 'roleDefinition.displayName'
+        is_privileged          = 'roleDefinition.isPrivileged'
+        principal_id           = 'principalId'
+        principal_type         = { param($a) & $principalType $a }
         principal_display_name = 'principal.displayName'
-        principal_type       = { param($a) & $principalType $a }
-        principal_upn        = 'principal.userPrincipalName'
-        directory_scope_id   = 'directoryScopeId'
-        app_scope_id         = 'appScopeId'
+        directory_scope_id     = 'directoryScopeId'
+        # /roleManagement/directory/roleAssignments returns active assignments; PIM-eligible
+        # ('Activated') are a separate schedule endpoint (future enhancement).
+        assignment_type        = { 'Assigned' }
     }
 
     $rows = @($assignments | ConvertTo-ImperionFlatObject -PropertyMap $map `

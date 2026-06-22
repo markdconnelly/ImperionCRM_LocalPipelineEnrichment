@@ -1,6 +1,6 @@
 #Requires -Modules Pester
 # Hermetic tests for Set-ImperionEntraRoleAssignmentToBronze: standard envelope, projected
-# to the exact entra_role_assignments column set (front-end schema issue #260; local #142).
+# to the exact entra_role_assignments column set (front-end migration 0136 / #260; local #219/#142).
 
 BeforeAll {
     $module = Join-Path (Split-Path -Parent $PSScriptRoot) 'src\ImperionPipeline\ImperionPipeline.psd1'
@@ -22,10 +22,10 @@ Describe 'Set-ImperionEntraRoleAssignmentToBronze' {
             $rows = @(
                 [pscustomobject]@{
                     role_definition_id = 'role-ga'; role_display_name = 'Global Administrator'
-                    role_is_builtin = 'true'; role_template_id = '62e90394-69f5-4237-9190-012177145e10'
-                    principal_id = 'user-mark'; principal_display_name = 'Mark Connelly'
-                    principal_type = 'user'; principal_upn = 'mark@imperionllc.com'
-                    directory_scope_id = '/'; app_scope_id = $null
+                    is_privileged = 'true'
+                    principal_id = 'user-mark'; principal_type = 'user'; principal_display_name = 'Mark Connelly'
+                    directory_scope_id = '/'; assignment_type = 'Assigned'
+                    principal_upn = 'mark@imperionllc.com'   # not a 0136 column — should be dropped
                     future_extra = 'dropme'
                     tenant_id = 't1'; source = 'm365'; external_id = 'assignment-1'
                     collected_at = 'now'; raw_payload = '{}'; content_hash = 'h1'
@@ -37,13 +37,15 @@ Describe 'Set-ImperionEntraRoleAssignmentToBronze' {
             $script:captured.NoChange | Should -BeFalse
             $projected = $script:captured.Rows[0]
             ($projected.PSObject.Properties.Name | Sort-Object) | Should -Be (@(
-                    'role_definition_id', 'role_display_name', 'role_is_builtin', 'role_template_id',
-                    'principal_id', 'principal_display_name', 'principal_type', 'principal_upn',
-                    'directory_scope_id', 'app_scope_id',
+                    'role_definition_id', 'role_display_name', 'is_privileged',
+                    'principal_id', 'principal_type', 'principal_display_name',
+                    'directory_scope_id', 'assignment_type',
                     'tenant_id', 'source', 'external_id', 'collected_at', 'raw_payload', 'content_hash'
                 ) | Sort-Object)
+            ($projected.PSObject.Properties.Name -contains 'principal_upn') | Should -BeFalse
             ($projected.PSObject.Properties.Name -contains 'future_extra') | Should -BeFalse
             $projected.role_display_name | Should -Be 'Global Administrator'
+            $projected.is_privileged     | Should -Be 'true'
             $projected.principal_type    | Should -Be 'user'
             $tally.scanned | Should -Be 1
         }

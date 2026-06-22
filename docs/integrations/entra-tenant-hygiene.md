@@ -2,8 +2,8 @@
 
 **Purpose.** Close the tenant-hygiene gap left by the Azure inventory / service-principal
 collectors: capture a tenant's **domains**, **application registrations**, and **directory
-role assignments** so the front-end can benchmark them against standards (issue #142;
-front-end schema + benchmark issue ImperionCRM#260). Read-only Graph; flatten → bronze; no
+role assignments** so the front-end can benchmark them against standards (issue #219/#142;
+front-end migration 0136 / benchmark issue ImperionCRM#260). Read-only Graph; flatten → bronze; no
 IT Glue write (these are directory-config objects, not the operational/infrastructure data
 the IT Glue hub documents — CLAUDE.md §6).
 
@@ -34,21 +34,27 @@ the IT Glue hub documents — CLAUDE.md §6).
 | Role assignments | `GET /v1.0/roleManagement/directory/roleAssignments?$expand=roleDefinition,principal` | `$expand` resolves the role name + principal in one page |
 
 ## Flattened fields (the hygiene signals)
-- **Domains** → `domain_name` · `authentication_type` · `is_default` · `is_initial` ·
-  `is_root` · `is_verified` · `is_admin_managed` · `supported_services` (joined) ·
-  `password_validity_period_in_days` · `password_notification_window_in_days`. *Benchmark
-  reads:* unverified / federated / default-domain posture.
-- **App registrations** → `app_id` · `display_name` · `sign_in_audience` ·
-  `publisher_domain` · `verified_publisher` · `identifier_uris` (joined) · `tags` (joined) ·
-  `required_resource_access_count` · `key_credentials_count` + **nearest expiry** ·
-  `pwd_credentials_count` + **nearest expiry** · `created_date_time`. *Benchmark reads:*
-  expiring/expired credentials, secret-bearing apps, unverified publishers, multi-tenant
-  audience.
-- **Role assignments** → `role_definition_id` · `role_display_name` · `role_is_builtin` ·
-  `role_template_id` · `principal_id` · `principal_display_name` · `principal_type`
-  (`user`/`group`/`servicePrincipal`, trimmed from `@odata.type`) · `principal_upn` ·
-  `directory_scope_id` · `app_scope_id`. *Benchmark reads:* who holds Global Administrator
-  and other privileged roles; over-broad / unexpected grants.
+
+The flat columns are **exactly the migration-0136 set** — the bronze filter. Everything the
+source returns beyond these (verified publisher, identifier URIs, tags, the full credential
+arrays, role template/built-in, principal UPN, app scope, domain admin-managed / password
+policy, …) is over-collected losslessly into `raw_payload` (CLAUDE.md §5/§6); silver narrows
+from there.
+
+- **Domains** → `domain_name` · `is_verified` · `is_default` · `is_initial` ·
+  `authentication_type` · `supported_services` (joined). *Benchmark reads:* unverified /
+  federated / default-domain posture.
+- **App registrations** → `app_id` · `display_name` · `sign_in_audience` · `publisher_domain` ·
+  `created_date_time` · `key_credential_count` · `password_credential_count` ·
+  `earliest_credential_expiry` (the single nearest expiry across **both** cert + secret
+  credentials) · `has_expired_credential`. *Benchmark reads:* expiring/expired credentials,
+  secret-bearing apps.
+- **Role assignments** → `role_definition_id` · `role_display_name` · `is_privileged` (from the
+  expanded roleDefinition) · `principal_id` · `principal_type`
+  (`user`/`group`/`servicePrincipal`, trimmed from `@odata.type`) · `principal_display_name` ·
+  `directory_scope_id` · `assignment_type` (`Assigned`; this endpoint returns active
+  assignments — PIM-eligible `Activated` is a future enhancement). *Benchmark reads:* who holds
+  privileged directory roles (e.g. Global Administrator); over-broad / unexpected grants.
 
 Bronze flat columns are all-text (booleans → `'true'`/`'false'`, collections → delimited);
 the full lossless objects live in `raw_payload` (CLAUDE.md §4/§6).
@@ -58,18 +64,21 @@ the full lossless objects live in `raw_payload` (CLAUDE.md §4/§6).
 `m365`) — flattened columns + `tenant_id`, `source`, `external_id`, `content_hash`,
 `collected_at`, `raw_payload (jsonb)`. Upsert on `(tenant_id, source, external_id)`,
 change-detected. `external_id` = domain FQDN / application object id / role-assignment id
-respectively. **Schema is owned by the front end** (ImperionCRM#260) — this repo never
-creates the tables; the post fails loudly until the migration is applied to prod
-(deploy-ahead safe).
+respectively. **Schema is owned by the front end** (migration **0136** / ImperionCRM#260,
+**applied to prod**; this repo never creates the tables). The tables are prod-applied but
+**EMPTY** until a tenant is registered/consented; the writer still fails loudly if the
+table/grant is ever missing (deploy-ahead safe).
 
 ## Cmdlets
 - Get layer (collect → flatten, no write): `Get-ImperionEntraDomain` ·
   `Get-ImperionEntraAppRegistration` · `Get-ImperionEntraRoleAssignment`.
 - Post layer (write flat rows → bronze, change-detected): `Set-ImperionEntraDomainToBronze`
   · `Set-ImperionEntraAppRegistrationToBronze` · `Set-ImperionEntraRoleAssignmentToBronze`.
-- Scheduled-task files: `scheduled-tasks/m365/entra-domains.task.ps1` ·
-  `entra-app-registrations.task.ps1` · `entra-role-assignments.task.ps1` (daily; see the
-  scheduled-task registry).
+- Scheduled fan-out (per-tenant): `Invoke-ImperionEntraDomainSync` ·
+  `Invoke-ImperionEntraAppRegistrationSync` · `Invoke-ImperionEntraRoleAssignmentSync`.
+- Registered scheduled tasks (daily; `Register-ImperionTask`, ADR-0007 — no loose entry
+  scripts): `Imperion-EntraDomains` · `Imperion-EntraAppRegistrations` ·
+  `Imperion-EntraRoleAssignments` (see the scheduled-task registry).
 
 ## Rate limits & retry
 Graph throttles per-tenant; honor `Retry-After` on 429 with exponential backoff (handled by
@@ -79,9 +88,10 @@ Graph throttles per-tenant; honor `Retry-After` on 429 with exponential backoff 
 - The onboarding app has `Domain.Read.All`, `Application.Read.All`, and
   `RoleManagement.Read.Directory` admin-consented in Imperion's own tenant (and per client
   tenant for client fan-out).
-- The front-end `entra_domains` / `entra_app_registrations` / `entra_role_assignments`
-  bronze migration (ImperionCRM#260) is applied to prod and the local-pipeline SP has the
-  write grant on them (follow-up grant migration, same as the 0036/0079 tables — see the
-  registry's grant prerequisite note).
-- Live run is gated on the on-prem host coming online (#102); deploy-ahead is safe (the
-  post self-gates and exits cleanly until the schema lands).
+- The front-end `entra_domains` / `entra_app_registrations` / `entra_role_assignments` bronze
+  migration (**0136** / ImperionCRM#260) is applied to prod and the local-pipeline SP has the
+  write grant on them (granted in 0136 itself).
+- Live run is gated on the on-prem host coming online (#102) + a registered/consented tenant;
+  deploy-ahead is safe (the sync self-gates and exits cleanly with no tenants).
+- `roleDefinition.isPrivileged` is populated by `$expand=roleDefinition` (v1.0); where a tenant
+  doesn't return it, `is_privileged` lands empty (benchmark treats absent as non-privileged).
