@@ -1,34 +1,34 @@
 function Get-ImperionIntuneManagedApp {
     <#
     .SYNOPSIS
-        Collect the Intune managed-app inventory for a tenant and flatten it to bronze rows.
+        Collect the per-device Intune detected-app inventory for a tenant and flatten it to bronze rows.
     .DESCRIPTION
-        Get-layer collector (CLAUDE.md §6) for the Intune managed-app feed (issue #143;
-        front-end migration pending, ImperionCRM #261). Mints a Graph token for the tenant
-        (GDAP for customer tenants, §3), pages
-        /deviceAppManagement/mobileApps (the deviceAppManagement managed-app inventory:
-        store apps, LOB apps, web links, the full app estate Intune manages), and flattens
-        each to the standard flat-table envelope (target bronze intune_managed_apps),
-        source 'm365', external_id = the Graph app id.
+        Get-layer collector (CLAUDE.md §6) for the Intune managed-app feed (issue #252; front-end
+        ImperionCRM #261 / migration 0148). Reconciles the collector to the schema that actually
+        landed: `intune_managed_apps` is the **per-device** app inventory the device-CI detail
+        drills into, NOT the tenant-level `mobileApps` catalog the first cut (#143) guessed at.
 
-        This completes the drillable Intune asset detail (Mark per-source review
-        2026-06-12): devices (Get-ImperionM365Device), compliance + configuration
-        (front-end 0069/0038, ADR-0047/0051) already exist — managed apps were the
-        remaining gap. The flat columns carry the publishing/assignment-grade fields
-        (publishing state, featured flag, publisher, version, owner) for the asset page;
-        the full per-app payload (including the @odata.type discriminating store vs LOB vs
-        web app, and any type-specific fields) stays lossless in raw_payload for silver to
-        refine.
+        Mints an app-only Graph token for the tenant (per-client onboarding app, §3), pages the
+        tenant's `/deviceManagement/managedDevices` for the join anchor, then for each device pages
+        `/deviceManagement/managedDevices/{id}/detectedApps` and flattens each (device, app) pair to
+        the standard bronze envelope. `external_id` is the composite **managed_device_id + app_id**
+        (the 0148 PK row id); `managed_device_id` (= `intune_managed_devices.external_id`),
+        `serial_number`, and `device_name` are carried as the drill-join keys to the silver device.
+        `app_type` is stamped `'detected'` — this feed is the detected-inventory half of the 0148
+        `app_type` provenance (the assigned/`'managed'` mobileApp install-status report is a possible
+        future feed into the same table).
 
-        `app_type` flattens the Graph `@odata.type` so the device/asset drill-in can group
-        by app archetype without re-parsing the payload. `largeIcon` (a base64 blob) is
-        deliberately NOT lifted to a flat column — it bloats every row and adds no query
-        value; it survives in raw_payload if ever needed.
-
-        Returns rows; does not write. Requires Initialize-ImperionContext and the
-        application permission DeviceManagementApps.Read.All.
+        LENIENT / CONFIRM-BEFORE-LIVE: the detected-app flat columns map the Graph `detectedApp`
+        fields (`displayName` / `version` / `publisher` / `platform` / `sizeInByte`). Fields a
+        `detectedApp` does not expose (`install_state`, `install_state_detail`,
+        `last_modified_date_time`) land NULL from this feed and stay lossless in `raw_payload`;
+        confirm the live payload shape on the first real pull. Returns rows; does not write. Requires
+        Initialize-ImperionContext and the application permission DeviceManagementApps.Read.All
+        (admin-consent is Mark-gated ops — until granted the Graph call 403s and the run yields
+        nothing).
     .PARAMETER TenantId
-        Tenant to collect from; defaults to the partner tenant. Customer tenants use GDAP.
+        Tenant to collect from; defaults to the partner tenant. Client tenants read via the
+        per-client onboarding app (§3).
     .OUTPUTS
         Flat bronze rows (source 'm365') ready for Set-ImperionIntuneManagedAppToBronze.
     .EXAMPLE
@@ -46,49 +46,65 @@ function Get-ImperionIntuneManagedApp {
     if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
 
     $token = Get-ImperionGraphToken -TenantId $TenantId
-    $managedApps = Invoke-ImperionGraphRequest `
-        -Uri 'https://graph.microsoft.com/v1.0/deviceAppManagement/mobileApps' `
-        -AccessToken $token
 
-    # Proposed intune_managed_apps flat columns (front-end migration pending, ImperionCRM
-    # #261). Booleans/dates coerced to text by ConvertTo-ImperionFlatObject; the full
-    # payload (icon, type-specific fields) stays lossless in raw_payload.
+    # The join anchor: the tenant's Intune managed devices. Trim to the keys the drill join needs
+    # (the full device record is its own bronze feed, Get-ImperionM365Device).
+    $devices = Invoke-ImperionGraphRequest `
+        -Uri 'https://graph.microsoft.com/v1.0/deviceManagement/managedDevices' `
+        -AccessToken $token -Select 'id,deviceName,serialNumber'
+
+    # Per-(device, app) flat map onto the 0148 intune_managed_apps column set. Device join keys are
+    # spliced onto each app object below; the rest read straight off the Graph detectedApp.
     $map = [ordered]@{
-        # @odata.type carries the app archetype (e.g. #microsoft.graph.win32LobApp,
-        # #microsoft.graph.officeSuiteApp); trim the namespace to the bare type for the drill-in.
-        # The literal property name contains a dot, so read it directly rather than via the
-        # dotted-path helper (which would split '@odata.type' into two hops).
-        app_type            = { param($a)
-            $odataProperty = $a.PSObject.Properties['@odata.type']
-            if ($odataProperty -and $odataProperty.Value) {
-                ([string]$odataProperty.Value) -replace '^#microsoft\.graph\.', ''
-            }
-            else { $null }
-        }
-        display_name        = 'displayName'
-        description         = 'description'
-        publisher           = 'publisher'
-        publishing_state    = 'publishingState'
-        is_featured         = 'isFeatured'
-        is_assigned         = 'isAssigned'
-        version             = 'version'
-        owner               = 'owner'
-        developer           = 'developer'
-        notes               = 'notes'
-        information_url     = 'informationUrl'
-        privacy_information_url = 'privacyInformationUrl'
-        dependent_app_count = 'dependentAppCount'
-        superseding_app_count = 'supersedingAppCount'
-        superseded_app_count  = 'supersededAppCount'
-        created_date_time   = 'createdDateTime'
+        managed_device_id       = 'managed_device_id'
+        serial_number           = 'serial_number'
+        device_name             = 'device_name'
+        app_id                  = 'id'
+        display_name            = 'displayName'
+        publisher               = 'publisher'
+        version                 = 'version'
+        platform                = 'platform'
+        # detectedApp carries no install state — null for this feed, populated only by a future
+        # assigned/managed mobileApp install-status feed (0148 app_type = 'managed').
+        install_state           = 'installState'
+        install_state_detail    = 'installStateDetail'
+        app_type                = { 'detected' }
+        size_in_bytes           = 'sizeInByte'
         last_modified_date_time = 'lastModifiedDateTime'
     }
 
-    $rows = @($managedApps | ConvertTo-ImperionFlatObject -PropertyMap $map `
-            -Source 'm365' -TenantId $TenantId -ExternalIdProperty 'id')
+    $rows = [System.Collections.Generic.List[object]]::new()
+    foreach ($device in $devices) {
+        $managedDeviceId = [string]$device.id
+        if (-not $managedDeviceId) { continue }
+        $serialNumber = [string]$device.serialNumber
+        $deviceName = [string]$device.deviceName
 
-    Write-ImperionLog -Source 'm365' -Message 'Intune managed apps collected.' -Data @{
-        apps = @($managedApps).Count; rows = $rows.Count
+        $detectedApps = Invoke-ImperionGraphRequest `
+            -Uri "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/$managedDeviceId/detectedApps" `
+            -AccessToken $token
+
+        foreach ($app in $detectedApps) {
+            $appId = [string]$app.id
+            if (-not $appId) { continue }
+
+            # Splice the device join context + the composite PK id onto the app object. Add-Member
+            # is additive — the full detectedApp payload still flows lossless into raw_payload.
+            $appWithDevice = $app | Select-Object *
+            $appWithDevice | Add-Member -NotePropertyName 'managed_device_id'     -NotePropertyValue $managedDeviceId -Force
+            $appWithDevice | Add-Member -NotePropertyName 'serial_number'         -NotePropertyValue $serialNumber -Force
+            $appWithDevice | Add-Member -NotePropertyName 'device_name'           -NotePropertyValue $deviceName -Force
+            $appWithDevice | Add-Member -NotePropertyName 'composite_external_id' -NotePropertyValue "$managedDeviceId`:$appId" -Force
+
+            $appWithDevice |
+                ConvertTo-ImperionFlatObject -PropertyMap $map -Source 'm365' -TenantId $TenantId `
+                    -ExternalIdProperty 'composite_external_id' |
+                ForEach-Object { $rows.Add($_) }
+        }
     }
-    return $rows
+
+    Write-ImperionLog -Source 'm365' -Message 'Intune detected apps collected.' -Data @{
+        devices = @($devices).Count; rows = $rows.Count
+    }
+    return $rows.ToArray()
 }
