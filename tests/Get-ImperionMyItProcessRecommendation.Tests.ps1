@@ -43,6 +43,32 @@ Describe 'Get-ImperionMyItProcessRecommendation' {
         }
     }
 
+    It 'maps the VERIFIED live recommendation shape (#303): name/type/budgetMonth/client.id' {
+        InModuleScope ImperionPipeline {
+            Mock Invoke-ImperionMyItProcessRequest {
+                , @([pscustomobject]@{
+                        id          = 4021
+                        name        = 'Adopt MFA everywhere'
+                        type        = 'Security'
+                        priority    = 'High'
+                        status      = 'Open'
+                        budgetMonth = '2026-09'
+                        client      = [pscustomobject]@{ id = 'ACC-9'; name = 'Acme' }
+                        initiative  = [pscustomobject]@{ id = 'INIT-3' }
+                    })
+            }
+            $rows = @(Get-ImperionMyItProcessRecommendation)
+            $rows[0].account_ref          | Should -Be 'ACC-9'      # client.id
+            $rows[0].recommendation_title | Should -Be 'Adopt MFA everywhere'  # name
+            $rows[0].category             | Should -Be 'Security'   # type
+            $rows[0].priority             | Should -Be 'High'
+            $rows[0].status               | Should -Be 'Open'
+            $rows[0].target_date          | Should -Be '2026-09'    # budgetMonth
+            $rows[0].assessment_name      | Should -BeNullOrEmpty   # no live source
+            $rows[0].external_id          | Should -Be '4021'
+        }
+    }
+
     It 'survives unknown field names: flat columns land null, raw_payload keeps everything' {
         InModuleScope ImperionPipeline {
             Mock Invoke-ImperionMyItProcessRequest { , @([pscustomobject]@{ id = 'REC-9'; surpriseField = 'x' }) }

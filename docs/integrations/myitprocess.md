@@ -55,16 +55,27 @@ recommendations change slowly; stagger from the Datto tasks.
 2. ~~Front-end `myitprocess_recommendations` bronze migration~~ — **SHIPPED + prod-applied**
    (migration 0119, #674).
 
-## Verified vs still-assumed (#297)
-**Verified live (2026-06-21, a direct GET returned HTTP 200):** base host
+## Verified live (#297 transport, #303 field map)
+**Transport (2026-06-21, a direct GET returned HTTP 200):** base host
 `https://reporting.live.myitprocess.com/public-api/v1`, auth header `mitp-api-key`, resource path
 `/recommendations`, and the response wrapper `{ page, pageSize, totalCount, items }` — paging stops
 on `totalCount` (server-page-size safe), short-page heuristic only as a no-`totalCount` fallback.
 Corroborated by the Celerium MyITProcess-PowerShellWrapper + Kaseya Swagger.
 
-**Still assumed** (fallback chain + lossless `raw_payload` cover a miss — re-verify on the first
-prod pull): the per-column SOURCE field names/casing (`id`, `clientId`, `assessmentName`, `title`,
-`category`, `priority`, `status`, `targetDate`).
+**Field map (2026-06-22, first prod pull — #303):** verified against the live recommendation shape
+`{ id, name, type, priority, status, budgetMonth, client{id,name}, initiative{id}, description,
+hours, ... }`:
+
+| bronze column | live source | note |
+|---|---|---|
+| `account_ref` | `client.id` | client is `{id,name}` |
+| `recommendation_title` | `name` | |
+| `category` | `type` | |
+| `priority` / `status` | `priority` / `status` | |
+| `target_date` | `budgetMonth` | planned timeframe (text column) |
+| `assessment_name` | — | **no live source** (only `initiative{id}`, no name) → stays NULL |
+
+Fallback chains + lossless `raw_payload` still cover any future shape drift.
 
 ## Cross-references
 - This repo: **ADR-0018**, ADR-0001, ADR-0005, ADR-0006 (CRM/advisory exception — IT Glue skipped),
