@@ -37,25 +37,21 @@ function Invoke-ImperionSemanticDriftSync {
     )
 
     $started = Get-Date
-    $cleanup = $null
+
+    # One canon for resolving the front-end bundle (shared with Invoke-ImperionSemanticConceptSync, #176).
+    $resolved = Resolve-ImperionOkfBundle -BundlePath $BundlePath -SourceRepo $SourceRepo
+    $cleanup = $resolved.Cleanup
 
     try {
-        if (-not $BundlePath) {
-            # Shallow, read-only clone of just enough of the front-end repo to read the bundle.
-            $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("imperion-okf-{0}" -f ([guid]::NewGuid().ToString('N')))
-            & git clone --depth 1 --quiet $SourceRepo $tmp 2>$null | Out-Null
-            if ($LASTEXITCODE -ne 0 -or -not (Test-Path $tmp)) {
-                Write-ImperionLog -Level Warn -Source 'semantic' -Message 'Semantic-drift sync skipped: could not clone the front-end bundle (no access / git unavailable). Fail-closed no-op.'
-                return @()
-            }
-            $cleanup = $tmp
-            $BundlePath = Join-Path $tmp 'docs/database/semantic-layer'
-        }
-
-        if (-not (Test-Path (Join-Path $BundlePath 'tables'))) {
-            Write-ImperionLog -Level Warn -Source 'semantic' -Message "Semantic-drift sync skipped: no OKF bundle at '$BundlePath'."
+        if ($resolved.Reason -eq 'clone-failed') {
+            Write-ImperionLog -Level Warn -Source 'semantic' -Message 'Semantic-drift sync skipped: could not clone the front-end bundle (no access / git unavailable). Fail-closed no-op.'
             return @()
         }
+        if ($resolved.Reason -eq 'no-bundle') {
+            Write-ImperionLog -Level Warn -Source 'semantic' -Message "Semantic-drift sync skipped: no OKF bundle at '$($resolved.BundlePath)'."
+            return @()
+        }
+        $BundlePath = $resolved.BundlePath
 
         $drift = Get-ImperionSemanticDrift -BundlePath $BundlePath
         $byStatus = $drift | Group-Object status | ForEach-Object { "$($_.Name)=$($_.Count)" }

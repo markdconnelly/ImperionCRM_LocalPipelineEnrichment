@@ -55,8 +55,24 @@ refreshed the silver/gold inputs.
 `Invoke-ImperionKnowledgeCompose` spine (#106) which owns the tenant default, connection
 lifecycle, related-row caches, the row emit + `content_hash` over title+body, and the metric
 log. Entity types: **account · contact · contract · ticket · device · exposure · assessment ·
-proposal · posture · social · conversation_segment · memory**. A new entity is a SQL query + a
-`-Compose` scriptblock — the row shape and idempotency contract live in one place.
+proposal · posture · social · conversation_segment · memory · semantic_concept**. A new
+DB-sourced entity is a SQL query + a `-Compose` scriptblock — the row shape and idempotency
+contract live in one place.
+
+> **`semantic_concept` is filesystem-sourced, not DB-sourced** (LP #176; front-end ADR-0086
+> bundle / ADR-0041 contract). `Get-ImperionKnowledgeSemanticConcept` reads the front-end OKF
+> semantic-layer bundle — one curated markdown concept file per silver entity (what it *means*,
+> its source-of-record/authority, its joins) — and emits ONE `entity_type='semantic_concept'`
+> object per file (`entity_ref = <concept>`, `title`/`summary` from frontmatter, `body` = the
+> prose with frontmatter stripped, the frontmatter facets + `source_doc` back-reference in
+> `metadata`). The bundle is the front end's canon (CLAUDE.md §11) — this repo never forks it;
+> `Resolve-ImperionOkfBundle` resolves a local checkout or shallow-clones it read-only. A
+> human-edited semantic corpus is far better agent grounding than a raw schema dump. The bundle
+> is **PII-free by the ADR-0086 conformance rules** (definitions, not row data), so only curated
+> docs are embedded — never row-level prod data. Entry point: **`Invoke-ImperionSemanticConceptSync
+> [-Vectorize]`** (suggested task `Imperion-SemanticConceptVectorize`; wiring the schedule is
+> Mark-gated, CLAUDE.md §10). It rides the normal chunk→Voyage→pgvector stage scoped to
+> `entity_type='semantic_concept'`.
 
 > **PII / safety boundaries (enforced in the composers):** `exposure` carries
 > `credential_exposure` **facts only** — no raw breach payloads, no plaintext credentials ever
