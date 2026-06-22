@@ -10,8 +10,7 @@ Describe 'Invoke-ImperionITGlueExport' {
     It 'exports records and does not throw when a record lacks attributes' {
         InModuleScope ImperionPipeline {
             Mock Get-ImperionConfig { @{ ITGlue = @{ BaseUri = 'https://api.itglue.com' } } }
-            Mock Get-ImperionSecretNames { @{ ITGlueReadKey = 'ITGlue-API-Key' } }
-            Mock Get-ImperionSecretValue { 'key-value' }
+            Mock Resolve-ImperionITGlueApiKey { 'key-value' }
             Mock New-ImperionDbConnection { [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { } }
             Mock Write-ImperionLog { }
             Mock Invoke-ImperionDbNonQuery { 0 }

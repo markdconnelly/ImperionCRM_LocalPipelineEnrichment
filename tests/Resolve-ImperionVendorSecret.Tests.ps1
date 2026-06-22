@@ -103,8 +103,8 @@ Describe 'Resolve-ImperionVendorSecret' {
                 $catalog = Get-ImperionVendorSecretCatalog
                 foreach ($vendor in $catalog.Keys) {
                     $spec = $catalog[$vendor]
-                    $spec.Contains('SecretStoreKey')       | Should -BeTrue -Because "$vendor needs SecretStoreKey"
-                    $spec.Contains('VaultSecretConfigKey')  | Should -BeTrue -Because "$vendor needs VaultSecretConfigKey"
+                    # SecretStoreKey / VaultSecretConfigKey are OPTIONAL — KV-only entries omit
+                    # them (issue #291). VaultDefault + ErrorMessage are always required.
                     $spec.Contains('VaultDefault')          | Should -BeTrue -Because "$vendor needs VaultDefault"
                     $spec.Contains('ErrorMessage')          | Should -BeTrue -Because "$vendor needs ErrorMessage (may be `$null)"
                 }

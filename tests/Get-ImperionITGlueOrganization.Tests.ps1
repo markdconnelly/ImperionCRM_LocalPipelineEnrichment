@@ -10,8 +10,7 @@ Describe 'Get-ImperionITGlueOrganization' {
     BeforeEach {
         InModuleScope ImperionPipeline {
             Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner'; ITGlue = @{ BaseUri = 'https://api.itglue.com' } } }
-            Mock Get-ImperionSecretNames { @{ ITGlueReadKey = 'ITGlue-API-Key' } }
-            Mock Get-ImperionSecretValue { 'key-value' }
+            Mock Resolve-ImperionITGlueApiKey { 'key-value' }
         }
     }
 

@@ -14,9 +14,8 @@ function Invoke-ImperionITGlueExport {
     param()
 
     $cfg = Get-ImperionConfig
-    $names = Get-ImperionSecretNames
     $started = Get-Date
-    $apiKey = Get-ImperionSecretValue -Name $names.ITGlueReadKey
+    $apiKey = Resolve-ImperionITGlueApiKey
     $base = $cfg.ITGlue.BaseUri
 
     $resourceTypes = @(

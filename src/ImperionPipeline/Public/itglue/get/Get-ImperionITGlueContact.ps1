@@ -19,10 +19,9 @@ function Get-ImperionITGlueContact {
     )
 
     $cfg = Get-ImperionConfig
-    $names = Get-ImperionSecretNames
     if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
 
-    $apiKey = Get-ImperionSecretValue -Name $names.ITGlueReadKey
+    $apiKey = Resolve-ImperionITGlueApiKey
     $records = Invoke-ImperionITGlueRequest -Path 'contacts' -ApiKey $apiKey -Query 'sort=-updated-at&page[size]=1000' -BaseUri $cfg.ITGlue.BaseUri
 
     $map = [ordered]@{

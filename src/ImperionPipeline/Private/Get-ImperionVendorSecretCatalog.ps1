@@ -56,11 +56,23 @@ function Get-ImperionVendorSecretCatalog {
             VaultDefault         = 'Datto-RMM-API-Key'
             ErrorMessage         = 'Datto RMM API key unavailable: pass -ApiKey, provision the SecretStore secret named by DattoRmmApiKey, or the Key Vault secret named by DattoRmmApiKeyVaultSecret (issue #195, ADR-0018).'
         }
+        # Standardized credential-registry resolution (conn-company-<provider>): the same Key
+        # Vault secrets the cloud reads (issue #291; Mark 2026-06-21 "leverage KV like the cloud").
+        # These entries omit SecretStoreKey/VaultSecretConfigKey on purpose, so the resolver
+        # skips the SecretStore mirror AND any stale per-host override and reads the Key Vault
+        # secret below via the cert SP. KQM's registry provider is 'quotemanager'; it stays
+        # caller-gated (ErrorMessage $null = return $null, don't throw).
         kqm = @{
-            SecretStoreKey       = 'KqmApiKey'
-            VaultSecretConfigKey = 'KqmApiKeyVaultSecret'
-            VaultDefault         = 'KQM-API-Key'
-            ErrorMessage         = $null
+            VaultDefault = 'conn-company-quotemanager'
+            ErrorMessage = $null
+        }
+        itglue = @{
+            VaultDefault = 'conn-company-itglue'
+            ErrorMessage = 'IT Glue API key unavailable: provision the Key Vault secret conn-company-itglue via the credential registry (issue #291).'
+        }
+        telivy = @{
+            VaultDefault = 'conn-company-televy'
+            ErrorMessage = 'Telivy API key unavailable: provision the Key Vault secret conn-company-televy via the credential registry (issue #291).'
         }
         meta = @{
             SecretStoreKey       = 'MetaSystemUserToken'
