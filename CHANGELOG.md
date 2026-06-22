@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.14.0](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.13.0...v0.14.0) (2026-06-22)
+
+
+### Features
+
+* **autotask:** promote contract + ticket collectors to *Sync cmdlets ([#287](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/287)) ([#288](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/288)) ([595fbdc](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/595fbdc63dfdac9e7e97eba5e2369d5deb730d2d))
+* **knowledge:** vectorize memory_drawer into gold `memory` knowledge objects ([#300](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/300)) ([#309](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/309)) ([f7d011b](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/f7d011bbddea0a643323f4fb86a83e6f91711e6b))
+* **m365:** per-tenant fail-isolation via shared estate-sweep helper ([#266](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/266)) ([#282](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/282)) ([2554be1](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/2554be15773cea28d0e3fd125b38c243d9a948f0))
+
+
+### Bug Fixes
+
+* **creds:** on-prem IT Glue/KQM/Telivy resolve from Key Vault standardized names ([#291](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/291)) ([#293](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/293)) ([2ced71b](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/2ced71b5caac085df2b648e8319cfcfbf12e4b46))
+* **creds:** parse conn-company JSON credential blob + reroute myITprocess ([#299](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/299)) ([#301](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/301)) ([1b4ed76](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/1b4ed76de946a0a2e1dfcead96c886b07d3f96ff))
+* **intune:** reconcile managed-apps collector to the per-device detectedApps schema ([#252](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/252)) ([#296](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/296)) ([39d3fbc](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/39d3fbcf45667304c72b81402a9be323bcd29631))
+* **m365:** reconcile entra tenant-hygiene collectors to landed migration 0136 ([#219](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/219)) ([#295](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/295)) ([c63a362](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/c63a3623978ed1e0fc4754e41ab3392824b6972c))
+* **myitprocess:** correct live API base host, auth header, items wrapper ([#297](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/297)) ([#302](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/302)) ([243d0e1](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/243d0e165430e98de26cb55a00d78a25deb21d99))
+* **myitprocess:** map category/target_date to verified live field names ([#303](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/303)) ([#304](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/304)) ([9f45128](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/9f45128418582072f144b0969d6623d773de028a))
+
 ## [0.13.0](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.12.0...v0.13.0) (2026-06-21)
 
 
