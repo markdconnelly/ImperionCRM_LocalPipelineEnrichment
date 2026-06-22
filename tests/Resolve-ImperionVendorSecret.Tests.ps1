@@ -111,6 +111,57 @@ Describe 'Resolve-ImperionVendorSecret' {
             }
         }
     }
+
+    Context 'conn-company JSON credential blob extraction (#299)' {
+        BeforeEach {
+            InModuleScope ImperionPipeline {
+                $script:ImperionSecretStoreVault = $null   # KV-only path
+                Mock Get-ImperionSecretNames { @{} }
+            }
+        }
+
+        It 'itglue extracts apiKey from the conn-company-itglue blob' {
+            InModuleScope ImperionPipeline {
+                Mock Get-ImperionKeyVaultSecret { if ($Name -eq 'conn-company-itglue') { '{"apiKey":"itg-real","region":"us"}' } else { throw "wrong name $Name" } }
+                Resolve-ImperionVendorSecret -Vendor 'itglue' | Should -Be 'itg-real'
+            }
+        }
+
+        It 'kqm extracts apiKey from the conn-company-quotemanager blob' {
+            InModuleScope ImperionPipeline {
+                Mock Get-ImperionKeyVaultSecret { if ($Name -eq 'conn-company-quotemanager') { '{"apiKey":"kqm-real","tenant":"t1"}' } else { throw "wrong name $Name" } }
+                Resolve-ImperionVendorSecret -Vendor 'kqm' | Should -Be 'kqm-real'
+            }
+        }
+
+        It 'telivy extracts apiKey from the conn-company-televy blob' {
+            InModuleScope ImperionPipeline {
+                Mock Get-ImperionKeyVaultSecret { if ($Name -eq 'conn-company-televy') { '{"apiKey":"tel-real"}' } else { throw "wrong name $Name" } }
+                Resolve-ImperionVendorSecret -Vendor 'telivy' | Should -Be 'tel-real'
+            }
+        }
+
+        It 'myitprocess reads the rerouted conn-company-myitprocess name and extracts apiKey' {
+            InModuleScope ImperionPipeline {
+                Mock Get-ImperionKeyVaultSecret { if ($Name -eq 'conn-company-myitprocess') { '{"apiKey":"myit-real"}' } else { throw "wrong name $Name (legacy myITprocess-API-Key must NOT be read)" } }
+                Resolve-ImperionVendorSecret -Vendor 'myitprocess' | Should -Be 'myit-real'
+            }
+        }
+
+        It 'passes a bare-string secret through unchanged (back-compat)' {
+            InModuleScope ImperionPipeline {
+                Mock Get-ImperionKeyVaultSecret { 'a-bare-key-not-json' }
+                Resolve-ImperionVendorSecret -Vendor 'itglue' | Should -Be 'a-bare-key-not-json'
+            }
+        }
+
+        It 'throws an actionable error when the blob lacks the apiKey field' {
+            InModuleScope ImperionPipeline {
+                Mock Get-ImperionKeyVaultSecret { '{"region":"us"}' }
+                { Resolve-ImperionVendorSecret -Vendor 'itglue' } | Should -Throw -ExpectedMessage "*missing the 'apiKey' field*"
+            }
+        }
+    }
 }
 
 Describe 'per-vendor adapters delegate to the deep resolver' {

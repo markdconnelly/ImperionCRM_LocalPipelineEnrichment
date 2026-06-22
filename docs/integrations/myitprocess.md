@@ -14,7 +14,7 @@ pull-only scheduled bulk pull lands into Postgres bronze (`myitprocess_recommend
 ## Source & auth
 | Source | API | Auth |
 | --- | --- | --- |
-| myITprocess | myITprocess REST API (`https://api.myitprocess.com/api/v1`) | **`api_token` header** (URLs are NOT secret-bearing). SecretStore `myitprocess-api-key`, else Key Vault `myITprocess-API-Key` (cert SP) |
+| myITprocess | myITprocess REST API (`https://api.myitprocess.com/api/v1`) | **`api_token` header** (URLs are NOT secret-bearing). Key Vault `conn-company-myitprocess` (cert SP) — the standardized credential-registry secret, read as a JSON blob and the `apiKey` field extracted (#292 → #299). KV-only; the legacy SecretStore `myitprocess-api-key` / KV `myITprocess-API-Key` are retired |
 
 - **MSP-wide vendor credential** (ADR-0018 §2) — Imperion's own vCIO account, not per-client.
 - **Read-only / pull-only** (no webhooks reach a home server — ADR-0001).
@@ -49,8 +49,9 @@ Daily (`scheduled-tasks/myitprocess/recommendations.task.ps1`). Roadmap / QBR / 
 recommendations change slowly; stagger from the Datto tasks.
 
 ## Gates (Mark — block LIVE not BUILD)
-1. **myITprocess API key** — provision `myitprocess-api-key` (SecretStore) or `myITprocess-API-Key`
-   (Key Vault). Until then the resolver throws and the task logs + exits cleanly.
+1. **myITprocess API key** — enter it in **Settings → Credentials (My IT Process)**; the backend
+   custodies it in Key Vault as `conn-company-myitprocess` (JSON blob; the LP resolver extracts
+   `apiKey`, #299). Until then the resolver throws and the task logs + exits cleanly.
 2. ~~Front-end `myitprocess_recommendations` bronze migration~~ — **SHIPPED + prod-applied**
    (migration 0119, #674).
 

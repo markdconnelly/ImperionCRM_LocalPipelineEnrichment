@@ -75,9 +75,9 @@ api_key → `@{ApiKey}`). KV names follow `conn-<scope>-<provider>[-<tenantId|us
 | **Autotask** | `autotask` · company | Settings → Credentials (company). | API key | One company cred; already present in prod registry. |
 | **IT Glue** | `itglue` · company | Settings → Credentials (company). | API key | Already in prod registry. |
 | **QBO** | `qbo` · company | Seed `qbo-access-token` + `qbo-realm-id`. | OAuth | **Standing blocker** — needs the QBO app registration (Mark). |
-| **KQM (Kaseya Quote Manager)** | `kqm` · company | Seed `KQM-API-Key`. | API key | URLs are secret-bearing (`?apikey=`) — never logged. |
-| **Datto RMM / BCDR** | company | Seed `Datto-RMM-API-Key` / `Datto-BCDR-API-Key`. | API key → bearer | Bronze migration 0119 already applied. |
-| **myITprocess** | company | Seed `myITprocess-API-Key`. | `api_token` header | |
+| **KQM (Kaseya Quote Manager)** | `quotemanager` · company | Settings → Credentials. | API key | Custodied as `conn-company-quotemanager` (JSON blob; LP extracts `apiKey`, #299). URLs are secret-bearing (`?apikey=`) — never logged. |
+| **Datto RMM / BCDR** | company | Seed `Datto-RMM-API-Key` / `Datto-BCDR-API-Key`. | API key → bearer | Bronze migration 0119 already applied. (Legacy named secrets — not yet on the conn-company blob path.) |
+| **myITprocess** | `myitprocess` · company | Settings → Credentials. | API key | Custodied as `conn-company-myitprocess` (JSON blob; LP extracts `apiKey`, #292 → #299). `api_token` header. |
 | **Meta (FB / IG)** | `meta` · company | Seed the Meta Business token. | OAuth | Already live in prod (54 posts / 89 DMs verified). |
 | **DNS** | via `azure` + OS resolver | No secret for the public-resolve plane; zone-read uses the ARM cred. | — | ADR-0063. |
 | **UniFi** | `unifi` · client | Settings → Credentials (client UniFi form): console\|cloud + `controllerHost` if console. | API key | ⛔ **G2** — rows blocked until `0150` (`api_key` CHECK) + `0151` (`provider_config`) prod-applied. |
