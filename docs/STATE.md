@@ -5,7 +5,7 @@ the durable contract lives in `CLAUDE.md`; anything dated, in-flight, or run-spe
 lives here. When a fact here hardens into a rule, move it to `CLAUDE.md`; when it is
 done or superseded, prune it.
 
-Last reviewed: **2026-06-20.**
+Last reviewed: **2026-06-22.**
 
 ---
 
@@ -65,6 +65,26 @@ collectors.
 - **Mark-gated / still pending:** prod-apply migrations 0150 + 0151; register a client UniFi
   console (the registry is **EMPTY in prod**, so the sweep self-gates + no-ops). Follow-up:
   on-prem `Invoke-ImperionUniFiMerge` bronze→silver `device` (ADR-0026, #73 acceptance).
+
+### Credentialed-source hydration — vendor-connect blob handling (2026-06-22)
+
+The company-scope vendor credentials are custodied as **JSON credential blobs** in Key Vault
+under the standardized `conn-company-<provider>` name (FE/BE seed the blob; the registry GUI
+writes it). The on-prem resolver path now matches that shape:
+
+- **`ConvertFrom-ImperionCredentialBlob`** parses the `conn-company-*` JSON blob and extracts the
+  needed field (e.g. `apiKey`); the per-vendor `Resolve-Imperion<Vendor>ApiKey` helpers and the
+  shared `Resolve-ImperionVendorSecret` (#228) route through it (#291/#293 IT Glue/KQM/Telivy;
+  #299/#301 the blob parse + myITprocess reroute). Earlier these resolvers read **raw-string**
+  KV secrets / wrong KV names — that drift is fixed.
+- **Now LIVE in bronze (prod):** **IT Glue = 716** (27 companies + 234 contacts + 455 devices),
+  **KQM** and **myITprocess** pulling (small live row counts). myITprocess transport + field map
+  also verified live (#297/#303) and the doc reflects it.
+- **Still blocked: Telivy** — resolver standardized (#291) but the source stays **dormant** until
+  its credential lands (no `conn-company-telivy` blob in prod yet); the collector logs + exits
+  cleanly.
+- Datto RMM/BCDR remain on legacy named secrets (not yet on the `conn-company` blob path) — see
+  the [data-in light-up runbook](runbooks/data-in-light-up.md) Step 1.
 
 ---
 

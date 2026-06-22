@@ -18,7 +18,7 @@ mirrors the system-wide standard.
 
 | Area | What lives here |
 | --- | --- |
-| [architecture/](architecture/) | [System overview](architecture/system-overview.md) + the cloud/local boundary + the domain roster + diagrams. |
+| [architecture/](architecture/) | [System overview](architecture/system-overview.md) + the cloud/local boundary + the domain roster + diagrams + the memory **deep dives** ([MemPalace](architecture/deep-dives/mempalace-memory-architecture.md) · [OpenBrain](architecture/deep-dives/open-brain-second-brain.md)). |
 | **Onboarding guides (root)** | [collector-inventory.md](collector-inventory.md) (every source → cmdlet → bronze → cadence → ADR) · [vectorization-to-gold.md](vectorization-to-gold.md) · [it-glue-hub.md](it-glue-hub.md) · [security-posture-bronze.md](security-posture-bronze.md). |
 | [security/](security/) | [Certificate trust chain](security/certificate-trust-chain.md) · [least-privilege grants](security/least-privilege-grants.md) · [unified security standard](security/unified-security-standard.md) (system baseline — referenced, not restated). |
 | [integrations/](integrations/) | One doc per source (33+): see [integrations/README.md](integrations/README.md) for the grouped index (CRM/support · RMM/managed estate · security · finance · logistics · scoped interaction). |
