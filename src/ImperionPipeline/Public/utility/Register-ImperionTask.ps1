@@ -68,6 +68,81 @@ function Register-ImperionTask {
         @{ Name = 'Imperion-PostureSnapshot';        Cmdlet = 'Invoke-ImperionPostureSnapshot';       At = '03:40' }
         @{ Name = 'Imperion-ITGlueExport';           Cmdlet = 'Invoke-ImperionITGlueExport';          At = '03:30' }
         @{ Name = 'Imperion-KaseyaImport';           Cmdlet = 'Invoke-ImperionKaseyaImport';          At = '01:00' }
+
+        # === Collector catalog (epic #286): every remaining .task.ps1 promoted to a *Sync cmdlet
+        # (ADR-0007, cmdlet-first) and registered here. Times stagger collectors BEFORE the merges
+        # (03:10-03:44) and the gold vectorize (04:30). All are dormant-safe: each fails closed
+        # (log + exit) on a missing credential row or unapplied bronze migration. The $tasks schema
+        # is -Daily only; sub-daily cadences in scheduled-task-registry.md (tickets 15-30m, comms
+        # hourly) register daily as bulk catch-up until a repetition field is added (#286). ===
+
+        # QBO finance (read-only; dormant until qbo-access-token/realm provisioned)
+        @{ Name = 'Imperion-QboAccounts';            Cmdlet = 'Invoke-ImperionQboAccountSync';            At = '00:00' }
+        @{ Name = 'Imperion-QboCustomers';           Cmdlet = 'Invoke-ImperionQboCustomerSync';           At = '00:05' }
+        @{ Name = 'Imperion-QboInvoices';            Cmdlet = 'Invoke-ImperionQboInvoiceSync';            At = '00:10' }
+        @{ Name = 'Imperion-QboPayments';            Cmdlet = 'Invoke-ImperionQboPaymentSync';            At = '00:15' }
+        @{ Name = 'Imperion-QboEstimates';           Cmdlet = 'Invoke-ImperionQboEstimateSync';           At = '00:20' }
+        @{ Name = 'Imperion-QboBills';               Cmdlet = 'Invoke-ImperionQboBillSync';               At = '00:25' }
+        @{ Name = 'Imperion-QboExpenseAccounts';     Cmdlet = 'Invoke-ImperionQboExpenseAccountSync';     At = '00:30' }
+        @{ Name = 'Imperion-QboPurchases';           Cmdlet = 'Invoke-ImperionQboPurchaseSync';           At = '00:35' }
+        @{ Name = 'Imperion-QboProfitAndLoss';       Cmdlet = 'Invoke-ImperionQboProfitAndLossSync';      At = '00:40' }
+        # Operational / vendor integrations (dormant until each API key provisioned)
+        @{ Name = 'Imperion-DattoRmmDevices';        Cmdlet = 'Invoke-ImperionDattoRmmDeviceSync';        At = '00:45' }
+        @{ Name = 'Imperion-DattoBcdrBackups';       Cmdlet = 'Invoke-ImperionDattoBcdrBackupSync';       At = '00:50' }
+        @{ Name = 'Imperion-MyItProcessRecs';        Cmdlet = 'Invoke-ImperionMyItProcessRecommendationSync'; At = '00:55' }
+        @{ Name = 'Imperion-CdwOrders';              Cmdlet = 'Invoke-ImperionCdwOrderSync';              At = '01:05' }
+        @{ Name = 'Imperion-AmazonBusinessOrders';   Cmdlet = 'Invoke-ImperionAmazonBusinessOrderSync';   At = '01:10' }
+        @{ Name = 'Imperion-AutotaskTimeEntries';    Cmdlet = 'Invoke-ImperionAutotaskTimeEntrySync';     At = '01:20' }
+        @{ Name = 'Imperion-KqmOpportunities';       Cmdlet = 'Invoke-ImperionKqmOpportunitySync';        At = '01:25' }
+        @{ Name = 'Imperion-TelivyAssessments';      Cmdlet = 'Invoke-ImperionTelivyReportSync';          At = '01:35' }
+        @{ Name = 'Imperion-DarkWebIdCompromises';   Cmdlet = 'Invoke-ImperionDarkWebIdCompromiseSync';   At = '01:40' }
+        @{ Name = 'Imperion-EasyDmarcDomains';       Cmdlet = 'Invoke-ImperionEasyDmarcDomainSync';       At = '01:45' }
+        @{ Name = 'Imperion-MileIqDrives';           Cmdlet = 'Invoke-ImperionMileIqDriveSync';           At = '01:50' }
+        @{ Name = 'Imperion-PlaudRecordings';        Cmdlet = 'Invoke-ImperionPlaudRecordingSync';        At = '01:55' }
+        @{ Name = 'Imperion-DocuSignEnvelopes';      Cmdlet = 'Invoke-ImperionDocuSignEnvelopeSync';      At = '02:05' }
+        # IT Glue (company API key)
+        @{ Name = 'Imperion-ITGlueOrganizations';    Cmdlet = 'Invoke-ImperionITGlueOrganizationSync';    At = '02:10' }
+        @{ Name = 'Imperion-ITGlueContacts';         Cmdlet = 'Invoke-ImperionITGlueContactSync';         At = '02:12' }
+        @{ Name = 'Imperion-ITGlueConfigurations';   Cmdlet = 'Invoke-ImperionITGlueConfigurationSync';   At = '02:14' }
+        @{ Name = 'Imperion-UniFiDevices';           Cmdlet = 'Invoke-ImperionUniFiDeviceSync';           At = '02:20' }
+        # Azure ARM resource inventory + Sentinel + DNS manage-plane (cert SP Reader)
+        @{ Name = 'Imperion-AzureResourceInventory'; Cmdlet = 'Invoke-ImperionAzureResourceInventorySync'; At = '02:35' }
+        @{ Name = 'Imperion-Sentinel';               Cmdlet = 'Invoke-ImperionSentinelSync';              At = '02:40' }
+        @{ Name = 'Imperion-DnsZones';               Cmdlet = 'Invoke-ImperionDnsZoneSync';               At = '02:55' }
+        # M365 estate collectors (per-client onboarding app; dormant until consent) - run before
+        # the M365 directory merge (03:15) and posture merge (03:20).
+        @{ Name = 'Imperion-M365Users';              Cmdlet = 'Invoke-ImperionM365UserSync';              At = '03:02' }
+        @{ Name = 'Imperion-M365Devices';            Cmdlet = 'Invoke-ImperionM365DeviceSync';            At = '03:04' }
+        @{ Name = 'Imperion-EntraGroups';            Cmdlet = 'Invoke-ImperionEntraGroupSync';            At = '03:06' }
+        @{ Name = 'Imperion-EntraGroupMembers';      Cmdlet = 'Invoke-ImperionEntraGroupMemberSync';      At = '03:08' }
+        @{ Name = 'Imperion-EntraDomains';           Cmdlet = 'Invoke-ImperionEntraDomainSync';           At = '03:12' }
+        @{ Name = 'Imperion-EntraAppRegistrations';  Cmdlet = 'Invoke-ImperionEntraAppRegistrationSync';  At = '03:14' }
+        @{ Name = 'Imperion-EntraRoleAssignments';   Cmdlet = 'Invoke-ImperionEntraRoleAssignmentSync';   At = '03:16' }
+        @{ Name = 'Imperion-EntraAuthMethods';       Cmdlet = 'Invoke-ImperionEntraAuthMethodSync';       At = '03:18' }
+        @{ Name = 'Imperion-IntuneApps';             Cmdlet = 'Invoke-ImperionIntuneAppSync';             At = '03:22' }
+        @{ Name = 'Imperion-IntuneDevices';          Cmdlet = 'Invoke-ImperionIntuneDeviceSync';          At = '03:24' }
+        @{ Name = 'Imperion-SensitivityLabels';      Cmdlet = 'Invoke-ImperionSensitivityLabelSync';      At = '03:26' }
+        @{ Name = 'Imperion-CustomSecurityAttrs';    Cmdlet = 'Invoke-ImperionCustomSecurityAttributeSync'; At = '03:28' }
+        @{ Name = 'Imperion-SharePointSites';        Cmdlet = 'Invoke-ImperionSharePointSiteSync';        At = '03:32' }
+        @{ Name = 'Imperion-Defender';               Cmdlet = 'Invoke-ImperionDefenderSync';              At = '03:34' }
+        @{ Name = 'Imperion-SecurityIncidents';      Cmdlet = 'Invoke-ImperionSecurityIncidentSync';      At = '03:36' }
+        @{ Name = 'Imperion-PurviewCompliance';      Cmdlet = 'Invoke-ImperionPurviewComplianceSync';     At = '03:38' }
+        # DNS public-resolve + silver merge (merge AFTER both DNS collectors)
+        @{ Name = 'Imperion-DnsResolve';             Cmdlet = 'Invoke-ImperionDnsResolveSync';            At = '03:42' }
+        @{ Name = 'Imperion-DnsMerge';               Cmdlet = 'Invoke-ImperionDnsMerge';                  At = '03:44' }
+        # M365 communications (hourly target; daily bulk here)
+        @{ Name = 'Imperion-M365Mail';               Cmdlet = 'Invoke-ImperionM365MailSync';              At = '03:46' }
+        @{ Name = 'Imperion-M365TeamsChat';          Cmdlet = 'Invoke-ImperionM365TeamsChatSync';         At = '03:48' }
+        @{ Name = 'Imperion-M365TeamsMeeting';       Cmdlet = 'Invoke-ImperionM365TeamsMeetingSync';      At = '03:50' }
+        @{ Name = 'Imperion-ScopedInteractionMail';  Cmdlet = 'Invoke-ImperionScopedInteractionMailSync'; At = '03:52' }
+        @{ Name = 'Imperion-ScopedInteractionTeams'; Cmdlet = 'Invoke-ImperionScopedInteractionTeamsSync'; At = '03:54' }
+        # Meta (each *Sync runs Invoke-ImperionMetaMerge itself, ADR-0026)
+        @{ Name = 'Imperion-MetaSocial';             Cmdlet = 'Invoke-ImperionMetaSocialSync';            At = '04:00' }
+        @{ Name = 'Imperion-MetaInsights';           Cmdlet = 'Invoke-ImperionMetaInsightSync';           At = '04:05' }
+        # Housekeeping: 180-day security retention prune (after collectors) + weekly OKF drift (dry-run)
+        @{ Name = 'Imperion-SecurityRetentionSweep'; Cmdlet = 'Invoke-ImperionSecurityRetentionSweep';    At = '04:10' }
+        @{ Name = 'Imperion-SemanticDrift';          Cmdlet = 'Invoke-ImperionSemanticDriftSync';         At = '04:15' }
+
         # Gold knowledge + vectorization runs LAST, after every ingest task above has
         # landed its data, so the embedded corpus reflects the night's loads (ADR-0009).
         @{ Name = 'Imperion-KnowledgeVectorize';     Cmdlet = 'Invoke-ImperionKnowledgeSync -Vectorize'; At = '04:30' }
