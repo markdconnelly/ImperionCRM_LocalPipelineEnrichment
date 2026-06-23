@@ -113,6 +113,8 @@ function Register-ImperionTask {
         @{ Name = 'Imperion-ITGlueContacts';         Cmdlet = 'Invoke-ImperionITGlueContactSync';         At = '02:12' }
         @{ Name = 'Imperion-ITGlueConfigurations';   Cmdlet = 'Invoke-ImperionITGlueConfigurationSync';   At = '02:14' }
         @{ Name = 'Imperion-UniFiDevices';           Cmdlet = 'Invoke-ImperionUniFiDeviceSync';           At = '02:20' }
+        # AFTER the UniFi collector: merge unifi_devices -> silver device (network class) (#284, ADR-0026).
+        @{ Name = 'Imperion-UniFiMerge';             Cmdlet = 'Invoke-ImperionUniFiMerge';                At = '02:22' }
         # Azure ARM resource inventory + Sentinel + DNS manage-plane (cert SP Reader)
         @{ Name = 'Imperion-AzureResourceInventory'; Cmdlet = 'Invoke-ImperionAzureResourceInventorySync'; At = '02:35' }
         @{ Name = 'Imperion-Sentinel';               Cmdlet = 'Invoke-ImperionSentinelSync';              At = '02:40' }

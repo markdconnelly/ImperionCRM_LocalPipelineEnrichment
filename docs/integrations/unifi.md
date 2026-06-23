@@ -63,8 +63,51 @@ CREATE TABLE IF NOT EXISTS unifi_devices (
 
 Merge target is silver `device` (network-infrastructure class, NOT `cloud_asset`); the
 `device` OKF concept already names `unifi` as a contributing source (0162). The on-prem
-bronze→silver `Invoke-ImperionUniFiMerge` (merge co-locates with ingestion, ADR-0026) and
-the Devices-page compliance surfacing are tracked follow-ups (issue #73 acceptance).
+bronze→silver `Invoke-ImperionUniFiMerge` (merge co-locates with ingestion, ADR-0026) is
+**BUILT** (issue #284) — see the Merge section below; the Devices-page firmware-compliance
+surfacing remains a tracked follow-up (issue #73 acceptance / ImperionCRM #1241).
+
+## Merge — `unifi_devices` bronze → silver `device` (BUILT, issue #284)
+
+`Invoke-ImperionUniFiMerge` runs **after** the UniFi collector (`Imperion-UniFiMerge` @
+02:22; merge co-locates with ingestion, ADR-0026) and folds `unifi_devices` bronze into
+silver `device` as the **network-infrastructure** class. UniFi gear is physical on-prem
+hardware → it feeds `device`, **never `cloud_asset`** (#1053).
+
+### How it works
+1. **Resolve account.** The bronze envelope `tenant_id` is (per the collector,
+   `Resolve-ImperionAccountTenant`) the account's mapped Microsoft tenant when one exists,
+   else the account id itself. The merge reverses that in the read: `account_tenant.tenant_id
+   = bronze.tenant_id` → `account_id`; else, when the bronze `tenant_id` IS a real
+   `account.id`, it is used directly. A row that resolves to **no** account is **skipped**
+   (kept in bronze, surfaced as the `unmapped` count) — a network device with no owning
+   account is not written.
+2. **Match** on `(account_id, lower(btrim(name)))` — the cloud `device-matcher` name tier,
+   the only stable natural key available without a `mac` column. UniFi gear has no serial,
+   so the serial tier does not apply.
+3. **Create** when unmatched: a new `device` with `device_type='network'`,
+   `manufacturer='Ubiquiti'`, plus `name`/`model`/`status`/`last_seen_at`.
+4. **COALESCE-fill** on a match: fills ONLY currently-NULL identity fields
+   (`device_type`/`manufacturer`/`model`/`status`) and advances `last_seen_at` to the
+   greater of the two. It **never overwrites** a non-null value — the precedence-safety
+   guarantee while `device` has no `source` column: UniFi can enrich a sparse row but
+   never demote a higher-authority source's field (`website` > `datto_rmm` > `unifi` …).
+
+Idempotent + resumable: a re-run re-matches the same name within the same account and
+re-fills the same nulls (converges, never duplicates). Each bronze row is processed in its
+own try/catch so one bad row never blocks the rest (the cloud_asset/posture/Pax8 precedent).
+
+### Schema gaps (ImperionCRM #1241 — Mark-gated)
+
+The `device` OKF concept names `mac` as the UniFi lateral key, `device_type='network'`, and
+firmware signals as silver columns. The current silver `device` table has **none** of:
+a `mac` column / `(account_id, mac)` unique index; a `source`/precedence column (so a true
+replace-from-source scoped to the `unifi` label is impossible); firmware columns; and the
+local-pipeline role holds only `SELECT` on `device` (no `INSERT`/`UPDATE`). This repo never
+owns schema (CLAUDE.md §5/§6), so until **ImperionCRM #1241** lands the merge is the
+**conservative/additive** shape above and runs on **0 rows** (no write grant + empty
+bronze). The proper `mac`-keyed precedence merge + firmware-signal surfacing follow once
+#1241's schema lands.
 
 **The sweep self-gates per console on an active registry row:** with no active client UniFi
 `connection` rows the sweep logs and no-ops (dormant-safe); a console with no usable
