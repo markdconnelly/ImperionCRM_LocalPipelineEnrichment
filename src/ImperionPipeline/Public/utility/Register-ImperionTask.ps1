@@ -106,6 +106,8 @@ function Register-ImperionTask {
         @{ Name = 'Imperion-Pax8Subscriptions';      Cmdlet = 'Invoke-ImperionPax8SubscriptionSync';      At = '02:07' }
         @{ Name = 'Imperion-Pax8Licenses';           Cmdlet = 'Invoke-ImperionPax8LicenseSync';           At = '02:08' }
         @{ Name = 'Imperion-Pax8Orders';             Cmdlet = 'Invoke-ImperionPax8OrderSync';             At = '02:09' }
+        # AFTER the four Pax8 collectors: resolve pax8_companies -> account into entity_xref (#280, ADR-0026).
+        @{ Name = 'Imperion-Pax8Merge';              Cmdlet = 'Invoke-ImperionPax8Merge';                 At = '02:10' }
         # IT Glue (company API key)
         @{ Name = 'Imperion-ITGlueOrganizations';    Cmdlet = 'Invoke-ImperionITGlueOrganizationSync';    At = '02:10' }
         @{ Name = 'Imperion-ITGlueContacts';         Cmdlet = 'Invoke-ImperionITGlueContactSync';         At = '02:12' }

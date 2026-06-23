@@ -281,6 +281,7 @@
         'Set-ImperionCdwOrderToBronze',
         'Invoke-ImperionMetaMerge',
         'Invoke-ImperionM365DirectoryMerge',
+        'Invoke-ImperionPax8Merge',
         'Invoke-ImperionITGlueExportToBronze',
         # Gold knowledge + vectorization (ADR-0009; front-end migration 0045)
         # Lever A (issue #226 / ADR surface-shrink): the per-entity knowledge
