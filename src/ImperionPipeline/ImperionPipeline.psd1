@@ -82,6 +82,7 @@
         'Invoke-ImperionAzureInventorySync',
         'Invoke-ImperionCloudResourceSync',
         'Invoke-ImperionUniFiDeviceSync',
+        'Invoke-ImperionUniFiMerge',
         'Invoke-ImperionSecureScoreSync',
         'Invoke-ImperionPolicySync',
         'Invoke-ImperionPurviewComplianceSync',
