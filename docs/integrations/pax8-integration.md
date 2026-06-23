@@ -61,11 +61,35 @@ Daily, after the other company-credential collectors. Registered in `Register-Im
 `company_id` against them and the merge (#280) laterals on it. One scheduled task per (source,
 entity) — the CLAUDE.md §1 "many small jobs" standard.
 
-## Merge (sibling issue #280)
+## Merge (issue #280 — BUILT)
 Bronze→silver merge **co-locates with ingestion** (LP ADR-0026): LP ingests Pax8, so LP owns the
-merge — `Invoke-ImperionPax8Merge` (idempotent replace-from-source) resolving each Pax8 company to
-a silver `account` and linking licenses to agreement lines / devices, producing the actual-count
-side of the #1041 true-up. Built as the follow-up issue, not here.
+merge — `Invoke-ImperionPax8Merge` (`src/ImperionPipeline/Public/pax8/post/`).
+
+Pax8 adds **no new silver entity** — it ENRICHES existing ones (front-end
+`docs/integrations/pax8-integration.md`). The merge establishes the one thing every downstream
+Pax8 fact needs: the identity link **"this Pax8 company IS this client `account`"**, recorded in
+the golden-record registry (`entity_xref`, `source_system='pax8'`, `entity_type='account'`,
+front-end 0160/#1054). Once the link exists, every Pax8 row (`pax8_subscriptions` /
+`pax8_licenses` / `pax8_orders`, all keyed on `company_id`) becomes account-resolvable by joining
+through it — the actual-licensed-seat picture the #1041 true-up reconciles.
+
+- **Resolution.** Normalized exact name match of the Pax8 company name against `account.name`.
+  **Ambiguity → unresolved:** a name matching zero or >1 accounts is left unmapped (never guess
+  which "Acme" — the reason `entity_xref` exists). Unmapped companies stay in bronze and surface
+  as the run's `unresolved` count.
+- **Idempotent, manual-safe.** Keyed upsert on the registry's `UNIQUE (entity_type,
+  source_system, source_key)`; the `DO UPDATE` is guarded by `match_method <> 'manual'`, so a
+  fuzzy re-derivation never clobbers a human-curated link. `match_method='fuzzy'`,
+  `match_confidence=0.800`. The LP role holds `SELECT/INSERT/UPDATE` on `entity_xref` (0160) +
+  `SELECT` on `account`; no DELETE (replace-from-source is the keyed upsert).
+- **Dormant** until 0161 is prod-applied + the credential lands + the collector writes bronze
+  (all Mark-gated, #1042). Run after the collectors: `Imperion-Pax8Merge` (02:10).
+
+**Deferred (front-end schema follow-up, filed against #1042):** linking a subscription/license to
+a specific `contract` line (the *actual licensed quantity* column) and a license to a `device`
+needs silver columns that do not exist yet. This repo never owns schema (CLAUDE.md §5/§6), so the
+link half is a front-end migration, not invented here. The same follow-up flips the front-end
+`coverage-matrix.md` ⏳ Pax8 row (§11 sync).
 
 ## CONFIRM BEFORE LIVE USE
 The token endpoint host/path, the `audience` value, the API origin, the page-wrapper property
