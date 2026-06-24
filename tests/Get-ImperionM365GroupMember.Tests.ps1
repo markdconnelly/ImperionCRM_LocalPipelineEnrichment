@@ -82,6 +82,27 @@ Describe 'Get-ImperionM365GroupMember' {
         }
     }
 
+    It 'does not throw when a member omits userPrincipalName/mail entirely (#337)' {
+        InModuleScope ImperionPipeline {
+            # Graph OMITS userPrincipalName/mail for non-user members (servicePrincipal, device) —
+            # the property is absent, not null. Direct $member.userPrincipalName threw under
+            # StrictMode; the safe accessor must yield null and keep the edge.
+            Mock Invoke-ImperionGraphRequest {
+                if ($Uri -match '/groups\?\$select=id$') { @([pscustomobject]@{ id = 'grp-1' }) }
+                elseif ($Uri -match '/groups/grp-1/members') {
+                    @([pscustomobject]@{ '@odata.type' = '#microsoft.graph.servicePrincipal'; id = 'sp-1'; displayName = 'Some App' })
+                }
+                else { , @() }
+            }
+            $rows = @(Get-ImperionM365GroupMember)
+            $sp = @($rows | Where-Object { $_.member_external_id -eq 'sp-1' })
+            $sp.Count                         | Should -Be 1
+            $sp[0].member_type                | Should -Be '#microsoft.graph.servicePrincipal'
+            $sp[0].member_user_principal_name | Should -BeNullOrEmpty
+            $sp[0].member_mail                | Should -BeNullOrEmpty
+        }
+    }
+
     It 'collects from the requested tenant' {
         InModuleScope ImperionPipeline {
             Get-ImperionM365GroupMember -TenantId 'customer-9' | Out-Null
