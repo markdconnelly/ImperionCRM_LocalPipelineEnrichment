@@ -12,23 +12,29 @@ Describe 'Get-ImperionEntraRoleAssignment' {
             Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner' } }
             Mock Get-ImperionGraphToken { 'graph-token' }
             Mock Write-ImperionLog {}
+            # URI-aware: the roleAssignments page expands ONLY roleDefinition (#322); each
+            # principal is resolved by a separate directoryObjects/{id} GET.
             Mock Invoke-ImperionGraphRequest {
-                @(
-                    [pscustomobject]@{
-                        id = 'assignment-1'; roleDefinitionId = 'role-ga'; principalId = 'user-mark'
-                        directoryScopeId = '/'; appScopeId = $null
-                        roleDefinition = [pscustomobject]@{ displayName = 'Global Administrator'; isPrivileged = $true; isBuiltIn = $true; templateId = '62e90394-69f5-4237-9190-012177145e10' }
-                        principal = ([pscustomobject]@{ displayName = 'Mark Connelly'; userPrincipalName = 'mark@imperionllc.com' } |
-                            Add-Member -PassThru -NotePropertyName '@odata.type' -NotePropertyValue '#microsoft.graph.user')
-                    }
-                    [pscustomobject]@{
-                        id = 'assignment-2'; roleDefinitionId = 'role-reader'; principalId = 'sp-app'
-                        directoryScopeId = '/'
-                        roleDefinition = [pscustomobject]@{ displayName = 'Directory Readers'; isPrivileged = $false; isBuiltIn = $true }
-                        principal = ([pscustomobject]@{ displayName = 'Imperion Pipeline App' } |
-                            Add-Member -PassThru -NotePropertyName '@odata.type' -NotePropertyValue '#microsoft.graph.servicePrincipal')
-                    }
-                )
+                if ($Uri -like '*roleManagement/directory/roleAssignments*') {
+                    @(
+                        [pscustomobject]@{
+                            id = 'assignment-1'; roleDefinitionId = 'role-ga'; principalId = 'user-mark'
+                            directoryScopeId = '/'; appScopeId = $null
+                            roleDefinition = [pscustomobject]@{ displayName = 'Global Administrator'; isPrivileged = $true; isBuiltIn = $true; templateId = '62e90394-69f5-4237-9190-012177145e10' }
+                        }
+                        [pscustomobject]@{
+                            id = 'assignment-2'; roleDefinitionId = 'role-reader'; principalId = 'sp-app'
+                            directoryScopeId = '/'
+                            roleDefinition = [pscustomobject]@{ displayName = 'Directory Readers'; isPrivileged = $false; isBuiltIn = $true }
+                        }
+                    )
+                } elseif ($Uri -like '*directoryObjects/user-mark*') {
+                    @([pscustomobject]@{ displayName = 'Mark Connelly'; userPrincipalName = 'mark@imperionllc.com' } |
+                        Add-Member -PassThru -NotePropertyName '@odata.type' -NotePropertyValue '#microsoft.graph.user')
+                } elseif ($Uri -like '*directoryObjects/sp-app*') {
+                    @([pscustomobject]@{ displayName = 'Imperion Pipeline App' } |
+                        Add-Member -PassThru -NotePropertyName '@odata.type' -NotePropertyValue '#microsoft.graph.servicePrincipal')
+                }
             }
         }
     }
@@ -63,18 +69,49 @@ Describe 'Get-ImperionEntraRoleAssignment' {
         }
     }
 
-    It 'requests roleAssignments with $expand=roleDefinition,principal' {
+    It 'requests roleAssignments with a SINGLE $expand=roleDefinition (Graph rejects two, #322)' {
         InModuleScope ImperionPipeline {
             Get-ImperionEntraRoleAssignment | Out-Null
             Should -Invoke Invoke-ImperionGraphRequest -Times 1 -ParameterFilter {
-                $Uri -eq 'https://graph.microsoft.com/v1.0/roleManagement/directory/roleAssignments?$expand=roleDefinition,principal'
+                $Uri -eq 'https://graph.microsoft.com/v1.0/roleManagement/directory/roleAssignments?$expand=roleDefinition'
             }
         }
     }
 
-    It 'does not throw when expansion is absent (StrictMode-safe)' {
+    It 'resolves each principal via a directoryObjects by-id lookup' {
         InModuleScope ImperionPipeline {
-            Mock Invoke-ImperionGraphRequest { @([pscustomobject]@{ id = 'bare'; roleDefinitionId = 'r'; principalId = 'p' }) }
+            Get-ImperionEntraRoleAssignment | Out-Null
+            Should -Invoke Invoke-ImperionGraphRequest -Times 1 -ParameterFilter {
+                $Uri -eq 'https://graph.microsoft.com/v1.0/directoryObjects/user-mark'
+            }
+        }
+    }
+
+    It 'caches the principal lookup — one GET per distinct principal id' {
+        InModuleScope ImperionPipeline {
+            # Two assignments sharing one principal must trigger exactly one directoryObjects GET.
+            Mock Invoke-ImperionGraphRequest {
+                if ($Uri -like '*roleManagement/directory/roleAssignments*') {
+                    @(
+                        [pscustomobject]@{ id = 'a1'; roleDefinitionId = 'r1'; principalId = 'dup'; directoryScopeId = '/'; roleDefinition = [pscustomobject]@{ displayName = 'R1'; isPrivileged = $false } }
+                        [pscustomobject]@{ id = 'a2'; roleDefinitionId = 'r2'; principalId = 'dup'; directoryScopeId = '/'; roleDefinition = [pscustomobject]@{ displayName = 'R2'; isPrivileged = $false } }
+                    )
+                } else {
+                    @([pscustomobject]@{ displayName = 'Shared' } | Add-Member -PassThru -NotePropertyName '@odata.type' -NotePropertyValue '#microsoft.graph.user')
+                }
+            }
+            Get-ImperionEntraRoleAssignment | Out-Null
+            Should -Invoke Invoke-ImperionGraphRequest -Times 1 -ParameterFilter { $Uri -like '*directoryObjects/dup' }
+        }
+    }
+
+    It 'does not throw when a principal cannot be resolved (StrictMode-safe)' {
+        InModuleScope ImperionPipeline {
+            Mock Invoke-ImperionGraphRequest {
+                if ($Uri -like '*roleManagement/directory/roleAssignments*') {
+                    @([pscustomobject]@{ id = 'bare'; roleDefinitionId = 'r'; principalId = 'p'; directoryScopeId = '/' })
+                } else { throw 'principal not found' }
+            }
             { Get-ImperionEntraRoleAssignment } | Should -Not -Throw
             $row = @(Get-ImperionEntraRoleAssignment)[0]
             $row.principal_type | Should -BeNullOrEmpty
