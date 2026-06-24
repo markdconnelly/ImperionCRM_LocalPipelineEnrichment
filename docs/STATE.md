@@ -20,6 +20,13 @@ Last reviewed: **2026-06-24.**
   cred row purged. Fix: `provider = @provider::connection_provider` (the `@t::uuid` precedent). The
   resolver Pester tests mock the DB, so the SQL is now pinned in the capture tests — but the only
   true proof is a live host re-run after deploy.
+- **account_tenant/connection uuid-vs-text param casts (2026-06-24, #334 — FIXED).** After #330/#331
+  deployed, the m365/azure path surfaced the NEXT type mismatch (`42883: operator does not exist:
+  text = uuid`): `ImperionContext.ps1` cast `tenant_id = @t::uuid` but `account_tenant.tenant_id` is
+  **text**, and `Resolve-ImperionTenantCredential` compared `account_id = @account` (text param) to
+  the **uuid** `connection.account_id`. Fixes: `tenant_id = @t` (text=text) + `account_id = @account::uuid`.
+  This was the last cast-class blocker for Imperion 365/Azure hydration. Verified vs `information_schema`;
+  same live-only class as #330 (mocks can't catch it).
 
 ---
 

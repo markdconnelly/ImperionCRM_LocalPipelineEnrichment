@@ -72,7 +72,7 @@ function Resolve-ImperionTenantCredential {
     $sql = @'
 SELECT client_id, auth_method, keyvault_secret_ref, cert_thumbprint
 FROM connection
-WHERE scope = 'client' AND account_id = @account AND provider = @provider::connection_provider
+WHERE scope = 'client' AND account_id = @account::uuid AND provider = @provider::connection_provider
   AND status = 'active'
 ORDER BY connected_at DESC
 LIMIT 1

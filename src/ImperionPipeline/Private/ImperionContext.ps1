@@ -67,7 +67,7 @@ function Get-ImperionRegisteredTenantToken {
     if ($ownConnection) { $Connection = New-ImperionDbConnection }
     try {
         $mapping = Invoke-ImperionDbQuery -Connection $Connection `
-            -Sql 'SELECT account_id FROM account_tenant WHERE tenant_id = @t::uuid LIMIT 1' `
+            -Sql 'SELECT account_id FROM account_tenant WHERE tenant_id = @t LIMIT 1' `
             -Parameters @{ t = $TenantId } | Select-Object -First 1
         $accountId = if ($mapping) { $mapping.account_id } else { $null }
         if (-not $accountId) {

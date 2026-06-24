@@ -87,6 +87,8 @@ Describe 'Resolve-ImperionTenantCredential' {
                 # The provider param MUST be cast to the connection_provider enum or Postgres
                 # throws 42883 (no enum = text operator). Mocks can't catch this; pin the SQL (#330).
                 $script:capturedSql | Should -Match 'provider = @provider::connection_provider'
+                # account_id is a uuid column; an un-cast text param throws 42883 (uuid = text). #334
+                $script:capturedSql | Should -Match 'account_id = @account::uuid'
                 $script:capturedParams.account  | Should -Be $a
                 $script:capturedParams.provider | Should -Be 'm365'
             }

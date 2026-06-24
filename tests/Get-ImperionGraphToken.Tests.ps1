@@ -97,6 +97,10 @@ Describe 'Get-ImperionGraphToken' {
                 $script:resolveArgs.FailClosed | Should -BeTrue
                 # Account looked up from account_tenant by the client tenant id.
                 $script:capturedSql | Should -Match 'account_tenant'
+                # account_tenant.tenant_id is a TEXT column; casting the param to uuid throws
+                # 42883 (text = uuid). The lookup must compare text-to-text, no ::uuid. #334
+                $script:capturedSql | Should -Match 'tenant_id = @t\b'
+                $script:capturedSql | Should -Not -Match 'tenant_id = @t::uuid'
                 $script:capturedParams.t | Should -Be $client
                 # Minted with the CLIENT app id + the resolved cert, never the home app.
                 Should -Invoke Get-ImperionAccessToken -Times 1 -ParameterFilter {
