@@ -59,7 +59,7 @@ function Resolve-ImperionCompanyCredential {
         $sql = @'
 SELECT keyvault_secret_ref
 FROM connection
-WHERE scope = 'company' AND provider = @provider AND status = 'active'
+WHERE scope = 'company' AND provider = @provider::connection_provider AND status = 'active'
   AND keyvault_secret_ref IS NOT NULL
 ORDER BY connected_at DESC
 LIMIT 1

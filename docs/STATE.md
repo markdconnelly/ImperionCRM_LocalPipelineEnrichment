@@ -5,7 +5,21 @@ the durable contract lives in `CLAUDE.md`; anything dated, in-flight, or run-spe
 lives here. When a fact here hardens into a rule, move it to `CLAUDE.md`; when it is
 done or superseded, prune it.
 
-Last reviewed: **2026-06-22.**
+Last reviewed: **2026-06-24.**
+
+---
+
+## Live-caught regressions
+
+- **DB credential resolver enum cast (2026-06-24, #330 — FIXED).** After the #320 deploy,
+  both registry resolvers (`Resolve-ImperionCompanyCredential`, `Resolve-ImperionTenantCredential`)
+  threw `42883: operator does not exist: connection_provider = text` on every run — `connection.provider`
+  is an enum and `@provider` bound as text with no cast. It broke all registry-backed company
+  vendors (itglue/pax8/myitprocess/televy/quotemanager) **and** the m365/azure client-credential
+  path (`Get-ImperionRegisteredTenantToken`), so 365/Azure could not hydrate even with the dead
+  cred row purged. Fix: `provider = @provider::connection_provider` (the `@t::uuid` precedent). The
+  resolver Pester tests mock the DB, so the SQL is now pinned in the capture tests — but the only
+  true proof is a live host re-run after deploy.
 
 ---
 

@@ -84,6 +84,9 @@ Describe 'Resolve-ImperionTenantCredential' {
                 $script:capturedSql | Should -Match "scope = 'client'"
                 $script:capturedSql | Should -Match "status = 'active'"
                 $script:capturedSql | Should -Match 'ORDER BY connected_at DESC'
+                # The provider param MUST be cast to the connection_provider enum or Postgres
+                # throws 42883 (no enum = text operator). Mocks can't catch this; pin the SQL (#330).
+                $script:capturedSql | Should -Match 'provider = @provider::connection_provider'
                 $script:capturedParams.account  | Should -Be $a
                 $script:capturedParams.provider | Should -Be 'm365'
             }
