@@ -61,6 +61,15 @@ function Get-ImperionDnsZoneObject {
         $nameServers = @(Get-ImperionMember $zoneProps 'nameServers') | Where-Object { $_ }
         $resourceGroup = if ($zoneId -match '/resourceGroups/([^/]+)') { $Matches[1] } else { $null }
 
+        # A zone with no/empty id can't be probed (the mandatory -Scope bind throws) and can't
+        # form a valid bronze row (external_id = id). Skip + log it so one malformed zone never
+        # aborts the whole sync via the surrounding try/catch (#323; idempotency/resumability, §6).
+        if (-not $zoneId) {
+            Write-ImperionLog -Level Warn -Source 'dns' `
+                -Message 'DNS zone with empty id; skipping.' -Data @{ tenant = $TenantId; subscription = $SubscriptionId; domain = $domain }
+            continue
+        }
+
         # 'manageable' = the SP's own effective permissions allow a recordset write at this
         # zone scope (ADR-0063). Proof, read-only — no role-assignment guesswork.
         $manageable = Test-ImperionArmWriteAccess -Scope $zoneId -AccessToken $token
