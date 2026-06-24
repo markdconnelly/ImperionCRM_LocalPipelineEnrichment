@@ -7,10 +7,11 @@ function Get-ImperionEntraRoleAssignment {
         front-end migration 0136 / #260, table entra_role_assignments). Mints a Graph token for
         the tenant (client tenants via the per-client onboarding app, §3), pages
         /roleManagement/directory/roleAssignments — application permission
-        RoleManagement.Read.Directory, read-only — with $expand=roleDefinition,principal so
-        each assignment carries the human-readable role name (and its isPrivileged flag) and the
-        principal's display/type without a second lookup, and flattens each to the standard
-        flat-table envelope, source 'm365', external_id = the role-assignment id.
+        RoleManagement.Read.Directory, read-only — with $expand=roleDefinition so each
+        assignment carries the human-readable role name (and its isPrivileged flag), then
+        hydrates each principal's display/type via a cached by-id lookup (Graph allows only one
+        $expand on this endpoint, #322), and flattens each to the standard flat-table envelope,
+        source 'm365', external_id = the role-assignment id.
 
         This is the privileged-role-membership hygiene feed: who holds Global Administrator and
         other directory roles, whether the role is privileged (is_privileged, from the expanded
@@ -45,11 +46,38 @@ function Get-ImperionEntraRoleAssignment {
     if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
 
     $token = Get-ImperionGraphToken -TenantId $TenantId
-    # $expand resolves the role name + principal in one page; Invoke-ImperionGraphRequest
-    # follows @odata.nextLink so large tenants page transparently.
+    # Graph allows only ONE $expand on /roleAssignments (#322 — two returns HTTP 400
+    # "Only one property can be expanded in a single query"). Expand roleDefinition (it carries
+    # displayName + isPrivileged in the page) and resolve each principal in a second, cached
+    # by-id lookup. Invoke-ImperionGraphRequest follows @odata.nextLink so large tenants page.
     $assignments = Invoke-ImperionGraphRequest `
-        -Uri 'https://graph.microsoft.com/v1.0/roleManagement/directory/roleAssignments?$expand=roleDefinition,principal' `
+        -Uri 'https://graph.microsoft.com/v1.0/roleManagement/directory/roleAssignments?$expand=roleDefinition' `
         -AccessToken $token
+
+    # Hydrate the principal per assignment so the existing flat map ('principal.displayName',
+    # principal '@odata.type') is unchanged. A directory role is held by few distinct principals,
+    # so the cache keeps this to a handful of GETs even on a large tenant. A principal that no
+    # longer resolves (deleted, or not readable) leaves principal $null — the principal_* columns
+    # go null, never a hard failure (the full object still lands losslessly in raw_payload).
+    $principalCache = @{}
+    foreach ($assignment in $assignments) {
+        $principalId = Get-ImperionMember $assignment 'principalId'
+        if (-not $principalId) { continue }
+        if (-not $principalCache.ContainsKey($principalId)) {
+            $principalCache[$principalId] =
+                try {
+                    @(Invoke-ImperionGraphRequest `
+                            -Uri "https://graph.microsoft.com/v1.0/directoryObjects/$principalId" `
+                            -AccessToken $token)[0]
+                } catch {
+                    Write-ImperionLog -Level Warn -Source 'm365' `
+                        -Message 'Entra role-assignment principal lookup failed; principal columns null.' `
+                        -Data @{ tenant = $TenantId; principalId = $principalId }
+                    $null
+                }
+        }
+        $assignment | Add-Member -NotePropertyName 'principal' -NotePropertyValue $principalCache[$principalId] -Force
+    }
 
     # Migration 0136 flat columns (entra_role_assignments). external_id = id.
     # principal '@odata.type' (e.g. '#microsoft.graph.user') is trimmed to a bare type.
