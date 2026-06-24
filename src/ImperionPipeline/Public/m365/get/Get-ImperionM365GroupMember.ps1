@@ -60,14 +60,18 @@ function Get-ImperionM365GroupMember {
         foreach ($member in $members) {
             # Synthetic edge: renamed scalars (avoids the '@odata.type' dotted-path split)
             # plus the composite id used as external_id. raw_payload keeps the full member.
+            # Members are heterogeneous directory objects — a non-user member (nested group,
+            # device, servicePrincipal) has no userPrincipalName/mail, so read every field
+            # through the safe accessor (direct $member.prop throws under StrictMode). #337
+            $memberId = Get-ImperionMember $member 'id'
             [pscustomobject]@{
                 group_external_id          = $groupId
-                member_external_id         = $member.id
-                member_type                = $member.'@odata.type'
-                member_display_name        = $member.displayName
-                member_user_principal_name = $member.userPrincipalName
-                member_mail                = $member.mail
-                edge_external_id           = "$groupId/$($member.id)"
+                member_external_id         = $memberId
+                member_type                = Get-ImperionMember $member '@odata.type'
+                member_display_name        = Get-ImperionMember $member 'displayName'
+                member_user_principal_name = Get-ImperionMember $member 'userPrincipalName'
+                member_mail                = Get-ImperionMember $member 'mail'
+                edge_external_id           = "$groupId/$memberId"
                 member                     = $member
             }
         }
