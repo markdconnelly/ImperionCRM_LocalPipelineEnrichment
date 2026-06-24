@@ -1,4 +1,4 @@
-# Integration — UniFi device inventory + config compliance → bronze `unifi_devices` (issue #73)
+# Integration — UniFi device inventory + config compliance → bronze `unifi_devices` (#73; company-scope remodel #321)
 
 Pulls **UniFi network devices** (switches, APs, gateways) per customer into bronze, with
 the **config-compliance signals** the Devices page needs (state, firmware version, an
@@ -6,40 +6,43 @@ available-but-unapplied update). Operational/infrastructure data — the flatten
 Postgres path applies (ADR-0006), but the IT Glue flexible-asset half is a **human-gated
 follow-up** (new IT Glue write surface, CLAUDE.md §8); this lands the bronze half.
 
-## Two APIs, chosen per site topology (locked design, issue #73 comment 2026-06-10)
+## ONE company key, the cloud Site Manager API (company-scope remodel, #321)
 
-| Site topology | API | Base |
-| --- | --- | --- |
-| HAS a router/gateway (console) | Network Integration API | `https://<console-host>/proxy/network/integration/v1` |
-| NO gateway | Site Manager API (cloud) | `https://api.ui.com/v1` |
+UniFi is a **company-scope cloud connector** (FE #1278 / backend #386, ADR-0122). The cloud
+**Site Manager API** key (`https://api.ui.com/v1`, `X-API-Key` header) is **MSP-wide**: one
+key enumerates **every** client's sites and devices. So the collector resolves the **single**
+company key and sweeps the whole estate — it does **not** resolve a per-client/per-console key
+(the per-console fan-out #259 is **retired**: UniFi is no longer registered per client, which
+is why the old sweep logged "No active client UniFi consoles registered").
 
-Both authenticate with an **`X-API-Key`** header. Paging: cloud uses a `nextToken`
-cursor; console uses `offset`/`limit` with `totalCount` (both handled by
-`Invoke-ImperionUniFiRequest`; property names are assumptions — confirm per controller).
+Endpoints (paging via `nextToken` cursor, handled by `Invoke-ImperionUniFiRequest`):
 
-## Credential (per managed client, per console — the credential registry)
+| Endpoint | Returns |
+| --- | --- |
+| `GET /v1/sites` | sites: `siteId`, `hostId`, `meta.name`, `statistics.counts.*` |
+| `GET /v1/devices` | per-host groups `{ hostId, hostName, devices[] }` |
 
-UniFi is a **per-client, per-console** credential resolved from the front-end-owned
-`connection` registry (ADR-0103 / backend #229), **not** a single company JSON blob. Each
-managed-client UniFi console is one `connection` row:
+## Credential (one company key — the credential registry)
 
-- `scope='client'`, `provider='unifi'`, `status='active'`, linked to the owning customer
-  `account` (`account_id`);
-- `external_account_id` = the console/site id (the per-console natural key — one account may
-  map **many** consoles, many rows);
-- `auth_method='api_key'`, `keyvault_secret_ref` = the Key Vault secret NAME holding the API
-  key (`conn-client-unifi-<consoleId>`; the value never lands in the DB);
-- `provider_config` (jsonb, FE migration 0151 / backend #233) = the **non-secret** console
-  config `{ connectionType: 'console'|'cloud', controllerHost? }` (`controllerHost` present
-  only for `console`).
+UniFi is one **company-scope** `connection` row: `scope='company'`, `provider='unifi'`,
+`status='active'`, `keyvault_secret_ref='conn-company-unifi'` (a JSON blob `{ apiKey }`; the
+value never lands in the DB). The admin enters it once on the Connections card; the local
+collector resolves it via `Resolve-ImperionCompanyCredential -Provider unifi -Field apiKey`
+(ADR-0103 / #319). Dormant-safe: with no active company `unifi` row the sweep logs and
+no-ops, never touched (fail closed, §8).
 
-The admin registers/rotates a console in the GUI (Settings → Credentials), which POSTs the
-backend custody endpoint (`POST /api/connections/client/unifi`); custody writes the key to
-Key Vault and the row to the registry. The local sweep then resolves each console's key via
-`Resolve-ImperionTenantCredential -Provider unifi` → `@{ ApiKey }` and reads `provider_config`
-for the API family + host. **Per-console isolation is absolute** — every bronze row carries
-its owning tenant (the account's mapped Microsoft tenant, else the account id), and a console
-with no usable credential / consent is skipped, never touched (fail closed, §3/§8).
+### Site → account mapping (the per-client attribution)
+
+Because one key sees every client, each **device is attributed to its account in the GUI**,
+Autotask-pattern: the FE client-mapping unit list keys UniFi on the **`site`** column
+(`listClientMappingUnits`), so an admin maps each discovered site → account, written to
+`entity_xref(entity_type='account', source_system='unifi', source_key=<site>,
+internal_entity_id=<account_id>, match_method='manual')`. The collector reads those mappings
+and stamps each device's bronze `tenant_id` with its owning **account id** (so the co-located
+merge resolves it directly). A device on a not-yet-mapped site is stamped the **all-zero
+sentinel uuid** — a valid uuid that resolves to no account (the merge counts it unmapped) —
+but still lands in bronze so the GUI surfaces the site for mapping; the next run re-stamps it
+with the real account once mapped.
 
 ## Bronze table — landed (front-end migration 0162)
 
@@ -75,13 +78,14 @@ silver `device` as the **network-infrastructure** class. UniFi gear is physical 
 hardware → it feeds `device`, **never `cloud_asset`** (#1053).
 
 ### How it works
-1. **Resolve account.** The bronze envelope `tenant_id` is (per the collector,
-   `Resolve-ImperionAccountTenant`) the account's mapped Microsoft tenant when one exists,
-   else the account id itself. The merge reverses that in the read: `account_tenant.tenant_id
-   = bronze.tenant_id` → `account_id`; else, when the bronze `tenant_id` IS a real
-   `account.id`, it is used directly. A row that resolves to **no** account is **skipped**
-   (kept in bronze, surfaced as the `unmapped` count) — a network device with no owning
-   account is not written.
+1. **Resolve account.** The collector stamps the bronze envelope `tenant_id` with the
+   device's owning **account id** (from the GUI `entity_xref('account','unifi',site)`
+   mapping), or the all-zero sentinel when its site is unmapped. The merge resolves it in
+   the read: when `bronze.tenant_id` IS a real `account.id` it is used directly (the
+   company-scope path); it also still maps `account_tenant.tenant_id = bronze.tenant_id`
+   for any legacy MS-tenant-stamped rows. A row that resolves to **no** account (the
+   sentinel, or any unmapped value) is **skipped** (kept in bronze, surfaced as the
+   `unmapped` count) — a network device with no owning account is not written.
 2. **Match** on `(account_id, lower(btrim(name)))` — the cloud `device-matcher` name tier,
    the only stable natural key available without a `mac` column. UniFi gear has no serial,
    so the serial tier does not apply.
@@ -109,10 +113,9 @@ owns schema (CLAUDE.md §5/§6), so until **ImperionCRM #1241** lands the merge 
 bronze). The proper `mac`-keyed precedence merge + firmware-signal surfacing follow once
 #1241's schema lands.
 
-**The sweep self-gates per console on an active registry row:** with no active client UniFi
-`connection` rows the sweep logs and no-ops (dormant-safe); a console with no usable
-credential is logged + skipped. The first run after a console is registered converges
-(idempotent, change-detected upsert).
+**The sweep self-gates on the company key:** with no active company `unifi` `connection`
+row the sweep logs and no-ops (dormant-safe). The first run after the company key is entered
+converges (idempotent, change-detected upsert).
 
 ## Cadence & fields
 
@@ -123,29 +126,30 @@ signal) · `adopted` · `last_seen`.
 
 ## Cmdlets
 
-- `Invoke-ImperionUniFiRequest` — connect: X-API-Key + nextToken/offset paging.
-- `Get-ImperionUniFiDevice` — get: `-ConnectionType console` (sites → devices) or
-  `cloud` (per-host device groups); flatten to the `unifi_devices` bronze shape (source `unifi`).
-  Takes a single explicit `-ApiKey` (the per-console primitive).
+- `Invoke-ImperionUniFiRequest` — connect: X-API-Key + nextToken paging.
+- `Get-ImperionUniFiDevice` — get: takes the one company `-ApiKey` + a `-SiteAccountMap`
+  (site → account id); pulls `/v1/sites` (hostId → site name) then `/v1/devices` (per-host
+  groups), flattens each device to the `unifi_devices` bronze shape (source `unifi`),
+  stamping the owning account id as `tenant_id` (sentinel when unmapped).
 - `Set-ImperionUniFiDeviceToBronze` — post: `Invoke-ImperionBronzePost` adapter,
   `-ColumnSet` projection, change-detected upsert.
-- **`Invoke-ImperionUniFiDeviceSync`** — the scheduled multi-console fan-out (#259):
-  enumerates the active client UniFi `connection` rows, resolves each console's key +
-  `provider_config` from the registry, composes `Get-ImperionUniFiDevice` →
-  `Set-ImperionUniFiDeviceToBronze` over one shared connection, stamps the owning tenant,
-  and is **fail-closed per console** (a bad console is logged + skipped, never blocks the
-  rest). Dormant-safe: no active rows → logs and no-ops. Supersedes the single-key shape.
-- `Resolve-ImperionAccountTenant` (private) — owning-tenant isolation key for an
-  account-scoped source: the account's mapped Microsoft tenant (`account_tenant`), else the
-  account id.
+- **`Invoke-ImperionUniFiDeviceSync`** — the scheduled company-scope sweep (#321): resolves
+  the ONE company key (`Resolve-ImperionCompanyCredential -Provider unifi -Field apiKey`),
+  reads the `entity_xref` site → account mappings, composes `Get-ImperionUniFiDevice` →
+  `Set-ImperionUniFiDeviceToBronze` over one shared connection. Dormant-safe: no company key
+  → logs and no-ops. Supersedes the per-console fan-out (#259).
+- `Resolve-ImperionCompanyCredential` (private) — reads the company `conn-company-unifi`
+  blob's `apiKey` field via the credential registry (ADR-0103 / #319).
 - Task: registered scheduled task `Imperion-UniFiDevices` (daily, 02:20; `Register-ImperionTask`,
   ADR-0007 — no loose entry scripts) → `Invoke-ImperionUniFiDeviceSync`.
 
-## Assumptions to confirm on first live run
+## API shape — confirmed (secret-safe probe, 2026-06-24)
 
-- Endpoint paths + paging property names per connection type.
-- Device field names (`macAddress`/`ipAddress`/`state`/`firmwareVersion`/
-  `firmwareUpdatable`/`adoptedAt`/`lastSeen`) and the cloud per-host group shape.
-- Console TLS: if the console presents a self-signed certificate, trust it on the host
-  (cert store) — the shared HTTP core does not skip certificate validation by design;
-  file a follow-up if a controller can't be trusted at the OS level.
+The `api.ui.com/v1` envelope is `{ data, httpStatusCode, traceId }`. The collector field map
+uses the **confirmed live device shape** (no longer the earlier doc-guesses):
+`mac` · `ip` · `status` · `version` · `firmwareStatus` · `adoptionTime` (the prior
+`macAddress`/`ipAddress`/`state`/`firmwareVersion`/`firmwareUpdatable`/`adoptedAt` were
+wrong). The Site Manager device has **no** last-seen field today, so `last_seen` is null
+(preserved in `raw_payload`). Still open: paging beyond the first page (cursor confirmed,
+multi-page volume not yet observed) and the `/v1/hosts` console-hardware enrichment (raw
+payload retains everything for a future pass).

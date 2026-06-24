@@ -1,36 +1,37 @@
 function Invoke-ImperionUniFiDeviceSync {
     <#
     .SYNOPSIS
-        Sweep every registered managed-client UniFi console into the unifi_devices bronze,
-        resolving each console's API key from the credential registry (multi-console — #259).
+        Sweep the WHOLE UniFi estate into the unifi_devices bronze with ONE company Site Manager
+        key, mapping each device's site to its owning account (#321, company-scope remodel).
     .DESCRIPTION
-        The scheduled entry point for the per-client UniFi device inventory. Supersedes the
-        single-key, single-console shape of Get-ImperionUniFiDevice (#73): instead of a
-        company-wide key passed in by the caller, it discovers the **whole UniFi estate** from
-        the front-end-owned `connection` credential registry (ADR-0103 / backend #229) and
-        resolves each console's own API key per row.
+        The scheduled entry point for UniFi device inventory. UniFi is a COMPANY-scope cloud
+        connector (FE #1278 / backend #386, ADR-0122): the cloud Site Manager API key is MSP-wide,
+        so ONE key (`conn-company-unifi`) enumerates every client's sites and devices. This
+        SUPERSEDES the per-console fan-out (#259) that resolved a separate key per client
+        `connection` row — that path is retired (it logged "No active client UniFi consoles
+        registered" because UniFi is no longer registered per client).
 
-        Per active client UniFi `connection` row it:
-          1. resolves the console's API key from the registry via
-             Resolve-ImperionTenantCredential -Provider unifi -FailClosed -> @{ ApiKey };
-          2. reads the non-secret console config off `provider_config` (jsonb, FE migration
-             0151 / backend #233): `connectionType` (console|cloud, which API family) and
-             `controllerHost` (the on-prem Network Integration API host, console only);
-          3. composes Get-ImperionUniFiDevice -> Set-ImperionUniFiDeviceToBronze over one
-             shared DB connection, stamping the owning tenant on every row.
+        It:
+          1. resolves the company Site Manager key from the credential registry via
+             Resolve-ImperionCompanyCredential -Provider unifi -Field apiKey (ADR-0103 / #319);
+          2. reads the GUI-curated site->account mappings from `entity_xref` (entity_type
+             'account', source_system 'unifi', match_method 'manual' — keyed on the site name,
+             the same `site` column the FE client-mapping unit list shows);
+          3. composes Get-ImperionUniFiDevice -> Set-ImperionUniFiDeviceToBronze over one shared
+             DB connection. Each device's `tenant_id` is stamped with its mapped account id (or the
+             all-zero sentinel when its site is not mapped yet) so the co-located merge
+             (Invoke-ImperionUniFiMerge, #284) resolves it directly.
 
-        Per-console isolation is absolute: every bronze row carries its owning tenant, and a
-        console that throws (no usable credential, missing/invalid provider_config, the
-        unifi_devices bronze not yet applied, or an unreachable controller) is logged and
-        SKIPPED so one bad console never blocks the rest (fail closed). Idempotent
-        (change-detected upsert) — re-runs converge. Requires Initialize-ImperionContext.
+        Idempotent (change-detected upsert) — re-runs converge. A device whose site is unmapped
+        still lands in bronze (sentinel tenant) so the GUI surfaces the site for mapping; once
+        mapped, the next run re-stamps it with the real account.
 
-        Dormant-safe: with no active client UniFi rows the sweep logs and no-ops, so the task
-        is safe to schedule before any console is registered.
+        Dormant-safe: with no active company `unifi` connection (key not entered) the sweep logs
+        and no-ops, so the task is safe to schedule before the key is registered.
 
-        SECRET HANDLING: the API key never leaves the resolver splat — it is read by reference
-        from Key Vault, handed straight to Get-ImperionUniFiDevice, and never logged or
-        persisted here (CLAUDE.md §8/§9). `provider_config` is non-secret config only.
+        SECRET HANDLING: the API key never leaves the resolver result — it is read by reference
+        from Key Vault, handed straight to Get-ImperionUniFiDevice, and never logged or persisted
+        (CLAUDE.md §8/§9). Requires Initialize-ImperionContext.
     .EXAMPLE
         Invoke-ImperionUniFiDeviceSync
     #>
@@ -40,69 +41,37 @@ function Invoke-ImperionUniFiDeviceSync {
     $started = Get-Date
     $conn = New-ImperionDbConnection
     try {
-        # Discover the UniFi estate from the credential registry (ADR-0103). One account may
-        # map MANY consoles (many rows); external_account_id is the per-console natural key.
-        $consoleRows = @(Invoke-ImperionDbQuery -Connection $conn -Sql @'
-SELECT account_id, external_account_id, provider_config
-FROM connection
-WHERE scope = 'client' AND provider = 'unifi' AND status = 'active'
-  AND external_account_id IS NOT NULL
-ORDER BY account_id, external_account_id
-'@)
-
-        if ($consoleRows.Count -eq 0) {
-            # No client consoles registered yet — nothing to sweep (dormant-safe).
-            Write-ImperionLog -Source 'unifi' -Message 'No active client UniFi consoles registered; nothing to sweep.'
+        # 1) The ONE company Site Manager key. Dormant-safe: not connected -> log + no-op.
+        $apiKey = Resolve-ImperionCompanyCredential -Provider 'unifi' -Field 'apiKey' -Connection $conn
+        if (-not $apiKey) {
+            Write-ImperionLog -Source 'unifi' -Message 'No active company UniFi Site Manager key; nothing to sweep.'
             return
         }
 
-        $sweptConsoles = 0
-        $skippedConsoles = 0
-        foreach ($row in $consoleRows) {
-            $consoleId = $row.external_account_id
-            try {
-                # Resolve THIS console's API key from the registry. Fail-closed: a row with no
-                # usable credential (no consent / empty Key Vault secret) throws -> skip.
-                $cred = Resolve-ImperionTenantCredential -Connection $conn -AccountId $row.account_id `
-                    -Provider 'unifi' -FailClosed
-                if (-not $cred.ApiKey) { throw "resolver returned no ApiKey for console '$consoleId'." }
-
-                # Non-secret console config (jsonb -> object). Missing/blank connectionType is a
-                # registration error: skip the console rather than guess an API family.
-                $config = if ($row.provider_config) { $row.provider_config | ConvertFrom-Json } else { $null }
-                $connectionType = $config.connectionType
-                if (-not $connectionType) {
-                    throw "console '$consoleId' has no provider_config.connectionType (re-register via the GUI)."
-                }
-
-                # Owning-tenant isolation key: prefer the account's Microsoft tenant (so UniFi
-                # rows align with the client's other data under one tenant_id), else fall back to
-                # the account id so the stamp is always present and never the partner tenant.
-                $tenantId = Resolve-ImperionAccountTenant -Connection $conn -AccountId $row.account_id
-
-                $deviceArgs = @{
-                    ApiKey         = $cred.ApiKey
-                    ConnectionType = $connectionType
-                    TenantId       = $tenantId
-                }
-                if ($connectionType -eq 'console') { $deviceArgs.ControllerHost = $config.controllerHost }
-
-                Get-ImperionUniFiDevice @deviceArgs | Set-ImperionUniFiDeviceToBronze -Connection $conn
-                $sweptConsoles++
-            }
-            catch {
-                # Credential/config gap or an unreachable/unmigrated target: log loudly and
-                # continue to the next console. The next run converges once it is fixed.
-                $skippedConsoles++
-                Write-ImperionLog -Level Warn -Source 'unifi' -Message "UniFi device sync skipped for console '$consoleId': $($_.Exception.Message)"
-            }
+        # 2) GUI-curated site->account mappings (the manual entity_xref spine, FE migration 0160).
+        # Keyed on the site name (the FE client-mapping unit key for unifi), value = account id.
+        $mappingRows = @(Invoke-ImperionDbQuery -Connection $conn -Sql @'
+SELECT source_key, internal_entity_id::text AS account_id
+FROM entity_xref
+WHERE entity_type = 'account' AND source_system = 'unifi' AND match_method = 'manual'
+'@)
+        $siteAccountMap = @{}
+        foreach ($mapping in $mappingRows) {
+            if ($mapping.source_key) { $siteAccountMap[[string]$mapping.source_key] = [string]$mapping.account_id }
         }
 
-        Write-ImperionLog -Level Metric -Source 'unifi' -Message 'UniFi console estate swept.' -Data @{
-            consoles_registered = $consoleRows.Count
-            consoles_swept      = $sweptConsoles
-            consoles_skipped    = $skippedConsoles
-            duration_s          = [math]::Round(((Get-Date) - $started).TotalSeconds, 1)
+        # 3) Pull the whole estate with the one key, account-stamped per site, then write bronze.
+        $rows = @(Get-ImperionUniFiDevice -ApiKey $apiKey -SiteAccountMap $siteAccountMap)
+        if ($rows.Count -gt 0) { $rows | Set-ImperionUniFiDeviceToBronze -Connection $conn }
+
+        $unmappedTenant = '00000000-0000-0000-0000-000000000000'
+        $mapped = @($rows | Where-Object { [string]$_.tenant_id -ne $unmappedTenant }).Count
+        Write-ImperionLog -Level Metric -Source 'unifi' -Message 'UniFi estate swept (company Site Manager key).' -Data @{
+            devices      = $rows.Count
+            mapped       = $mapped
+            unmapped     = ($rows.Count - $mapped)
+            sites_mapped = $siteAccountMap.Count
+            duration_s   = [math]::Round(((Get-Date) - $started).TotalSeconds, 1)
         }
     }
     finally {
