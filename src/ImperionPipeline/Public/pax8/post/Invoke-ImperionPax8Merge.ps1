@@ -1,9 +1,10 @@
 function Invoke-ImperionPax8Merge {
     <#
     .SYNOPSIS
-        Resolve every Pax8 customer company to its silver `account` and record the link in the
-        entity-resolution registry (`entity_xref`, source_system 'pax8') — the bronze→silver
-        merge for Pax8, co-located with the LP collector (#279, #280).
+        Resolve every Pax8 customer company to its silver `account` (record the link in the
+        entity-resolution registry `entity_xref`, source_system 'pax8') AND project
+        `pax8_subscriptions` into silver `license_assignment` through that link (#316) — the
+        bronze→silver merge for Pax8, co-located with the LP collector (#279, #280).
     .DESCRIPTION
         ADR-0026 (merge-co-locates-with-ingestion): the local pipeline INGESTS the Pax8 bronze
         (Invoke-ImperionPax8CompanySync/…, #279), so it owns the bronze→silver merge too.
@@ -134,14 +135,65 @@ WHERE entity_xref.match_method <> 'manual'
             }
         }
 
+        # ── Populate silver `license_assignment` from pax8_subscriptions (#316, migration 0185) ──
+        # Option B (#338): Pax8 exposes NO /v1/licenses endpoint, so the SUBSCRIPTION is the
+        # license grain — external_ref = the Pax8 subscription id, quantity = the SUBSCRIBED seat
+        # count (the distributor "purchased" side of the #1041 true-up; the per-user ASSIGNED side
+        # is a future M365 license collector). Account-resolved by joining the subscription's
+        # company_id to the entity_xref link the loop above just wrote. Set-based + idempotent
+        # (ON CONFLICT (source, external_ref)); device_id/contract_id stay NULL until the
+        # provision/attach links resolve (#1042/#1085). quantity is regex-guarded (bronze stores
+        # it as text); one non-numeric value yields NULL, never a failed statement.
+        $licenseSql = @"
+INSERT INTO license_assignment (
+    account_id, source, external_ref, subscription_ref, product_id, product_name,
+    quantity, status, collected_at
+)
+SELECT x.internal_entity_id,
+       'pax8',
+       s.pax8_subscription_id,
+       s.pax8_subscription_id,
+       NULLIF(btrim(s.product_id), ''),
+       NULLIF(btrim(s.product_name), ''),
+       CASE WHEN btrim(s.quantity) ~ '^[0-9]+$' THEN btrim(s.quantity)::int ELSE NULL END,
+       NULLIF(btrim(s.status), ''),
+       NULLIF(btrim(s.collected_at), '')::timestamptz
+  FROM pax8_subscriptions s
+  JOIN entity_xref x
+    ON x.entity_type = 'account' AND x.source_system = 'pax8' AND x.source_key = s.company_id
+ WHERE s.pax8_subscription_id IS NOT NULL AND btrim(s.pax8_subscription_id) <> ''
+ON CONFLICT (source, external_ref) DO UPDATE SET
+    account_id       = EXCLUDED.account_id,
+    subscription_ref = EXCLUDED.subscription_ref,
+    product_id       = EXCLUDED.product_id,
+    product_name     = EXCLUDED.product_name,
+    quantity         = EXCLUDED.quantity,
+    status           = EXCLUDED.status,
+    collected_at     = EXCLUDED.collected_at,
+    updated_at       = now()
+"@
+        $licenses = 0
+        if ($PSCmdlet.ShouldProcess('license_assignment', 'populate from pax8_subscriptions (account-resolved)')) {
+            try {
+                $affected = Invoke-ImperionDbNonQuery -Connection $Connection -Sql $licenseSql
+                if ($affected -is [int]) { $licenses = $affected }
+            }
+            catch {
+                # Non-fatal: the company links still landed; the next run retries the projection.
+                Write-ImperionLog -Level Error -Source 'pax8' `
+                    -Message 'Pax8 license_assignment populate failed.' -Data @{ error = $_.Exception.Message }
+            }
+        }
+
         Write-ImperionLog -Level Metric -Source 'pax8' -Message 'Pax8 merge complete.' -Data @{
             companies  = @($rows).Count
             resolved   = $resolved
             unresolved = $unresolved
             failed     = $failed
+            licenses   = $licenses
             seconds    = [math]::Round(((Get-Date) - $started).TotalSeconds, 1)
         }
-        return [pscustomobject]@{ companies = @($rows).Count; resolved = $resolved; unresolved = $unresolved; failed = $failed }
+        return [pscustomobject]@{ companies = @($rows).Count; resolved = $resolved; unresolved = $unresolved; failed = $failed; licenses = $licenses }
     }
     finally { if ($ownConnection) { $Connection.Dispose() } }
 }
