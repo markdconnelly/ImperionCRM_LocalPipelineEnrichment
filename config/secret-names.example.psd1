@@ -3,6 +3,13 @@
     # bootstrap/operator with Set-Secret; rotated per docs/operations/secret-rotation.md.
     # The values below are the ACTUAL SecretStore secret titles (confirmed with Mark).
     #
+    # NOTE (ADR-0029, epic #318): company vendor credentials are moving to DB-authoritative
+    # resolution — the `connection` registry row -> keyvault_secret_ref -> Key Vault blob (the
+    # same secret the backend/cloud read). As each vendor migrates, its SecretStore mirror title
+    # below is NO LONGER consulted; the end-state SecretStore holds ONLY the app credential that
+    # mints the Key Vault token. The mirror titles are retained until the per-vendor cleanup PRs
+    # land. Already DB-resolved: itglue, televy, quotemanager(kqm), myitprocess, pax8.
+    #
     # NOTE (issue #291): IT Glue, KQM (registry provider 'quotemanager') and Telivy now resolve
     # their company API key DIRECTLY from Key Vault under the standardized credential-registry
     # name conn-company-<provider> (the same secret the cloud reads). The SecretStore mirror
