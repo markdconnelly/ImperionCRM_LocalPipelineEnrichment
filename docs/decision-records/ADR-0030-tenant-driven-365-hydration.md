@@ -51,18 +51,27 @@ every tenant the same way, and the home tenant doesn't hydrate at all:
 
 ## Decision
 
-1. **Registry-resolved credentials for every tenant, cert OR secret, driven by the DB.** Remove the
-   partner-tenant short-circuit; all tenants (Imperion included) resolve through
-   `Resolve-ImperionTenantCredential`, which already branches on `auth_method`. The config app is
-   reserved for **infra tokens only** (Postgres, Key Vault, Storage; and ARM where a tenant has no
-   registry row) — never for Graph.
-2. **Rename** the misnamed `Get-ImperionTenantAppToken` → `Get-ImperionRegisteredTenantToken`
+1. **Registry-resolved credentials for every tenant, every data-read plane, cert OR secret, driven
+   by the DB.** Remove the partner-tenant short-circuit; all tenants (Imperion included) resolve
+   through `Resolve-ImperionTenantCredential`, which already branches on `auth_method`. There is **no
+   PowerShell branch specific to the home tenant** for any data read — the home tenant is just the
+   default `TenantId`, resolved from the registry like every client. The LP config SP is reserved for
+   **infra/bootstrap tokens only** (Postgres, Key Vault, Storage) — **never** for any tenant data
+   read (Graph *or* ARM).
+2. **One app per tenant, both data planes — Microsoft Graph AND Azure ARM.** `Get-ImperionArmToken`
+   resolves the **same** `m365` registry credential as `Get-ImperionGraphToken` (the provider
+   argument changes `'azure'` → `'m365'`); there is **no separate `azure` provider row**. The
+   per-tenant onboarding app is expected to hold **Global Reader on the tenant root management group**
+   (the ARM read grant) **alongside** its read-only Graph application permissions — one read-only app
+   covering 365 *and* Azure for that tenant. This removes the last reliance on the config SP's ARM
+   Reader for data collection.
+3. **Rename** the misnamed `Get-ImperionTenantAppToken` → `Get-ImperionRegisteredTenantToken`
    ("resolve the registered credential → connect"), keeping a thin alias for one release.
-3. **Tenant-driven orchestration.** A new driver — `Invoke-ImperionTenantHydration` — enumerates
+4. **Tenant-driven orchestration.** A new driver — `Invoke-ImperionTenantHydration` — enumerates
    active/consented tenants from the registry (`account_tenant` ⨝ `connection`), acquires each
-   tenant's token **once**, runs **all** 365 routines for that tenant, then cycles to the next
+   tenant's token **once**, runs **all** 365 + Azure routines for that tenant, then cycles to the next
    client. This reverses the per-collector fan-out: **tenant-outer, routines-inner**.
-4. **GUI-save is the enable.** No push path is added; the driver reads the registry each run, so a
+5. **GUI-save is the enable.** No push path is added; the driver reads the registry each run, so a
    credential entered in the GUI is picked up on the next run. Fail closed for any tenant without a
    current, consented credential (CLAUDE.md §3).
 
@@ -70,10 +79,14 @@ every tenant the same way, and the home tenant doesn't hydrate at all:
 
 ### Security impact
 
-One read-only Graph app (the per-client onboarding app) authenticates every tenant; the LP
-certificate SP keeps **no Graph reach** — a stolen home-server cert cannot read 365 (least
-privilege, CLAUDE.md §2). Per-tenant isolation is preserved (one tenant's failure → skip + warn,
-never cross-tenant reads). Cert-vs-secret is the registry's call, never hard-coded.
+One read-only app (the per-client onboarding app) authenticates every tenant for **both** Microsoft
+Graph **and** Azure ARM; the LP certificate SP is reduced to **infra/bootstrap tokens only** (PG / Key
+Vault / Storage) and keeps **no Graph or ARM data reach** — so a stolen home-server cert can neither
+read 365 nor enumerate Azure resources (least privilege, CLAUDE.md §2). The onboarding app's new ARM
+grant is **Global Reader (read-only)** on the tenant root management group, consistent with the
+read-only-by-default Azure posture (§2) — it is a *read* widening of one already-trusted read app, not
+a new write surface. Per-tenant isolation is preserved (one tenant's failure → skip + warn, never
+cross-tenant reads). Cert-vs-secret is the registry's call, never hard-coded.
 
 ### Cost impact
 
@@ -82,18 +95,25 @@ re-acquired per collector.
 
 ### Operational impact
 
-A client's full 365 picture lands together, with per-tenant success/failure visibility. Reverses
-the §5 "one task per (source,entity), collector fans out per tenant" framing for the 365 plane:
-the scheduled entry becomes the per-tenant driver. **Data dependency:** the home (Imperion)
-`m365` row currently points at the grantless LP config SP; it must be re-seeded to the
-Graph-consented onboarding app — which needs the GUI **credential-purge** capability first
-(frontend #1282 / backend #390) so the wrong certificate credential can be cleared.
+A client's full 365 + Azure picture lands together, with per-tenant success/failure visibility.
+Reverses the §5 "one task per (source,entity), collector fans out per tenant" framing for the 365
+*and* ARM planes: the scheduled entry becomes the per-tenant driver.
+
+**Data dependency (verified against prod registry 2026-06-24).** Imperion's account
+(`b98b943b…`) currently has **two** `m365` rows — the grantless LP config SP (cert `46f1077b`, no
+tenant, no Graph) **and** the Graph-consented onboarding app (secret `0d6c8db7`, tenant
+`49307c12`, KV `conn-client-m365-49307c12…`). With both keyed to the same account the resolver is
+**ambiguous** and can pick the dead cert row — a second cause of the 403s beyond the home
+short-circuit. The GUI **credential-purge** capability (frontend #1282 / backend #390) must land
+first to delete the dead config-SP row; the onboarding-app row **already exists**, so **no re-seed
+is required** — purge alone disambiguates. The one new cloud grant this ADR assumes is **Global
+Reader on the root management group** for the onboarding app (the ARM read, Decision #2).
 
 ## Future considerations
 
-- Whether non-365 per-tenant planes (Azure ARM `cloud-resources`, DNS) adopt the same
-  tenant-driven driver, or keep independent fan-out (they already work via the config SP's ARM
-  Reader).
+- Azure ARM `cloud-resources` is now **in scope** (Decision #2: same onboarding app, provider
+  `m365`). The remaining per-tenant plane still to fold in is **DNS posture** — whether it adopts
+  the tenant-driven driver or keeps independent fan-out.
 - Sub-daily cadences per tenant (the `$tasks` schema is daily-only today; epic #286).
 
 ## Cross-references
