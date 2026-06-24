@@ -46,6 +46,19 @@ Describe 'Resolve-ImperionCompanyCredential' {
         }
     }
 
+    It 'casts the provider param to the connection_provider enum (else Postgres 42883, #330)' {
+        InModuleScope ImperionPipeline {
+            Mock Invoke-ImperionDbQuery {
+                # Mocks can't reach live Postgres, so the enum=text 42883 only fires in prod —
+                # pin the cast in the SQL the resolver builds.
+                $Sql | Should -Match 'provider = @provider::connection_provider'
+                [pscustomobject]@{ keyvault_secret_ref = 'conn-company-itglue' }
+            }
+            Mock Get-ImperionKeyVaultSecret { '{"apiKey":"x"}' }
+            Resolve-ImperionCompanyCredential -Provider 'itglue' -Field 'apiKey' | Out-Null
+        }
+    }
+
     It 'opens and disposes its own connection when none is passed' {
         InModuleScope ImperionPipeline {
             Mock Invoke-ImperionDbQuery { [pscustomobject]@{ keyvault_secret_ref = 'conn-company-itglue' } }
