@@ -54,9 +54,15 @@ Describe 'Invoke-ImperionPax8Merge' {
                         [pscustomobject]@{ pax8_company_id = 'pc-3'; pax8_name = 'Unknown Ltd'; account_id = $null;  match_count = 0 }
                     )
                 }
-                $script:capturedSql = $null
+                $script:capturedSqls = [System.Collections.Generic.List[string]]::new()
                 $script:capturedParams = [System.Collections.Generic.List[hashtable]]::new()
-                Mock Invoke-ImperionDbNonQuery { $script:capturedSql = $Sql; $script:capturedParams.Add($Parameters); 1 }
+                # Two statement kinds now run: the entity_xref upsert (per company, with params)
+                # and the set-based license_assignment upsert (#316, no params). Capture both.
+                Mock Invoke-ImperionDbNonQuery {
+                    $script:capturedSqls.Add($Sql)
+                    if ($Parameters) { $script:capturedParams.Add($Parameters) }
+                    1
+                }
             }
         }
 
@@ -67,7 +73,10 @@ Describe 'Invoke-ImperionPax8Merge' {
                 $r.resolved | Should -Be 1
                 $r.unresolved | Should -Be 2
                 $r.failed | Should -Be 0
-                Should -Invoke Invoke-ImperionDbNonQuery -Times 1
+                $r.licenses | Should -Be 1
+                # One entity_xref upsert (the lone count=1 company) + one license_assignment upsert.
+                Should -Invoke Invoke-ImperionDbNonQuery -Times 1 -ParameterFilter { $Sql -match 'INSERT INTO entity_xref' }
+                Should -Invoke Invoke-ImperionDbNonQuery -Times 1 -ParameterFilter { $Sql -match 'INSERT INTO license_assignment' }
                 Should -Invoke Write-ImperionLog -Times 1 -ParameterFilter { $Level -eq 'Metric' -and $Message -match 'Pax8 merge complete' }
             }
         }
@@ -75,12 +84,29 @@ Describe 'Invoke-ImperionPax8Merge' {
         It 'is a keyed ON CONFLICT upsert into entity_xref that protects manual links' {
             InModuleScope ImperionPipeline {
                 Invoke-ImperionPax8Merge -Confirm:$false | Out-Null
-                $script:capturedSql | Should -Match 'INSERT INTO entity_xref'
-                $script:capturedSql | Should -Match "'account'"
-                $script:capturedSql | Should -Match "'pax8'"
-                $script:capturedSql | Should -Match 'ON CONFLICT \(entity_type, source_system, source_key\) DO UPDATE SET'
+                $entitySql = $script:capturedSqls | Where-Object { $_ -match 'INSERT INTO entity_xref' } | Select-Object -First 1
+                $entitySql | Should -Not -BeNullOrEmpty
+                $entitySql | Should -Match "'account'"
+                $entitySql | Should -Match "'pax8'"
+                $entitySql | Should -Match 'ON CONFLICT \(entity_type, source_system, source_key\) DO UPDATE SET'
                 # the human-curated mapping wins: DO UPDATE is guarded
-                $script:capturedSql | Should -Match "WHERE entity_xref.match_method <> 'manual'"
+                $entitySql | Should -Match "WHERE entity_xref.match_method <> 'manual'"
+            }
+        }
+
+        It 'projects pax8_subscriptions into license_assignment, account-resolved + idempotent (#316)' {
+            InModuleScope ImperionPipeline {
+                Invoke-ImperionPax8Merge -Confirm:$false | Out-Null
+                $licSql = $script:capturedSqls | Where-Object { $_ -match 'INSERT INTO license_assignment' } | Select-Object -First 1
+                $licSql | Should -Not -BeNullOrEmpty
+                $licSql | Should -Match 'FROM pax8_subscriptions'
+                # account-resolved through the link the loop just wrote
+                $licSql | Should -Match 'JOIN entity_xref'
+                $licSql | Should -Match "source_system = 'pax8'"
+                # idempotent on the distributor license grain
+                $licSql | Should -Match 'ON CONFLICT \(source, external_ref\) DO UPDATE SET'
+                # quantity is regex-guarded (bronze stores it as text), never a hard cast
+                $licSql | Should -Match 'CASE WHEN btrim\(s.quantity\)'
             }
         }
 
