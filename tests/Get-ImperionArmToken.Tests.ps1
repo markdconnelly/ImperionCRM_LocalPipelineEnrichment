@@ -1,10 +1,10 @@
 #Requires -Modules Pester
-# Hermetic unit tests for the per-tenant ARM-token seam (issue #258, epic #255, ADR-0028).
-# Pins the per-client-app credential model for Azure ARM: a managed CLIENT tenant authenticates
-# as THAT client's own app (resolved from the `connection` registry, provider 'azure'), never
-# the shared home app; the partner/home tenant keeps the home enterprise-app cred and never
-# touches the DB; an unmapped / unconsented client tenant FAILS CLOSED (CLAUDE.md §3) — the
-# cloud-resource sweep isolates per tenant, so a throw becomes skip + Warn there. Config, DB,
+# Hermetic unit tests for the per-tenant ARM-token seam (issue #258/#327, epic #324, ADR-0030).
+# Pins the uniform per-tenant credential model: EVERY tenant (Imperion/home included) authenticates
+# as the onboarding app resolved from the `connection` registry — and ARM reuses the SAME m365 app
+# as Graph (provider 'm365', NOT a separate 'azure' provider). No partner/home special-case and no
+# config-SP fallback for a data read; an unmapped / unconsented tenant FAILS CLOSED (CLAUDE.md §3) —
+# the cloud-resource sweep isolates per tenant, so a throw becomes skip + Warn there. Config, DB,
 # Key Vault, MSAL are all mocked — no connection, no network, no secret on disk.
 
 BeforeAll {
@@ -20,43 +20,57 @@ Describe 'Get-ImperionArmToken' {
         $script:ARM     = 'https://management.azure.com/.default'
     }
 
-    Context 'home / partner tenant' {
-        It 'uses the shared home enterprise-app credential and never touches the registry' {
-            InModuleScope ImperionPipeline -Parameters @{ partner = $PARTNER; arm = $ARM } {
-                param($partner, $arm)
-                Mock Get-ImperionConfig { @{ ClientId = 'home-app'; PartnerTenantId = $partner } }
-                Mock Get-ImperionAppCredentialArg { @{ CertThumbprint = 'home-thumb' } }
-                Mock New-ImperionDbConnection { throw 'home path must not open a DB connection' }
-                Mock Resolve-ImperionTenantCredential { throw 'home path must not resolve a client credential' }
+    Context 'partner / home tenant — resolves via the registry like any tenant (ADR-0030)' {
+        It 'resolves the home tenant from the registry (provider m365), never the config app' {
+            InModuleScope ImperionPipeline -Parameters @{ partner = $PARTNER; account = $ACCOUNT; arm = $ARM } {
+                param($partner, $account, $arm)
+                Mock Get-ImperionConfig { @{ ClientId = 'config-app'; PartnerTenantId = $partner } }
+                Mock Get-ImperionNodeCredentialArg { throw 'a data read must not use the node bootstrap credential' }
+                $fakeConn = [pscustomobject]@{}
+                $fakeConn | Add-Member -MemberType ScriptMethod -Name Dispose -Value {} -Force
+                Mock New-ImperionDbConnection { $fakeConn }
+                Mock Invoke-ImperionDbQuery { [pscustomobject]@{ account_id = $account } }
+                Mock Resolve-ImperionTenantCredential {
+                    $script:resolveArgs = @{ Provider = $Provider; TenantId = $TenantId }
+                    @{ ClientId = 'onboarding-app'; TenantId = $TenantId; CertThumbprint = 'onboarding-thumb' }
+                }
                 Mock Get-ImperionAccessToken { "token-for-$ClientId" }
 
-                Get-ImperionArmToken -TenantId $partner | Should -Be 'token-for-home-app'
+                Get-ImperionArmToken -TenantId $partner | Should -Be 'token-for-onboarding-app'
+                $script:resolveArgs.Provider | Should -Be 'm365'
+                $script:resolveArgs.TenantId | Should -Be $partner
                 Should -Invoke Get-ImperionAccessToken -Times 1 -ParameterFilter {
-                    $ClientId -eq 'home-app' -and $TenantId -eq $partner -and $Resource -eq $arm
+                    $ClientId -eq 'onboarding-app' -and $Resource -eq $arm
                 }
-                Should -Invoke New-ImperionDbConnection -Times 0
             }
         }
 
-        It 'defaults to the partner tenant with the home credential when no -TenantId is given' {
-            InModuleScope ImperionPipeline -Parameters @{ partner = $PARTNER } {
-                param($partner)
-                Mock Get-ImperionConfig { @{ ClientId = 'home-app'; PartnerTenantId = $partner } }
-                Mock Get-ImperionAppCredentialArg { @{ CertThumbprint = 'home-thumb' } }
-                Mock New-ImperionDbConnection { throw 'home path must not open a DB connection' }
+        It 'defaults to the partner tenant when no -TenantId is given (still via the registry)' {
+            InModuleScope ImperionPipeline -Parameters @{ partner = $PARTNER; account = $ACCOUNT } {
+                param($partner, $account)
+                Mock Get-ImperionConfig { @{ ClientId = 'config-app'; PartnerTenantId = $partner } }
+                $fakeConn = [pscustomobject]@{}
+                $fakeConn | Add-Member -MemberType ScriptMethod -Name Dispose -Value {} -Force
+                Mock New-ImperionDbConnection { $fakeConn }
+                Mock Invoke-ImperionDbQuery {
+                    $script:tparam = $Parameters.t
+                    [pscustomobject]@{ account_id = $account }
+                }
+                Mock Resolve-ImperionTenantCredential { @{ ClientId = 'onboarding-app'; TenantId = $TenantId; CertThumbprint = 'onboarding-thumb' } }
                 Mock Get-ImperionAccessToken { "token-for-$TenantId" }
 
                 Get-ImperionArmToken | Should -Be "token-for-$partner"
+                $script:tparam | Should -Be $partner
             }
         }
     }
 
     Context 'managed client tenant (per-client-app model)' {
-        It 'authenticates as the client own app resolved with provider azure, not the home app' {
+        It 'authenticates as the client own app resolved with provider m365 (ARM reuses the m365 app)' {
             InModuleScope ImperionPipeline -Parameters @{ partner = $PARTNER; client = $CLIENT; account = $ACCOUNT } {
                 param($partner, $client, $account)
-                Mock Get-ImperionConfig { @{ ClientId = 'home-app'; PartnerTenantId = $partner } }
-                Mock Get-ImperionAppCredentialArg { throw 'client path must not use the home credential' }
+                Mock Get-ImperionConfig { @{ ClientId = 'config-app'; PartnerTenantId = $partner } }
+                Mock Get-ImperionNodeCredentialArg { throw 'a data read must not use the node bootstrap credential' }
                 $fakeConn = [pscustomobject]@{}
                 $fakeConn | Add-Member -MemberType ScriptMethod -Name Dispose -Value {} -Force
                 Mock New-ImperionDbConnection { $fakeConn }
@@ -68,7 +82,7 @@ Describe 'Get-ImperionArmToken' {
                 Mock Get-ImperionAccessToken { "token-for-$ClientId" }
 
                 Get-ImperionArmToken -TenantId $client | Should -Be 'token-for-client-app'
-                $script:resolveArgs.Provider   | Should -Be 'azure'
+                $script:resolveArgs.Provider   | Should -Be 'm365'
                 $script:resolveArgs.AccountId  | Should -Be $account
                 $script:resolveArgs.TenantId   | Should -Be $client
                 $script:resolveArgs.FailClosed | Should -BeTrue
@@ -95,7 +109,7 @@ Describe 'Get-ImperionArmToken' {
             }
         }
 
-        It 'propagates the resolver fail-closed throw when no consented azure credential exists' {
+        It 'propagates the resolver fail-closed throw when no consented credential exists' {
             InModuleScope ImperionPipeline -Parameters @{ partner = $PARTNER; client = $CLIENT; account = $ACCOUNT } {
                 param($partner, $client, $account)
                 Mock Get-ImperionConfig { @{ ClientId = 'home-app'; PartnerTenantId = $partner } }

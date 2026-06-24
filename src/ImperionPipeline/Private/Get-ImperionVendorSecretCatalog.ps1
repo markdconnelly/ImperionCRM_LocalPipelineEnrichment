@@ -8,7 +8,7 @@ function Get-ImperionVendorSecretCatalog {
         credentials are resolved with the DATABASE `connection` registry as the authoritative
         link, so the backend, the cloud Pipeline, and this repo all read the SAME Key Vault
         secret. The local SecretStore is NO LONGER a credential source — its only remaining job
-        is custody of the app credential that mints the Key Vault token (Get-ImperionAppCredentialArg).
+        is custody of this node's own app credential that mints the Key Vault token (Get-ImperionNodeCredentialArg).
 
         Two entry shapes; Resolve-ImperionVendorSecret owns the resolution once:
 

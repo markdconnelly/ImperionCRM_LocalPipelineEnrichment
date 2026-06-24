@@ -48,8 +48,8 @@ and meta, whose LP read token differs from the FE send token) read a **named Key
 directly. The SecretStore-mirror tier and the hard-coded `VaultDefault` names are removed.
 
 **Target end-state (rolled out across epic #318):** the **only** secret LP reads from the local
-SecretStore is the app credential (`Get-ImperionAppCredentialArg`) used to mint the Key Vault
-token. Autotask, QBO, Voyage, MileIQ, and DocuSign move off the SecretStore in their own PRs;
+SecretStore is this node's own app credential (`Get-ImperionNodeCredentialArg`) used to mint the
+Key Vault token. Autotask, QBO, Voyage, MileIQ, and DocuSign move off the SecretStore in their own PRs;
 QBO's rotating OAuth refresh is owned by the backend (it custodies the refresh token and
 publishes a short-lived access token to KV, mirroring MileIQ — backend #385).
 
