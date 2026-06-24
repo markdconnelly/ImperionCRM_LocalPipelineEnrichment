@@ -67,8 +67,14 @@ Describe 'Get-ImperionKqmOpportunity' {
         }
     }
 
-    It 'falls back to the Key Vault original when no explicit key and the SecretStore is locked' {
+    It 'resolves the key by following the registry row to conn-company-quotemanager (epic #318)' {
         InModuleScope ImperionPipeline {
+            Mock New-ImperionDbConnection {
+                $c = [pscustomobject]@{}
+                $c | Add-Member -MemberType ScriptMethod -Name Dispose -Value {}
+                $c
+            }
+            Mock Invoke-ImperionDbQuery { [pscustomobject]@{ keyvault_secret_ref = 'conn-company-quotemanager' } }
             Mock Get-ImperionKeyVaultSecret { 'kv-value' }
             Mock Invoke-ImperionKqmRequest { @() }
             Get-ImperionKqmOpportunity | Out-Null

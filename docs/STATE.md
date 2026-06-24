@@ -86,6 +86,22 @@ writes it). The on-prem resolver path now matches that shape:
 - Datto RMM/BCDR remain on legacy named secrets (not yet on the `conn-company` blob path) — see
   the [data-in light-up runbook](runbooks/data-in-light-up.md) Step 1.
 
+### DB-authoritative company credential resolution (ADR-0029, epic #318) — in flight
+
+Company vendor creds are moving to the **same DB→Key Vault link the backend/cloud use**: LP follows
+the `connection` registry row → `keyvault_secret_ref` → KV blob (mirror of the client-scope
+`Resolve-ImperionTenantCredential`). End-state: the **only** SecretStore secret LP reads is the app
+credential that mints the KV token.
+
+- **Keystone SHIPPED (#319):** `Resolve-ImperionCompanyCredential` + vendor-catalog cutover.
+  Registry-backed (itglue/televy/quotemanager/myitprocess/pax8) resolve DB→KV; LP-only vendors with
+  no registry row (cdw/easydmarc/datto rmm+bcdr/amazonbusiness; + meta, pending token-type
+  reconciliation) read a named KV secret. SecretStore-mirror tier removed for all of them.
+- **Still on SecretStore (own PRs):** autotask, qbo (backend owns the OAuth refresh — backend #385),
+  voyage, mileiq, docusign. The `secret-names` cleanup + CLAUDE.md §2/§7 rewrite land with the last one.
+- **Data cleanup (GUI/Mark):** `gdap` row = scrapped + stale `kv://` ref + `error` → delete;
+  `docusign` row = stale `kv://` ref + `error` → re-seed so `conn-company-docusign` exists.
+
 ---
 
 ## OKF semantic-layer sync

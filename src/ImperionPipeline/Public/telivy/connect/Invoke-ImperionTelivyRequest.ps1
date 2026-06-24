@@ -7,16 +7,19 @@ function Invoke-ImperionTelivyRequest {
         Aligned with the cloud Pipeline's Televy client (ImperionCRM_Pipeline
         src/shared/clients/televy.ts, ADR-0040): `x-api-key` header, JSON:API-style paging with
         records under `data` and the next-page URL under `links.next`. Pure: the API key is
-        passed in (resolved from the SecretStore secret `Telivy-API-Key` by the caller), so the
-        function holds no secret and is mockable. StrictMode-safe — absent fields yield $null.
+        passed in (resolved by the caller via Resolve-ImperionTelivyApiKey — the DB-authoritative
+        credential registry, epic #318), so the function holds no secret and is mockable.
+        StrictMode-safe — absent fields yield $null.
 
         CONFIRM BEFORE LIVE USE: the Telivy base URL, resource paths, and the items/next
         property names are ASSUMPTIONS shared with the cloud Pipeline (flagged there too) — to
         verify against the live Telivy API on the first real pull. The Televy/Telivy spelling
-        differs by surface: the SecretStore secret is `Telivy-API-Key`; the bronze source value
-        written to Postgres must be `televy` (front-end assessment_artifact.source enum).
+        differs by surface: the credential registry provider value is `televy` (Key Vault
+        `conn-company-televy`) and the bronze source value written to Postgres must be `televy`
+        (front-end assessment_artifact.source enum); only LP's internal helper names use `Telivy`.
     .PARAMETER ApiKey
-        Telivy API key (sent as the `x-api-key` header). From the SecretStore secret Telivy-API-Key.
+        Telivy API key (sent as the `x-api-key` header). From the credential registry
+        (Key Vault `conn-company-televy`) via Resolve-ImperionTelivyApiKey.
     .PARAMETER Uri
         Full request URL (base + path), e.g. https://api.telivy.com/reports?page[size]=100.
     .PARAMETER ItemsProperty
@@ -25,7 +28,7 @@ function Invoke-ImperionTelivyRequest {
     .PARAMETER NextLinkProperty
         Dotted path to the next-page URL (cursor). Default 'links.next' (JSON:API).
     .EXAMPLE
-        $key = Get-Secret -Name 'Telivy-API-Key' -AsPlainText -Vault ImperionStore
+        $key = Resolve-ImperionTelivyApiKey
         Invoke-ImperionTelivyRequest -ApiKey $key -Uri 'https://api.telivy.com/reports?page[size]=100'
     #>
     [CmdletBinding()]

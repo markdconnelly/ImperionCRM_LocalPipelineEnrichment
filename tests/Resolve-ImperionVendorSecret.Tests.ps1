@@ -1,9 +1,9 @@
 #Requires -Modules Pester
-# Hermetic unit tests for the deep vendor secret resolver (issue #228) and the thin per-vendor
-# adapters that delegate to it. Pins the three-tier order (explicit -> SecretStore -> Key Vault
-# -> throw), the config-overridable Key Vault title, the vault-locked skip, the EXACT thrown
-# message per vendor (a non-negotiable contract — callers/scheduled tasks read it), and the KQM
-# outlier that returns $null instead of throwing.
+# Hermetic unit tests for the deep vendor secret resolver (epic #318, supersedes #228) and the
+# thin per-vendor adapters that delegate to it. Pins the resolution order (explicit ->
+# DB-authoritative registry / KV-by-name -> throw), the EXACT thrown message per vendor (a
+# non-negotiable contract — callers/scheduled tasks read it), the KQM outlier that returns $null,
+# and that the local SecretStore is NEVER consulted for a vendor secret.
 
 BeforeAll {
     $module = Join-Path (Split-Path -Parent $PSScriptRoot) 'src\ImperionPipeline\ImperionPipeline.psd1'
@@ -12,76 +12,64 @@ BeforeAll {
 
 Describe 'Resolve-ImperionVendorSecret' {
 
-    Context 'three-tier resolution (cdw)' {
-        BeforeEach {
-            InModuleScope ImperionPipeline {
-                Mock Get-ImperionSecretNames { @{ CdwApiKey = 'cdw-api-key' } }
-            }
+    BeforeEach {
+        InModuleScope ImperionPipeline {
+            # The SecretStore is no longer a credential source — assert it is never read.
+            Mock Get-ImperionSecretValue { throw 'SecretStore must not be read for vendor secrets' }
         }
+    }
 
-        It 'returns an explicit -Value without touching any vault' {
+    Context 'explicit value short-circuits everything' {
+        It 'returns an explicit -Value without touching the DB or any vault' {
             InModuleScope ImperionPipeline {
-                Mock Get-ImperionSecretValue   { throw 'should not be called' }
+                Mock Resolve-ImperionCompanyCredential { throw 'should not be called' }
                 Mock Get-ImperionKeyVaultSecret { throw 'should not be called' }
-                Resolve-ImperionVendorSecret -Vendor 'cdw' -Value 'explicit' | Should -Be 'explicit'
+                Resolve-ImperionVendorSecret -Vendor 'itglue' -Value 'explicit' | Should -Be 'explicit'
             }
         }
+    }
 
-        It 'reads the SecretStore mirror when the vault is unlocked' {
+    Context 'registry-backed (itglue) — DB-authoritative' {
+        It 'delegates to Resolve-ImperionCompanyCredential with the provider + field' {
             InModuleScope ImperionPipeline {
-                $script:ImperionSecretStoreVault = 'vault'
-                Mock Get-ImperionSecretValue   { if ($Name -eq 'cdw-api-key') { 'mirror' } else { throw "wrong name $Name" } }
-                Mock Get-ImperionKeyVaultSecret { throw 'should not reach Key Vault' }
-                Resolve-ImperionVendorSecret -Vendor 'cdw' | Should -Be 'mirror'
+                Mock Resolve-ImperionCompanyCredential {
+                    $Provider | Should -Be 'itglue'
+                    $Field    | Should -Be 'apiKey'
+                    'itg-real'
+                }
+                Resolve-ImperionVendorSecret -Vendor 'itglue' | Should -Be 'itg-real'
             }
         }
-
-        It 'falls back to the Key Vault default title when the mirror is absent' {
+        It 'throws the exact catalog message when the registry resolves nothing' {
             InModuleScope ImperionPipeline {
-                $script:ImperionSecretStoreVault = 'vault'
-                Mock Get-ImperionSecretValue   { $null }   # SecretStore miss
+                Mock Resolve-ImperionCompanyCredential { $null }
+                { Resolve-ImperionVendorSecret -Vendor 'itglue' } |
+                    Should -Throw -ExpectedMessage 'IT Glue API key unavailable: connect IT Glue in Settings -> Credentials (company) so the connection registry row + Key Vault secret exist (epic #318).'
+            }
+        }
+    }
+
+    Context 'KV-by-name (cdw) — LP-only vendor, no registry row' {
+        It 'reads the named Key Vault secret directly' {
+            InModuleScope ImperionPipeline {
+                Mock Resolve-ImperionCompanyCredential { throw 'cdw has no registry row — must not call the company resolver' }
                 Mock Get-ImperionKeyVaultSecret { if ($Name -eq 'CDW-API-Key') { 'kv' } else { throw "wrong name $Name" } }
                 Resolve-ImperionVendorSecret -Vendor 'cdw' | Should -Be 'kv'
             }
         }
-
-        It 'honours the config-overridden Key Vault title' {
+        It 'throws the exact catalog message when the Key Vault secret is absent' {
             InModuleScope ImperionPipeline {
-                $script:ImperionSecretStoreVault = 'vault'
-                Mock Get-ImperionSecretNames   { @{ CdwApiKey = 'cdw-api-key'; CdwApiKeyVaultSecret = 'Custom-CDW' } }
-                Mock Get-ImperionSecretValue   { $null }
-                Mock Get-ImperionKeyVaultSecret { if ($Name -eq 'Custom-CDW') { 'kv2' } else { throw "wrong name $Name" } }
-                Resolve-ImperionVendorSecret -Vendor 'cdw' | Should -Be 'kv2'
-            }
-        }
-
-        It 'skips the SecretStore entirely when the vault is locked' {
-            InModuleScope ImperionPipeline {
-                $script:ImperionSecretStoreVault = $null
-                Mock Get-ImperionSecretValue   { throw 'vault locked - should not be called' }
-                Mock Get-ImperionKeyVaultSecret { 'kv-only' }
-                Resolve-ImperionVendorSecret -Vendor 'cdw' | Should -Be 'kv-only'
-                Should -Invoke Get-ImperionSecretValue -Times 0
-            }
-        }
-
-        It 'throws the exact catalog message when nothing resolves' {
-            InModuleScope ImperionPipeline {
-                $script:ImperionSecretStoreVault = 'vault'
-                Mock Get-ImperionSecretValue   { $null }
                 Mock Get-ImperionKeyVaultSecret { $null }
-                { Resolve-ImperionVendorSecret -Vendor 'cdw' } | Should -Throw -ExpectedMessage 'CDW API key unavailable: pass -ApiKey, provision the SecretStore secret named by CdwApiKey, or the Key Vault secret named by CdwApiKeyVaultSecret (issue #198).'
+                { Resolve-ImperionVendorSecret -Vendor 'cdw' } |
+                    Should -Throw -ExpectedMessage 'CDW API key unavailable: provision the Key Vault secret CDW-API-Key (issue #198).'
             }
         }
     }
 
     Context 'KQM outlier — returns $null, never throws' {
-        It 'returns $null (no throw) when nothing resolves' {
+        It 'returns $null (no throw) when the registry resolves nothing' {
             InModuleScope ImperionPipeline {
-                $script:ImperionSecretStoreVault = 'vault'
-                Mock Get-ImperionSecretNames   { @{ KqmApiKey = 'kqm-api-key' } }
-                Mock Get-ImperionSecretValue   { $null }
-                Mock Get-ImperionKeyVaultSecret { $null }
+                Mock Resolve-ImperionCompanyCredential { $null }
                 { Resolve-ImperionVendorSecret -Vendor 'kqm' } | Should -Not -Throw
                 Resolve-ImperionVendorSecret -Vendor 'kqm' | Should -BeNullOrEmpty
             }
@@ -91,74 +79,23 @@ Describe 'Resolve-ImperionVendorSecret' {
     Context 'unknown vendor' {
         It 'throws a clear error for an unknown catalog key' {
             InModuleScope ImperionPipeline {
-                Mock Get-ImperionSecretNames { @{} }
                 { Resolve-ImperionVendorSecret -Vendor 'nope' } | Should -Throw -ExpectedMessage "Unknown vendor secret 'nope':*"
             }
         }
     }
 
     Context 'every catalog entry is well-formed' {
-        It 'has the four required keys for each vendor' {
+        It 'has ErrorMessage and exactly one resolution shape (Provider+Field XOR VaultSecret)' {
             InModuleScope ImperionPipeline {
                 $catalog = Get-ImperionVendorSecretCatalog
                 foreach ($vendor in $catalog.Keys) {
                     $spec = $catalog[$vendor]
-                    # SecretStoreKey / VaultSecretConfigKey are OPTIONAL — KV-only entries omit
-                    # them (issue #291). VaultDefault + ErrorMessage are always required.
-                    $spec.Contains('VaultDefault')          | Should -BeTrue -Because "$vendor needs VaultDefault"
-                    $spec.Contains('ErrorMessage')          | Should -BeTrue -Because "$vendor needs ErrorMessage (may be `$null)"
+                    $spec.Contains('ErrorMessage') | Should -BeTrue -Because "$vendor needs ErrorMessage (may be `$null)"
+                    $isRegistry = $spec.Contains('Provider')
+                    $isKvByName = $spec.Contains('VaultSecret')
+                    ($isRegistry -xor $isKvByName) | Should -BeTrue -Because "$vendor must be registry-backed XOR KV-by-name"
+                    if ($isRegistry) { $spec.Contains('Field') | Should -BeTrue -Because "$vendor (registry) needs Field" }
                 }
-            }
-        }
-    }
-
-    Context 'conn-company JSON credential blob extraction (#299)' {
-        BeforeEach {
-            InModuleScope ImperionPipeline {
-                $script:ImperionSecretStoreVault = $null   # KV-only path
-                Mock Get-ImperionSecretNames { @{} }
-            }
-        }
-
-        It 'itglue extracts apiKey from the conn-company-itglue blob' {
-            InModuleScope ImperionPipeline {
-                Mock Get-ImperionKeyVaultSecret { if ($Name -eq 'conn-company-itglue') { '{"apiKey":"itg-real","region":"us"}' } else { throw "wrong name $Name" } }
-                Resolve-ImperionVendorSecret -Vendor 'itglue' | Should -Be 'itg-real'
-            }
-        }
-
-        It 'kqm extracts apiKey from the conn-company-quotemanager blob' {
-            InModuleScope ImperionPipeline {
-                Mock Get-ImperionKeyVaultSecret { if ($Name -eq 'conn-company-quotemanager') { '{"apiKey":"kqm-real","tenant":"t1"}' } else { throw "wrong name $Name" } }
-                Resolve-ImperionVendorSecret -Vendor 'kqm' | Should -Be 'kqm-real'
-            }
-        }
-
-        It 'telivy extracts apiKey from the conn-company-televy blob' {
-            InModuleScope ImperionPipeline {
-                Mock Get-ImperionKeyVaultSecret { if ($Name -eq 'conn-company-televy') { '{"apiKey":"tel-real"}' } else { throw "wrong name $Name" } }
-                Resolve-ImperionVendorSecret -Vendor 'telivy' | Should -Be 'tel-real'
-            }
-        }
-
-        It 'myitprocess reads the rerouted conn-company-myitprocess name and extracts apiKey' {
-            InModuleScope ImperionPipeline {
-                Mock Get-ImperionKeyVaultSecret { if ($Name -eq 'conn-company-myitprocess') { '{"apiKey":"myit-real"}' } else { throw "wrong name $Name (legacy myITprocess-API-Key must NOT be read)" } }
-                Resolve-ImperionVendorSecret -Vendor 'myitprocess' | Should -Be 'myit-real'
-            }
-        }
-
-        It 'passes a bare-string secret through unchanged (back-compat)' {
-            InModuleScope ImperionPipeline {
-                Mock Get-ImperionKeyVaultSecret { 'a-bare-key-not-json' }
-                Resolve-ImperionVendorSecret -Vendor 'itglue' | Should -Be 'a-bare-key-not-json'
-            }
-        }
-
-        It 'throws an actionable error when the blob lacks the apiKey field' {
-            InModuleScope ImperionPipeline {
-                Mock Get-ImperionKeyVaultSecret { '{"region":"us"}' }
-                { Resolve-ImperionVendorSecret -Vendor 'itglue' } | Should -Throw -ExpectedMessage "*missing the 'apiKey' field*"
             }
         }
     }
@@ -166,31 +103,34 @@ Describe 'Resolve-ImperionVendorSecret' {
 
 Describe 'per-vendor adapters delegate to the deep resolver' {
 
-    It 'Resolve-ImperionMetaToken resolves via the meta catalog entry (-Token param preserved)' {
+    BeforeEach {
+        InModuleScope ImperionPipeline { Mock Get-ImperionSecretValue { throw 'SecretStore must not be read' } }
+    }
+
+    It 'Resolve-ImperionMetaToken resolves via the meta (KV-by-name) entry; -Token preserved' {
         InModuleScope ImperionPipeline {
-            $script:ImperionSecretStoreVault = 'vault'
-            Mock Get-ImperionSecretNames   { @{ MetaSystemUserToken = 'meta-system-user-token' } }
-            Mock Get-ImperionSecretValue   { if ($Name -eq 'meta-system-user-token') { 'meta-mirror' } else { throw "wrong name $Name" } }
-            Mock Get-ImperionKeyVaultSecret { throw 'should not reach Key Vault' }
-            Resolve-ImperionMetaToken | Should -Be 'meta-mirror'
+            Mock Get-ImperionKeyVaultSecret { if ($Name -eq 'Meta-SystemUser-Token') { 'meta-kv' } else { throw "wrong name $Name" } }
+            Resolve-ImperionMetaToken | Should -Be 'meta-kv'
             Resolve-ImperionMetaToken -Token 'explicit-tok' | Should -Be 'explicit-tok'
         }
     }
 
     It 'Resolve-ImperionMetaToken throws the exact Meta message when unresolved' {
         InModuleScope ImperionPipeline {
-            $script:ImperionSecretStoreVault = 'vault'
-            Mock Get-ImperionSecretNames   { @{ MetaSystemUserToken = 'meta-system-user-token' } }
-            Mock Get-ImperionSecretValue   { $null }
             Mock Get-ImperionKeyVaultSecret { $null }
-            { Resolve-ImperionMetaToken } | Should -Throw -ExpectedMessage 'Meta system-user token unavailable: pass -Token, provision the SecretStore secret named by MetaSystemUserToken, or the Key Vault secret named by MetaTokenVaultSecret (ADR-0013).'
+            { Resolve-ImperionMetaToken } | Should -Throw -ExpectedMessage 'Meta system-user token unavailable: provision the Key Vault secret Meta-SystemUser-Token (ADR-0013).'
+        }
+    }
+
+    It 'Resolve-ImperionITGlueApiKey delegates to the registry path' {
+        InModuleScope ImperionPipeline {
+            Mock Resolve-ImperionCompanyCredential { if ($Provider -eq 'itglue' -and $Field -eq 'apiKey') { 'itg' } else { throw 'wrong args' } }
+            Resolve-ImperionITGlueApiKey | Should -Be 'itg'
         }
     }
 
     It 'Resolve-ImperionCdwApiKey delegates and returns an explicit -ApiKey' {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionSecretNames   { @{ CdwApiKey = 'cdw-api-key' } }
-            Mock Get-ImperionSecretValue   { throw 'should not be called' }
             Mock Get-ImperionKeyVaultSecret { throw 'should not be called' }
             Resolve-ImperionCdwApiKey -ApiKey 'explicit' | Should -Be 'explicit'
         }

@@ -33,7 +33,9 @@ Describe 'Invoke-ImperionKaseyaImport' {
 
     It 'loads KQM opportunities through the verified collector path (kqm_opportunities, migration 0083)' {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionKeyVaultSecret { 'kv-kqm-key' }   # SecretStore not unlocked in tests -> KV original
+            # KQM is registry-backed (epic #318): the row points at conn-company-quotemanager in KV.
+            Mock Invoke-ImperionDbQuery { [pscustomobject]@{ keyvault_secret_ref = 'conn-company-quotemanager' } }
+            Mock Get-ImperionKeyVaultSecret { 'kv-kqm-key' }
             Mock Invoke-ImperionKqmRequest { , @([pscustomobject]@{ id = 'q1'; title = 'Quote 1'; status = 3; autotaskOpportunityID = 'ato-1' }) }
             $tables = @{}
             Mock Invoke-ImperionBronzeUpsert { $tables[$Table] = $Rows; [pscustomobject]@{ scanned = 1; inserted = 1; updated = 0; unchanged = 0 } }
