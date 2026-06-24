@@ -49,40 +49,22 @@ Describe 'Resolve-ImperionMetaToken' {
         }
     }
 
-    It 'resolves from the SecretStore via the MetaSystemUserToken name' {
+    It 'reads the Meta-SystemUser-Token Key Vault secret directly, never the SecretStore (epic #318)' {
         InModuleScope ImperionPipeline {
-            $script:ImperionSecretStoreVault = 'TestVault'
-            Mock Get-ImperionSecretNames { @{ MetaSystemUserToken = 'meta-system-user-token' } }
-            Mock Get-ImperionSecretValue { 'store-token' }
+            $script:ImperionSecretStoreVault = 'TestVault'   # unlocked, but must not be read
+            Mock Get-ImperionSecretValue { throw 'SecretStore must not be read for the Meta token' }
+            Mock Get-ImperionKeyVaultSecret { 'kv-token' }
             try {
-                Resolve-ImperionMetaToken | Should -Be 'store-token'
-                Should -Invoke Get-ImperionSecretValue -Times 1 -ParameterFilter { $Name -eq 'meta-system-user-token' }
+                Resolve-ImperionMetaToken | Should -Be 'kv-token'
+                Should -Invoke Get-ImperionKeyVaultSecret -Times 1 -ParameterFilter { $Name -eq 'Meta-SystemUser-Token' }
+                Should -Not -Invoke Get-ImperionSecretValue
             }
             finally { $script:ImperionSecretStoreVault = $null }
         }
     }
 
-    It 'falls back to the Key Vault original when the SecretStore cannot supply it (the KQM pattern)' {
+    It 'throws loudly when the Key Vault secret is absent' {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionSecretNames { @{ MetaSystemUserToken = 'meta-system-user-token' } }
-            Mock Get-ImperionKeyVaultSecret { 'kv-token' }
-            Resolve-ImperionMetaToken | Should -Be 'kv-token'
-            Should -Invoke Get-ImperionKeyVaultSecret -Times 1 -ParameterFilter { $Name -eq 'Meta-SystemUser-Token' }
-        }
-    }
-
-    It 'honors the MetaTokenVaultSecret name override for the Key Vault fallback' {
-        InModuleScope ImperionPipeline {
-            Mock Get-ImperionSecretNames { @{ MetaTokenVaultSecret = 'Custom-Meta-Secret' } }
-            Mock Get-ImperionKeyVaultSecret { 'kv-token' }
-            Resolve-ImperionMetaToken | Should -Be 'kv-token'
-            Should -Invoke Get-ImperionKeyVaultSecret -Times 1 -ParameterFilter { $Name -eq 'Custom-Meta-Secret' }
-        }
-    }
-
-    It 'throws loudly when neither store can supply the token' {
-        InModuleScope ImperionPipeline {
-            Mock Get-ImperionSecretNames { @{ MetaSystemUserToken = 'meta-system-user-token' } }
             Mock Get-ImperionKeyVaultSecret { $null }
             { Resolve-ImperionMetaToken } | Should -Throw '*Meta system-user token unavailable*'
         }

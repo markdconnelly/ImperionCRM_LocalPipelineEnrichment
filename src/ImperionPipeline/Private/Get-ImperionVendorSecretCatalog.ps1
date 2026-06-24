@@ -2,116 +2,100 @@ function Get-ImperionVendorSecretCatalog {
     <#
     .SYNOPSIS
         The per-vendor secret-resolution catalog: the only thing that differs between the
-        company/MSP-wide vendor credentials that share the three-tier resolution shape.
+        company/MSP-wide vendor credentials that share the resolution shape.
     .DESCRIPTION
-        Issue #228 (ADR-0009): the vendor key/token resolvers (CDW, EasyDMARC, myITprocess,
-        Datto BCDR/RMM, KQM, Meta, Amazon Business) were line-for-line duplicates of one shape —
-        explicit value, else the SecretStore mirror, else the Key Vault original, else throw.
-        This catalog holds the per-vendor differences; Resolve-ImperionVendorSecret owns the
-        shape once. Each vendor's named resolver (Resolve-Imperion<Vendor>ApiKey / *Token) is a
-        thin adapter over that pair, so call sites and error contracts are unchanged.
+        Issue #319 (epic #318, supersedes the #228/ADR-0009 three-tier shape): company vendor
+        credentials are resolved with the DATABASE `connection` registry as the authoritative
+        link, so the backend, the cloud Pipeline, and this repo all read the SAME Key Vault
+        secret. The local SecretStore is NO LONGER a credential source — its only remaining job
+        is custody of the app credential that mints the Key Vault token (Get-ImperionAppCredentialArg).
 
-        Per entry:
-          SecretStoreKey        secret-names config key naming the SecretStore mirror title
-          VaultSecretConfigKey  secret-names config key that, when present, overrides the Key
-                                Vault secret title
-          VaultDefault          Key Vault secret title used when VaultSecretConfigKey is absent
-          BlobField             OPTIONAL — when set, the Key Vault value is a JSON credential
-                                blob (conn-company-<provider>, issue #299) and this names the
-                                field to extract; absent = the secret is a bare string
-          ErrorMessage          thrown verbatim when the value is unresolved; $null = return
-                                $null without throwing (KQM is caller-gated upstream)
+        Two entry shapes; Resolve-ImperionVendorSecret owns the resolution once:
 
-        No secret VALUES live here — only the stable names (mirrors config/secret-names).
+          REGISTRY-BACKED (a connection_provider enum value exists — the GUI writes the row):
+            Provider      the connection_provider enum VALUE (DB-authoritative selector). Note
+                          'televy' (not LP-internal 'telivy') and 'quotemanager' (KQM).
+            Field         the JSON field to extract from the conn-company-<provider> blob.
+            ErrorMessage  thrown verbatim when unresolved; $null = return $null (KQM is
+                          caller-gated upstream).
+
+          KV-BY-NAME (no connection registry row exists — LP-only vendors not in the FE
+          registry: CDW, EasyDMARC, Datto RMM/BCDR, Amazon Business; plus Meta, whose LP read
+          token differs from the FE send token — see #318):
+            VaultSecret   the Key Vault secret title read directly via the cert SP.
+            BlobField     OPTIONAL — extract this field when the secret is a JSON blob; absent =
+                          bare-string secret.
+            ErrorMessage  thrown verbatim when unresolved; $null = return $null.
+
+        No secret VALUES live here — only the stable provider names / vault titles / field names.
     #>
     [CmdletBinding()]
     [OutputType([System.Collections.IDictionary])]
     param()
 
     return @{
-        cdw = @{
-            SecretStoreKey       = 'CdwApiKey'
-            VaultSecretConfigKey = 'CdwApiKeyVaultSecret'
-            VaultDefault         = 'CDW-API-Key'
-            ErrorMessage         = 'CDW API key unavailable: pass -ApiKey, provision the SecretStore secret named by CdwApiKey, or the Key Vault secret named by CdwApiKeyVaultSecret (issue #198).'
+        # --- Registry-backed: DB connection row -> keyvault_secret_ref -> blob field ----------
+        itglue = @{
+            Provider     = 'itglue'
+            Field        = 'apiKey'
+            ErrorMessage = 'IT Glue API key unavailable: connect IT Glue in Settings -> Credentials (company) so the connection registry row + Key Vault secret exist (epic #318).'
         }
-        easydmarc = @{
-            SecretStoreKey       = 'EasyDmarcApiKey'
-            VaultSecretConfigKey = 'EasyDmarcApiKeyVaultSecret'
-            VaultDefault         = 'EasyDMARC-API-Key'
-            ErrorMessage         = 'EasyDMARC API key unavailable: pass -ApiKey, provision the SecretStore secret named by EasyDmarcApiKey, or the Key Vault secret named by EasyDmarcApiKeyVaultSecret (issue #122).'
-        }
-        # Rerouted to the standardized credential-registry name (conn-company-myitprocess),
-        # the same KV-only JSON-blob shape as itglue/telivy/kqm (#291/#292 → #299). The
-        # legacy myITprocess-API-Key + SecretStore mirror are retired.
-        myitprocess = @{
-            VaultDefault = 'conn-company-myitprocess'
-            BlobField    = 'apiKey'
-            ErrorMessage = 'myITprocess API key unavailable: provision the Key Vault secret conn-company-myitprocess via the credential registry (issue #292).'
-        }
-        dattobcdr = @{
-            SecretStoreKey       = 'DattoBcdrApiKey'
-            VaultSecretConfigKey = 'DattoBcdrApiKeyVaultSecret'
-            VaultDefault         = 'Datto-BCDR-API-Key'
-            ErrorMessage         = 'Datto BCDR API key unavailable: pass -ApiKey, provision the SecretStore secret named by DattoBcdrApiKey, or the Key Vault secret named by DattoBcdrApiKeyVaultSecret (issue #195, ADR-0018).'
-        }
-        dattormm = @{
-            SecretStoreKey       = 'DattoRmmApiKey'
-            VaultSecretConfigKey = 'DattoRmmApiKeyVaultSecret'
-            VaultDefault         = 'Datto-RMM-API-Key'
-            ErrorMessage         = 'Datto RMM API key unavailable: pass -ApiKey, provision the SecretStore secret named by DattoRmmApiKey, or the Key Vault secret named by DattoRmmApiKeyVaultSecret (issue #195, ADR-0018).'
-        }
-        # Standardized credential-registry resolution (conn-company-<provider>): the same Key
-        # Vault secrets the cloud reads (issue #291; Mark 2026-06-21 "leverage KV like the cloud").
-        # These entries omit SecretStoreKey/VaultSecretConfigKey on purpose, so the resolver
-        # skips the SecretStore mirror AND any stale per-host override and reads the Key Vault
-        # secret below via the cert SP. KQM's registry provider is 'quotemanager'; it stays
-        # caller-gated (ErrorMessage $null = return $null, don't throw).
-        # BlobField: the credential registry stores conn-company-<provider> as a JSON
-        # credential blob (backend credentials.ts: setSecret(name, JSON.stringify(fields))),
-        # NOT a bare string — the field named here is extracted from that blob (issue #299).
-        # The FE company-providers form posts the API key under 'apiKey' for all four.
+        # KQM's registry provider is 'quotemanager'; it stays caller-gated (ErrorMessage $null).
         kqm = @{
-            VaultDefault = 'conn-company-quotemanager'
-            BlobField    = 'apiKey'
+            Provider     = 'quotemanager'
+            Field        = 'apiKey'
             ErrorMessage = $null
         }
-        itglue = @{
-            VaultDefault = 'conn-company-itglue'
-            BlobField    = 'apiKey'
-            ErrorMessage = 'IT Glue API key unavailable: provision the Key Vault secret conn-company-itglue via the credential registry (issue #291).'
-        }
         telivy = @{
-            VaultDefault = 'conn-company-televy'
-            BlobField    = 'apiKey'
-            ErrorMessage = 'Telivy API key unavailable: provision the Key Vault secret conn-company-televy via the credential registry (issue #291).'
+            Provider     = 'televy'
+            Field        = 'apiKey'
+            ErrorMessage = 'Telivy API key unavailable: connect Televy in Settings -> Credentials (company) so the connection registry row + Key Vault secret exist (epic #318).'
         }
-        meta = @{
-            SecretStoreKey       = 'MetaSystemUserToken'
-            VaultSecretConfigKey = 'MetaTokenVaultSecret'
-            VaultDefault         = 'Meta-SystemUser-Token'
-            ErrorMessage         = 'Meta system-user token unavailable: pass -Token, provision the SecretStore secret named by MetaSystemUserToken, or the Key Vault secret named by MetaTokenVaultSecret (ADR-0013).'
+        myitprocess = @{
+            Provider     = 'myitprocess'
+            Field        = 'apiKey'
+            ErrorMessage = 'myITprocess API key unavailable: connect My IT Process in Settings -> Credentials (company) so the connection registry row + Key Vault secret exist (epic #318).'
         }
-        amazonbusiness = @{
-            SecretStoreKey       = 'AmazonBusinessToken'
-            VaultSecretConfigKey = 'AmazonBusinessTokenVaultSecret'
-            VaultDefault         = 'AmazonBusiness-Token'
-            ErrorMessage         = 'Amazon Business access token unavailable: pass -Token, provision the SecretStore secret named by AmazonBusinessToken, or the Key Vault secret named by AmazonBusinessTokenVaultSecret (issue #198).'
-        }
-        # Pax8 (issue #279, epic #1042) — the MSP's single distributor-account OAuth2
-        # client-credentials app: TWO parts (client id + client secret). Both resolve through
-        # the same three-tier shape; Resolve-ImperionPax8Credential returns them as a pair.
+        # Pax8 (epic #1042) — one connection row (provider 'pax8'), TWO blob fields; the OAuth2
+        # client-credentials pair. Resolve-ImperionPax8Credential returns them together.
         pax8clientid = @{
-            SecretStoreKey       = 'Pax8ClientId'
-            VaultSecretConfigKey = 'Pax8ClientIdVaultSecret'
-            VaultDefault         = 'Pax8-Client-Id'
-            ErrorMessage         = 'Pax8 client id unavailable: provision the SecretStore secret named by Pax8ClientId, or the Key Vault secret named by Pax8ClientIdVaultSecret (issue #279, epic #1042).'
+            Provider     = 'pax8'
+            Field        = 'clientId'
+            ErrorMessage = 'Pax8 client id unavailable: connect Pax8 in Settings -> Credentials (company) so the connection registry row + Key Vault secret exist (issue #279, epic #1042).'
         }
         pax8secret = @{
-            SecretStoreKey       = 'Pax8ClientSecret'
-            VaultSecretConfigKey = 'Pax8ClientSecretVaultSecret'
-            VaultDefault         = 'Pax8-Client-Secret'
-            ErrorMessage         = 'Pax8 client secret unavailable: provision the SecretStore secret named by Pax8ClientSecret, or the Key Vault secret named by Pax8ClientSecretVaultSecret (issue #279, epic #1042).'
+            Provider     = 'pax8'
+            Field        = 'clientSecret'
+            ErrorMessage = 'Pax8 client secret unavailable: connect Pax8 in Settings -> Credentials (company) so the connection registry row + Key Vault secret exist (issue #279, epic #1042).'
+        }
+
+        # --- KV-by-name: LP-only vendors with no FE connection registry row ------------------
+        cdw = @{
+            VaultSecret  = 'CDW-API-Key'
+            ErrorMessage = 'CDW API key unavailable: provision the Key Vault secret CDW-API-Key (issue #198).'
+        }
+        easydmarc = @{
+            VaultSecret  = 'EasyDMARC-API-Key'
+            ErrorMessage = 'EasyDMARC API key unavailable: provision the Key Vault secret EasyDMARC-API-Key (issue #122).'
+        }
+        dattobcdr = @{
+            VaultSecret  = 'Datto-BCDR-API-Key'
+            ErrorMessage = 'Datto BCDR API key unavailable: provision the Key Vault secret Datto-BCDR-API-Key (issue #195, ADR-0018).'
+        }
+        dattormm = @{
+            VaultSecret  = 'Datto-RMM-API-Key'
+            ErrorMessage = 'Datto RMM API key unavailable: provision the Key Vault secret Datto-RMM-API-Key (issue #195, ADR-0018).'
+        }
+        amazonbusiness = @{
+            VaultSecret  = 'AmazonBusiness-Token'
+            ErrorMessage = 'Amazon Business access token unavailable: provision the Key Vault secret AmazonBusiness-Token (issue #198).'
+        }
+        # Meta: the LP ingestion read token is the Business Manager SYSTEM-USER token
+        # (Meta-SystemUser-Token), distinct from the FE conn-company-meta page-send token.
+        # Kept KV-by-name until that token-type reconciliation lands (#318).
+        meta = @{
+            VaultSecret  = 'Meta-SystemUser-Token'
+            ErrorMessage = 'Meta system-user token unavailable: provision the Key Vault secret Meta-SystemUser-Token (ADR-0013).'
         }
     }
 }
