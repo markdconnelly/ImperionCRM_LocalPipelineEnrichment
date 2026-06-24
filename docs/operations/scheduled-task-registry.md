@@ -47,7 +47,7 @@ task command is `pwsh -Command "Import-Module ImperionPipeline; Initialize-Imper
 | IT Glue contacts | `Invoke-ImperionITGlueContactSync` | daily | → `itglue_contacts` (ADR-0039 shape) |
 | IT Glue configurations | `Invoke-ImperionITGlueConfigurationSync` | daily | → `itglue_devices` (ADR-0039 shape) |
 | IT Glue full export → Postgres | `Invoke-ImperionITGlueExport` | daily/12h | per-type + relationships; ad-hoc slices via `Invoke-ImperionITGlueExportToBronze` |
-| Telivy assessments | `Invoke-ImperionTelivyReportSync` | daily | → `televy_reports` (ADR-0039 shape) |
+| Telivy assessments | `Invoke-ImperionTelivyReportSync` | daily | → `televy_reports` (ADR-0039 shape). **BLOCKED (#312):** the connect-helper API constants (base URL / auth header / path / items property) are UNVERIFIED placeholders and there are no public Telivy API docs, so the run throws exit 1 and bronze stays empty. **Do not guess-fix** (placeholder-drift trap). Resolve via Mark supplying the API doc OR running the secret-safe probe `build/Find-ImperionTelivyApiShape.ps1` on the credentialed host, then apply the discovered constants as a #297-style fix. |
 | Dark Web ID compromises | `Invoke-ImperionDarkWebIdCompromiseSync` | daily | company credential from Key Vault (`conn-company-darkwebid`) |
 | DocuSign envelopes | `Invoke-ImperionDocuSignEnvelopeSync` | daily | → `docusign_contracts` (standard envelope); GATED — logs+exits until `docusign-token`/`docusign-account-id` provisioned (docs/integrations/docusign.md) |
 | UniFi devices | `Invoke-ImperionUniFiDeviceSync` | daily | → `unifi_devices`; DOUBLE-GATED — Key Vault `conn-company-unifi` + pending front-end bronze migration (docs/integrations/unifi.md) |
