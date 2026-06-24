@@ -113,6 +113,32 @@ Describe 'Get-ImperionDnsZoneObject' {
         }
     }
 
+    It 'skips a zone with an empty id without aborting the sync (#323)' {
+        InModuleScope ImperionPipeline {
+            Mock Invoke-ImperionArmRequest {
+                switch -Regex ($Path) {
+                    '/permissions' { return @([pscustomobject]@{ actions = @('Microsoft.Network/dnsZones/*'); notActions = @() }) }
+                    '/recordsets'  { return @() }
+                    'Microsoft.Network/dnsZones\?' {
+                        return @(
+                            [pscustomobject]@{ id = ''; name = 'broken.com'; properties = [pscustomobject]@{ nameServers = @() } }
+                            [pscustomobject]@{ id = '/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Network/dnszones/good.com'
+                                name = 'good.com'; properties = [pscustomobject]@{ nameServers = @('ns1.azure-dns.com') } }
+                        )
+                    }
+                    default { return @() }
+                }
+            }
+            # The empty-id zone used to throw on the mandatory -Scope bind and abort the run;
+            # if the guard regresses this call throws and fails the test.
+            $rows = @(Get-ImperionDnsZoneObject -SubscriptionId 'sub-1')
+            $zones = @($rows | Where-Object { $_.entity -eq 'zones' })
+            $zones.Count  | Should -Be 1
+            $zones[0].domain | Should -Be 'good.com'
+            Should -Invoke Write-ImperionLog -ParameterFilter { $Level -eq 'Warn' -and $Message -match 'empty id' }
+        }
+    }
+
     It 'authenticates against the requested tenant' {
         InModuleScope ImperionPipeline {
             Mock Invoke-ImperionArmRequest { , @() }
