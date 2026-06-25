@@ -35,7 +35,8 @@ the higher-altitude catalog.
 | **Datto RMM** | `Invoke-ImperionDattoRmmRequest` (API-key → short-lived bearer exchange) | Device (patch/AV state, asset/software inventory) | `datto_rmm_devices` (migration 0119) | daily | ADR-0018 / #195 |
 | **Datto BCDR** | `Invoke-ImperionDattoBcdrRequest` (Bearer) | Backup (per-device backup posture, joins `device_uid`) | `datto_bcdr_backups` (migration 0119) | daily | ADR-0018 / #195 |
 | **myITprocess** | `Invoke-ImperionMyItProcessRequest` (`api_token` header) | Recommendation (vCIO roadmap/QBR → account) | `myitprocess_recommendations` (migration 0119; straight to Postgres, skips IT Glue) | daily | ADR-0018 / #195 |
-| **UniFi** | `Invoke-ImperionUniFiRequest` | Device (+ config compliance) | `unifi_devices` (pending FE migration) | daily | ADR-0018 |
+| **UniFi** | `Invoke-ImperionUniFiRequest` (one **company** Site Manager key enumerates all sites, #321/#345) | Device (+ config compliance), per site | `unifi_devices` (FE migration `0162` applied; 16 live) → silver `device` **merged on-prem** by `Invoke-ImperionUniFiMerge` (#284/#317) | daily | ADR-0018 / ADR-0026 |
+| **Pax8** | `Invoke-ImperionPax8Request` (company creds via registry → KV, ADR-0029) | Company · Subscription · Order (`/v1/licenses` 404 — dropped, #338) | `pax8_companies` / `pax8_subscriptions` / `pax8_orders` (#279/#290; 8/12/73 live) → silver `license_assignment` **merged on-prem** by `Invoke-ImperionPax8Merge` (#280/#314, #316) | daily | #279 / ADR-0026 |
 | **Plaud** | `Invoke-ImperionPlaudRequest` (per-user OAuth) | Recording (note + transcript) | `plaud_recordings` (pending FE migration) | daily | ADR-0005 |
 
 ## Microsoft 365 / Entra / Azure (per-client onboarding app, read-only — ADR-0018)
@@ -64,7 +65,7 @@ the higher-altitude catalog.
 | **Security incidents** | `Get-ImperionSecurityIncident` → `Set-ImperionSecurityIncidentToBronze` | `m365_incidents` / `m365_alerts` / `m365_evidence` (+ `autotask_ticket_ref`) | hourly | ADR-0019 / #196 |
 | **Purview compliance** | `Invoke-ImperionPurviewComplianceSync` | `purview_compliance_policies` + `_golden` drift (NO alerts) | daily | ADR-0019 / #196 |
 | **Security retention sweep** | `Invoke-ImperionSecurityRetentionSweep` | 180-day prune of incidents/alerts/evidence ONLY | daily | ADR-0019 §3 |
-| **Dark Web ID** | `Invoke-ImperionDarkWebIdRequest` → `Set-ImperionDarkWebIdCompromiseToBronze` | `darkwebid_exposures` (ADR-0039 shape) | daily | ADR-0005 |
+| **Dark Web ID** | `Invoke-ImperionDarkWebIdRequest` (Basic auth — `username`+`password` from the credential registry blob, #348/#349) → `Set-ImperionDarkWebIdCompromiseToBronze` | `darkwebid_exposures` (ADR-0039 shape) | daily | ADR-0005 / ADR-0029 |
 | **Telivy** | `Invoke-ImperionTelivyRequest` → `Set-ImperionTelivyReportToBronze` | `televy_reports` (ADR-0039 shape; source `televy`) | daily | ADR-0005 |
 | **EasyDMARC** | `Invoke-ImperionEasyDmarcRequest` | `easydmarc_domains` (DMARC/SPF/DKIM/BIMI; pending FE migration) | daily | #122 |
 | **DNS posture** | `Get-ImperionDnsZoneObject` / `Get-ImperionDnsResolveObject` → `Invoke-ImperionDnsMerge` | DNS zones + public resolve + golden/drift → `dns_domain` | daily | ADR-0063 (FE) |
@@ -122,7 +123,9 @@ opportunity/expense sweep + DocuSign).
 | **DNS** | `Invoke-ImperionDnsMerge` | `dns_domain` (golden/drift) | daily | ADR-0008 / ADR-0063 (FE) |
 | **Meta** | `Invoke-ImperionMetaMerge` | social interaction silver | daily | ADR-0013 |
 | **M365 directory** | `Invoke-ImperionM365DirectoryMerge` | `contact_enrichment.directory_groups` (FE migration 0079) | daily | ADR-0026 / #239 |
-| **Azure ARM cloud-asset** | `Invoke-ImperionCloudAssetMerge` | `cloud_asset` CMDB CI (FE migration 0139; cloud ceded #135) | daily | ADR-0026 / #241 |
+| **Azure ARM cloud-asset** | `Invoke-ImperionCloudAssetMerge` | `cloud_asset` CMDB CI (FE migration 0139; cloud ceded #135; 101 live) | daily | ADR-0026 / #241 |
+| **UniFi** | `Invoke-ImperionUniFiMerge` | `device` (from `unifi_devices` bronze; per-site attribution defect #346) | daily | ADR-0026 / #284 |
+| **Pax8** | `Invoke-ImperionPax8Merge` | `license_assignment` (resolves company → account via `entity_xref`; agreement/device link) | daily | ADR-0026 / #280 |
 
 > **Cutover is gap-free** because both the LP and cloud copies are replace-from-source on the
 > same source label: ship the LP merge first (additive), cede the cloud copy second, never cede
