@@ -8,13 +8,20 @@ Scheduled Task  (runs as a dedicated gMSA / service account — never an interac
   └─ Certificate  (Cert:\LocalMachine\My; non-exportable private key; ACL'd to the task identity only)
        ├─ (a) Opens the SecretStore
        │       CMS blob (vault password encrypted to the cert)  ──Unprotect-CmsMessage──▶ Unlock-SecretStore
-       │       SecretStore yields: source API keys, embedding/LLM provider keys
-       └─ (b) Is the Entra app credential
+       │       SecretStore yields: the node app credential (end-state ADR-0029) + the few sources not yet on DB→KV
+       └─ (b) Is the node app credential — INFRA/BOOTSTRAP tokens only (ADR-0030)
                Get-MsalToken -ClientCertificate  ──▶ app-only tokens:
-                 • Microsoft Graph  (read-only: Application.Read.All / Directory.Read.All; per-client onboarding app per client tenant, ADR-0018)
-                 • Azure ARM        (read-only: Reader; write only to Storage/PG/KeyVault)
+                 • Azure Key Vault  (Key Vault Secrets User — read the credential registry's blobs)
+                 • Azure Storage    (data-plane write — staging/landing)
                  • Azure PostgreSQL (short-lived token, no stored password — ADR-0003)
 ```
+
+> **The cert SP reads NO tenant data (ADR-0030).** Microsoft Graph (365) **and** Azure ARM are
+> read per tenant via the per-client onboarding app, whose credential is resolved from the
+> `connection` registry → Key Vault ([`credential-resolution.md`](credential-resolution.md)).
+> The cert SP holds **no** Graph or ARM data-read grant — it exists only to mint the Key Vault,
+> Storage, and Postgres bootstrap tokens. This is the change from the earlier model where the
+> cert SP itself authenticated Graph/ARM.
 
 ## Controls
 - **Non-exportable key**, generated/stored in `LocalMachine\My`; read ACL granted to the
@@ -27,6 +34,8 @@ Scheduled Task  (runs as a dedicated gMSA / service account — never an interac
 - **No inbound surface** — outbound calls only; nothing listens.
 
 ## Blast radius if the cert is stolen
-Read-only across Azure/365 (cannot mutate the prod RG), plus write to Storage/PG/KeyVault
-and whatever the SecretStore holds. Mitigation: rotation, ACLs, least-privilege DB role,
-and the read-only-by-default grant (ADR-0002).
+Reduced by ADR-0030: the cert SP can read Key Vault, write Storage, and connect to Postgres
+(table-scoped) — but it **cannot read 365 or enumerate Azure resources**, because tenant data
+is reached only via the registry-resolved onboarding apps, not this cert. Mitigation: rotation,
+ACLs, least-privilege DB role, the read-only-by-default grant (ADR-0002), and keeping no
+tenant-data grant on the cert SP (ADR-0030).
