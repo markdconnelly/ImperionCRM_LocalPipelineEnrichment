@@ -58,11 +58,13 @@ never cede before the LP copy is verified writing in prod.
 
 - **`cloud_asset` — CEDED + MERGED** (Pipeline #135 / PR #138, 2026-06-19). PL #133 was
   deployed, so this ended a live double-merge, not a no-op. `Invoke-ImperionCloudAssetMerge`
-  (#241). `cloud_asset` = 23 rows live on-prem via the LP merge.
-- **M365 directory groups → LP — HOLD.** `Invoke-ImperionM365DirectoryMerge` (#239) cedes
-  the cloud `mergeDirectoryGroups` via Pipeline #134, which is **STILL ON HOLD** —
-  `m365_groups` / `m365_members` bronze is empty because the entra collectors have not been
-  run.
+  (#241). `cloud_asset` = **101 rows** live on-prem via the LP merge (2026-06-25; was 23 — the
+  ARM collector now fans out per consented tenant, ADR-0030).
+- **M365 directory groups → LP.** `Invoke-ImperionM365DirectoryMerge` (#239) cedes the cloud
+  `mergeDirectoryGroups` via Pipeline #134. The entra collectors now run — `m365_groups` = **99**,
+  `entra_role_assignments` = **26** live in bronze (2026-06-25) — so the cede is unblocked;
+  confirm the LP merge is writing `contact_enrichment.directory_groups` in prod before ceding
+  the cloud copy.
 
 The cloud Pipeline retains only the live/webhook-driven merge (the `website_*`-fed
 contact/account/device/contract/ticket/opportunity/expense sweep + DocuSign).
@@ -107,21 +109,42 @@ writes it). The on-prem resolver path now matches that shape:
 - Datto RMM/BCDR remain on legacy named secrets (not yet on the `conn-company` blob path) — see
   the [data-in light-up runbook](runbooks/data-in-light-up.md) Step 1.
 
-### DB-authoritative company credential resolution (ADR-0029, epic #318) — in flight
+### DB-authoritative company credential resolution (ADR-0029, epic #318) — keystone MERGED
 
-Company vendor creds are moving to the **same DB→Key Vault link the backend/cloud use**: LP follows
-the `connection` registry row → `keyvault_secret_ref` → KV blob (mirror of the client-scope
+> Full onboarding map: [`security/credential-resolution.md`](security/credential-resolution.md).
+
+Company vendor creds follow the **same DB→Key Vault link the backend/cloud use**: LP reads the
+`connection` registry row → `keyvault_secret_ref` → KV blob (mirror of the client-scope
 `Resolve-ImperionTenantCredential`). End-state: the **only** SecretStore secret LP reads is the app
 credential that mints the KV token.
 
-- **Keystone SHIPPED (#319):** `Resolve-ImperionCompanyCredential` + vendor-catalog cutover.
-  Registry-backed (itglue/televy/quotemanager/myitprocess/pax8) resolve DB→KV; LP-only vendors with
-  no registry row (cdw/easydmarc/datto rmm+bcdr/amazonbusiness; + meta, pending token-type
-  reconciliation) read a named KV secret. SecretStore-mirror tier removed for all of them.
-- **Still on SecretStore (own PRs):** autotask, qbo (backend owns the OAuth refresh — backend #385),
-  voyage, mileiq, docusign. The `secret-names` cleanup + CLAUDE.md §2/§7 rewrite land with the last one.
-- **Data cleanup (GUI/Mark):** `gdap` row = scrapped + stale `kv://` ref + `error` → delete;
-  `docusign` row = stale `kv://` ref + `error` → re-seed so `conn-company-docusign` exists.
+- **Keystone MERGED (#319/#320, ADR-0029 Accepted):** `Resolve-ImperionCompanyCredential` +
+  vendor-catalog cutover. Registry-backed (itglue/televy/quotemanager/myitprocess/pax8/darkwebid)
+  resolve DB→KV; LP-only vendors with no registry row (cdw/easydmarc/datto rmm+bcdr/amazonbusiness;
+  + meta, pending token-type reconciliation) read a named KV secret. SecretStore-mirror tier removed.
+- **Two live cast-class regressions caught + FIXED post-deploy** (mocks can't catch them) — see
+  *Live-caught regressions* above: enum cast `connection_provider` (#330) and `account_tenant`/
+  `connection` uuid-vs-text casts (#334). These were the last blockers for registry-backed hydration.
+- **Still on SecretStore (own follow-up PRs):** autotask, qbo (backend owns the OAuth refresh —
+  backend #385), voyage, mileiq, docusign. The `secret-names` cleanup + the `CLAUDE.md §2/§7`
+  rewrite land with the last one. Legacy-name retirement is **#292**.
+- **Registry data (GUI/Mark):** `gdap` row = **purged in prod** (done); `docusign` + `apollo` rows
+  remain `status=error` (stale `kv://` ref) → re-seed via the GUI before those providers resolve.
+
+### Tenant-driven 365 + Azure hydration (ADR-0030, epic #324) — slices MERGED
+
+The Graph **and** ARM data planes resolve **every** tenant (home included) from the registry via
+`Resolve-ImperionTenantCredential` — no home special-case. The node cert SP is reduced to
+infra/bootstrap tokens only (PG/KV/Storage) and holds **no Graph/ARM data reach**.
+
+- **MERGED:** uniform per-tenant resolver + rename `Get-ImperionTenantAppToken` →
+  `Get-ImperionRegisteredTenantToken`, ARM reuses the `m365` app (#327/#328, ADR-0025…). The
+  account ambiguity is resolved — the dead config-SP cert `m365` row is purged; the two remaining
+  `m365` rows are both `auth_method='secret'`, active (live registry, 2026-06-25).
+- **One cloud grant assumed:** Global Reader on each onboarding app's tenant root management group
+  (the ARM read). **#329** neutralizes the `PartnerTenantId` config key (home-agnostic naming).
+- **Known 403 gaps (Mark/consent):** auth-methods report needs `AuditLog.Read.All` (#340); mail +
+  Teams collectors need `IMPERION_M365_MAILBOXES` / `IMPERION_M365_USERS` host config (#341).
 
 ---
 

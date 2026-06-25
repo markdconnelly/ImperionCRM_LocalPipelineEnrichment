@@ -155,13 +155,16 @@ Scheduled Task (runs as a dedicated service identity, not Mark's user)
    plaintext on disk. *(Fallback if CMS is impractical: `-Authentication None`, which
    binds the vault to the task identity via DPAPI — simpler, slightly weaker, document
    the choice in an ADR.)*
-4. **What the SecretStore holds** (and the repo never does): the **embedding/LLM provider
-   API keys** (§7) and each **source API key/secret** (Autotask, IT Glue, Apollo, KQM,
-   DocuSign, website). It does **not** hold a Postgres password — DB access is a
-   short-lived Entra token minted by the cert SP (§6). Cert-based app auth also means the
-   Entra app needs **no client secret** in the vault — the cert is the credential. *(If a
-   client secret is ever used instead of cert auth, it lives in the vault too; cert auth
-   is preferred — confirm with Mark.)*
+4. **What the SecretStore holds (end-state: ONLY the node app credential, ADR-0029).**
+   Source/tenant secrets are resolved at run time from the DB `connection` registry → Key
+   Vault — the same authoritative link the backend and cloud Pipeline use — not from a local
+   mirror (see [`docs/security/credential-resolution.md`](docs/security/credential-resolution.md)).
+   The cert-backed app SP mints the Key Vault token; the GUI writes each secret to KV and
+   records its `keyvault_secret_ref` on the registry row. *(In-flight residue, own PRs: autotask,
+   qbo, voyage, mileiq, docusign still read the SecretStore until cut over.)* The SecretStore
+   does **not** hold a Postgres password — DB access is a short-lived Entra token minted by the
+   cert SP (§6). Cert-based app auth also means the node app needs **no client secret** in the
+   vault — the cert is the credential.
 5. **No secrets in the repo, ever.** `.gitignore` must exclude any `*.cer/*.pfx`, exported
    secrets, and local config. Commit only `*.example` templates.
 6. **Every task is idempotent and resumable** (§6) — an unattended retry must converge,
