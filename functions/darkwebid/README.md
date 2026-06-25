@@ -6,16 +6,19 @@ Dark Web ID (Kaseya / ID Agent) monitors client domains for breached/exposed cre
 Its findings are **security-posture evidence** about a client `account` and its `contact`s.
 Net-new integration to this repo.
 
-**Auth:** a single API key sent as `Authorization: Bearer <apiKey>`, aligned with the cloud
-Pipeline's Dark Web ID client (ADR-0040). In the system the key is a **company credential**
-(`conn-company-darkwebid`); locally it's resolved from the SecretStore by the caller and passed
-in. Read-only. (Auth scheme is the system's current assumption — "could be x-api-key / Basic /
-OAuth"; confirm on first live pull.)
+**Auth:** **HTTP Basic auth** — a **username + password** pair sent as
+`Authorization: Basic <base64(username:password)>` against base **`https://secure.darkwebid.com`**,
+with **IP allowlisting** (Kaseya / ID Agent help docs). NOT a bearer API key. Aligned with the
+cloud Pipeline's Dark Web ID client (front-end ADR-0040). In the system the credential is a
+**company credential** stored as a JSON blob `{username, password}` in Key Vault
+`conn-company-darkwebid`; the sync resolves both fields from the `connection` registry via
+`Resolve-ImperionCompanyCredential` (ADR-0103) — DB row → KV blob → field — never a raw secret
+read. Read-only.
 
 ## connect
 | Function | Purpose |
 | --- | --- |
-| `Invoke-ImperionDarkWebIdRequest` ✓ | GET a Dark Web ID collection with bearer auth, JSON:API paging (`data` + `links.next`), 429/503 backoff, return items. StrictMode-safe. |
+| `Invoke-ImperionDarkWebIdRequest` ✓ | GET a Dark Web ID collection with HTTP Basic auth (username+password), JSON:API paging (`data` + `links.next`), 429/503 backoff, return items. StrictMode-safe. |
 
 ## get (planned — per object)
 | Function | Object |
