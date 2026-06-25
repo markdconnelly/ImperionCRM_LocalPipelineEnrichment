@@ -170,10 +170,11 @@ flowchart LR
   by the `Imperion-KnowledgeVectorize` scheduled task, after the night's ingest refreshes silver.
   This is the *sleep-time consolidation pass*: facts → knowledge → encoded recall.
 
-> **Live shape (prod, 2026-06-22):** `knowledge_object` ≈ **912** composed rows;
-> `knowledge_embedding` hydration for the recall path is gated on LP #176 (the embedder is built
-> and the Voyage key is provisioned — Key Vault `Voyage-Embedding-API-Key`, SecretStore mirror
-> `embedding-provider-key`). Counts are illustrative, not a contract — coverage is the goal,
+> **Live shape (prod, 2026-06-25):** `knowledge_object` ≈ **1,547** composed rows;
+> `knowledge_embedding` = **0** — vectorization has **not** been run in prod, so the recall path
+> (gold hybrid ranker + the MCP `recall` tool) is **deploy-dormant** pending LP #176 (the embedder
+> is built and the Voyage key is provisioned — Key Vault `Voyage-Embedding-API-Key`, SecretStore
+> mirror `embedding-provider-key`). Counts are illustrative, not a contract — coverage is the goal,
 > gaps are bugs.
 
 ### Idempotency & cost — re-consolidating unchanged memory is free
