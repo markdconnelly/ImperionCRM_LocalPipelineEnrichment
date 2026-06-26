@@ -26,7 +26,7 @@ function Invoke-ImperionMetaLeadAdsMerge {
         flat columns (email/full_name/phone_number) the collector already extracted. Bronze
         text timestamps are cast with a regex guard (the posture-merge pattern) so junk
         lands as the collected_at fallback, never throws. INSERT-only — never UPDATE/DELETE
-        on silver (the 0075/0206 grant posture). Requires Initialize-ImperionContext.
+        on silver (the 0075/0207 grant posture). Requires Initialize-ImperionContext.
     .PARAMETER Connection
         Optional open Npgsql connection to reuse; otherwise one is opened and disposed.
     .EXAMPLE

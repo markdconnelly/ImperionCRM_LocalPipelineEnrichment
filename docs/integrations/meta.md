@@ -96,7 +96,7 @@ Page and merged to the lead pipeline as capture-inbox leads (front-end ADR-0124 
   | `Get-ImperionMetaLead` | `/{form-id}/leads` (fanned per form) | `meta_lead_ads` (one row per submitted lead) | `meta_lead_ad` |
 
   Writers `Set-ImperionMetaLeadFormToBronze` / `Set-ImperionMetaLeadToBronze` — thin
-  adapters over `Invoke-ImperionBronzePost` with the exact 0206 column sets. `field_data`
+  adapters over `Invoke-ImperionBronzePost` with the exact 0207 column sets. `field_data`
   answers are **PII-adjacent — never logged** (counts/ids only, ADR-0086); the convenience
   flat columns `full_name`/`email`/`phone_number` are extracted from `field_data` while the
   full answer array is kept as JSON + in `raw_payload`.

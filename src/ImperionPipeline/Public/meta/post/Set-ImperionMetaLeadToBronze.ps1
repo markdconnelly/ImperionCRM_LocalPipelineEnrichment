@@ -6,7 +6,7 @@ function Set-ImperionMetaLeadToBronze {
         Post-layer writer (CLAUDE.md §6), LP #362. Takes the flat per-lead rows produced by
         Get-ImperionMetaLead and upserts them (standard envelope, change-detected). Each row
         is projected to exactly the meta_lead_ads column set defined by front-end migration
-        0206 before the upsert; anything extra survives in raw_payload. These rows carry
+        0207 before the upsert; anything extra survives in raw_payload. These rows carry
         PII-adjacent field_data — never log their contents (ADR-0086). Submitters become
         leads downstream (Invoke-ImperionMetaLeadAdsMerge).
 

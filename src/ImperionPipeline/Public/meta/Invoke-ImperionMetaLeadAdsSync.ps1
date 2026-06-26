@@ -39,8 +39,8 @@ function Invoke-ImperionMetaLeadAdsSync {
     }
     catch {
         # Credential/migration gate: an unreachable page token (or one lacking
-        # leads_retrieval) or a not-yet-applied 0206 must not crash the schedule — log
+        # leads_retrieval) or a not-yet-applied 0207 must not crash the schedule — log
         # loudly and exit; the next run converges. The message never includes lead PII.
-        Write-ImperionLog -Level Warn -Source 'meta_lead_ad' -Message "meta lead ads sync skipped (page token w/ leads_retrieval? 0206 applied?): $($_.Exception.Message)"
+        Write-ImperionLog -Level Warn -Source 'meta_lead_ad' -Message "meta lead ads sync skipped (page token w/ leads_retrieval? 0207 applied?): $($_.Exception.Message)"
     }
 }
