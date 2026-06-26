@@ -27,8 +27,18 @@ A GUI-mapped, credentialed tenant hydrates on the next run with **no host env ed
 - **Still per-tenant Mark-gated:** each client tenant's onboarding app must be **admin-consented**
   (`build/New-ImperionClientOnboardingApp.ps1` run as that tenant's Global Admin) or its Graph
   reads 403 — an active registry row is not proof of consent.
-- **Follow-up (epic #324 slice 3b):** the literal tenant-outer single-driver `Invoke-ImperionTenantHydration`
-  + per-tenant token reuse (replaces the per-collector scheduled tasks; changes host task topology).
+- **Slice 3b (#359) — tenant-outer driver `Invoke-ImperionTenantHydration` BUILT (additive):**
+  enumerates consented tenants once, acquires each tenant's Graph token once (reused across routines
+  via the `(tenant,resource)` cache), then runs the 14 estate collectors pinned to that tenant
+  (tenant-outer). Per-tenant fail-closed skip + per-routine isolation + one Metric summary. **Landed
+  additive — the per-collector M365 scheduled tasks are UNCHANGED (still the safety net); the driver
+  is callable but not yet the scheduled entry.**
+  - **VERIFY ON HOST (Mark, before the cutover):** `Invoke-ImperionTenantHydration` — confirm all 4
+    tenants hydrate (log Metric `tenants_hydrated=4`, `routine_failures=0`). Then the **cutover PR**
+    registers `Imperion-TenantHydration` and removes the 14 per-collector entries (needs a
+    `Register-ImperionTask` re-run).
+  - Bug caught pre-merge: the inner loop var `$routine` collided (case-insensitively) with the
+    `$Routine` param → every tenant after the first ran only its last routine; fixed (`$routineName`).
 
 ---
 

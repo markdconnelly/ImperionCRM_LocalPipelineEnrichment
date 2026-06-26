@@ -11,9 +11,13 @@ function Invoke-ImperionM365UserSync {
         Invoke-ImperionM365UserSync
     #>
     [CmdletBinding()]
-    param()
+    param([string] $TenantId)
 
-    Invoke-ImperionM365EstateSweep -Label 'M365 users' -PerTenant {
+    # -TenantId pins the sweep to one tenant (the tenant-outer driver, #359); no arg => the
+    # registry-driven estate fan-out (#358). Forward only when supplied so the default is unchanged.
+    $sweep = @{}
+    if ($PSBoundParameters.ContainsKey('TenantId')) { $sweep.TenantId = $TenantId }
+    Invoke-ImperionM365EstateSweep @sweep -Label 'M365 users' -PerTenant {
         param($TenantId)
         if ($TenantId) { Get-ImperionM365User -TenantId $TenantId | Set-ImperionM365UserToBronze }
         else { Get-ImperionM365User | Set-ImperionM365UserToBronze }

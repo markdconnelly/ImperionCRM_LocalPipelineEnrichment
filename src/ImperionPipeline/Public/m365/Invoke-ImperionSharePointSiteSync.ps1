@@ -11,9 +11,13 @@ function Invoke-ImperionSharePointSiteSync {
         Invoke-ImperionSharePointSiteSync
     #>
     [CmdletBinding()]
-    param()
+    param([string] $TenantId)
 
-    Invoke-ImperionM365EstateSweep -Label 'SharePoint site inventory' -PerTenant {
+    # -TenantId pins the sweep to one tenant (the tenant-outer driver, #359); no arg => the
+    # registry-driven estate fan-out (#358). Forward only when supplied so the default is unchanged.
+    $sweep = @{}
+    if ($PSBoundParameters.ContainsKey('TenantId')) { $sweep.TenantId = $TenantId }
+    Invoke-ImperionM365EstateSweep @sweep -Label 'SharePoint site inventory' -PerTenant {
         param($TenantId)
         if ($TenantId) { Get-ImperionSharePointSite -TenantId $TenantId | Set-ImperionSharePointSiteToBronze }
         else { Get-ImperionSharePointSite | Set-ImperionSharePointSiteToBronze }

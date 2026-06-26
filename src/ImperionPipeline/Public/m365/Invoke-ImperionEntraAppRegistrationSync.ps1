@@ -11,9 +11,13 @@ function Invoke-ImperionEntraAppRegistrationSync {
         Invoke-ImperionEntraAppRegistrationSync
     #>
     [CmdletBinding()]
-    param()
+    param([string] $TenantId)
 
-    Invoke-ImperionM365EstateSweep -Label 'Entra app-registrations' -PerTenant {
+    # -TenantId pins the sweep to one tenant (the tenant-outer driver, #359); no arg => the
+    # registry-driven estate fan-out (#358). Forward only when supplied so the default is unchanged.
+    $sweep = @{}
+    if ($PSBoundParameters.ContainsKey('TenantId')) { $sweep.TenantId = $TenantId }
+    Invoke-ImperionM365EstateSweep @sweep -Label 'Entra app-registrations' -PerTenant {
         param($TenantId)
         if ($TenantId) { Get-ImperionEntraAppRegistration -TenantId $TenantId | Set-ImperionEntraAppRegistrationToBronze }
         else { Get-ImperionEntraAppRegistration | Set-ImperionEntraAppRegistrationToBronze }
