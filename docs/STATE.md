@@ -59,6 +59,15 @@ A GUI-mapped, credentialed tenant hydrates on the next run with **no host env ed
   **skips id-less members** (no usable join key → no valid edge) and counts them (`skipped_members`),
   so one bad member never aborts the tenant's membership upsert. Unblocks the directory merge
   (`contact_enrichment` `directory_groups`). `okf-not-affected` (a null key was never a valid row).
+- **Intune detected-apps v1.0 vs beta (2026-06-25, #369 — FIXED).** `Get-ImperionIntuneManagedApp`
+  called `/v1.0/deviceManagement/managedDevices/{id}/detectedApps` → 400 "segment 'detectedApps' not
+  found" (that per-device navigation is beta-only). Now uses `/beta/...detectedApps` (device list
+  stays v1.0). `intune_managed_apps` (mig 0148) is applied + app holds `DeviceManagementApps.Read.All`,
+  so the feed lights up on the next host run. CONFIRM-BEFORE-LIVE on the `detectedApp` field shapes.
+  **Still gated on a front-end migration (NOT LP-fixable): `sensitivity_labels` +
+  `custom_security_attribute_definitions` tables do not exist in prod (FE #259)** — their collectors
+  log+exit until #259 lands; the sensitivity collector ALSO needs its endpoint moved to a beta path
+  at that point (same class as #369), to be verified live then.
 - **DB credential resolver enum cast (2026-06-24, #330 — FIXED).** After the #320 deploy,
   both registry resolvers (`Resolve-ImperionCompanyCredential`, `Resolve-ImperionTenantCredential`)
   threw `42883: operator does not exist: connection_provider = text` on every run — `connection.provider`

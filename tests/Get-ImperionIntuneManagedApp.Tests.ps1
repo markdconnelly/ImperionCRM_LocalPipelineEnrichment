@@ -68,6 +68,25 @@ Describe 'Get-ImperionIntuneManagedApp' {
         }
     }
 
+    It 'calls per-device detectedApps on the BETA endpoint, keeping the managedDevices list on v1.0 (#369)' {
+        InModuleScope ImperionPipeline {
+            Mock Invoke-ImperionGraphRequest -ParameterFilter { $Uri -match 'managedDevices' -and $Uri -notmatch 'detectedApps' } {
+                , @([pscustomobject]@{ id = 'dev-1'; deviceName = 'A'; serialNumber = 'S1' })
+            }
+            Mock Invoke-ImperionGraphRequest -ParameterFilter { $Uri -match 'detectedApps' } { , @() }
+
+            Get-ImperionIntuneManagedApp | Out-Null
+
+            # detectedApps only exists under beta; the device list stays v1.0.
+            Should -Invoke Invoke-ImperionGraphRequest -Times 1 -ParameterFilter {
+                $Uri -eq 'https://graph.microsoft.com/beta/deviceManagement/managedDevices/dev-1/detectedApps'
+            }
+            Should -Invoke Invoke-ImperionGraphRequest -Times 1 -ParameterFilter {
+                $Uri -eq 'https://graph.microsoft.com/v1.0/deviceManagement/managedDevices'
+            }
+        }
+    }
+
     It 'collects from the requested tenant via the per-client onboarding-app token' {
         InModuleScope ImperionPipeline {
             Mock Invoke-ImperionGraphRequest { , @() }
