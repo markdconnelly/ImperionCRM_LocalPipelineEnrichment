@@ -42,7 +42,9 @@ onboarding app (§3).
 
 ## Endpoints, paging, rate limits
 - `GET /v1.0/deviceManagement/managedDevices` (`$select=id,deviceName,serialNumber`) for the join
-  anchor, then `GET /v1.0/deviceManagement/managedDevices/{id}/detectedApps` per device. Paging
+  anchor, then `GET /beta/deviceManagement/managedDevices/{id}/detectedApps` per device — the
+  per-device `detectedApps` navigation is **beta-only** (v1.0 returns 400 "segment 'detectedApps'
+  not found", #369); the device list stays v1.0. Paging
   follows `@odata.nextLink` (`Invoke-ImperionGraphRequest`); 429/Retry-After handled by the shared
   retry core. **N+1 call shape** (one per device) — inherent to the per-device endpoint; fine at
   the daily cadence, watch the Intune throttling budget for very large estates.

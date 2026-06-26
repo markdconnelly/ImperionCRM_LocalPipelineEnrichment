@@ -80,8 +80,11 @@ function Get-ImperionIntuneManagedApp {
         $serialNumber = [string]$device.serialNumber
         $deviceName = [string]$device.deviceName
 
+        # The per-device detectedApps navigation is exposed in Graph BETA only — v1.0 has no
+        # managedDevices/{id}/detectedApps segment (returns 400 "Resource not found for the segment
+        # 'detectedApps'"), #369. The managedDevices list above stays v1.0 (it works there).
         $detectedApps = Invoke-ImperionGraphRequest `
-            -Uri "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/$managedDeviceId/detectedApps" `
+            -Uri "https://graph.microsoft.com/beta/deviceManagement/managedDevices/$managedDeviceId/detectedApps" `
             -AccessToken $token
 
         foreach ($app in $detectedApps) {
