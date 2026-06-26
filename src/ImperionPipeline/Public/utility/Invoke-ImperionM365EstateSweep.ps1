@@ -5,8 +5,12 @@ function Invoke-ImperionM365EstateSweep {
         fail-isolation (issue #266).
     .DESCRIPTION
         The shared estate-sweep helper for the m365 `*.task.ps1` collectors. Every m365 task
-        pulls one source across the tenant list in `IMPERION_M365_TENANT_IDS` (comma-separated
-        customer tenant ids); an empty/unset list means the partner tenant only (dormant-safe).
+        pulls one source across the consented-tenant estate. The tenant list defaults to the
+        credential registry (`Get-ImperionConsentedTenant`: `account_tenant` joined to an active
+        `m365` `connection`) so a credential saved in the GUI hydrates on the next run with no
+        host env edit (ADR-0030 'GUI-as-enable'). `IMPERION_M365_TENANT_IDS`, when set, overrides
+        the registry as an operator pin (back-compat); an empty registry AND unset env means the
+        partner tenant only (dormant-safe).
 
         Before this helper each task ran its own `foreach`, and its try/catch — when it had
         one at all — sat OUTSIDE the loop. So a single unconsented or misconfigured tenant
@@ -47,11 +51,23 @@ function Invoke-ImperionM365EstateSweep {
 
     $started = Get-Date
 
-    # Resolve the fan-out list. Default source is IMPERION_M365_TENANT_IDS (comma-separated
-    # customer tenant ids). An empty/unset list => the partner tenant only, represented as a
-    # single $null iteration so the collector runs with no -TenantId (dormant-safe).
+    # Resolve the fan-out list with this precedence (ADR-0030 Decision #4 — registry-as-enable):
+    #   1. an explicit -TenantId (tests / a deliberate single-tenant run);
+    #   2. IMPERION_M365_TENANT_IDS, when set — an operator PIN / override (back-compat: a host
+    #      that still sets it keeps working, and it can pin a subset for a targeted run);
+    #   3. otherwise the consented-tenant registry (account_tenant join an active m365 connection)
+    #      — the DEFAULT, so a credential saved in the GUI hydrates on the next run with NO host
+    #      env edit (CLAUDE.md §1 pull/registry-driven; ADR-0030 'GUI-as-enable');
+    #   4. an empty registry => the partner tenant only, a single $null iteration so the
+    #      collector runs with no -TenantId (dormant-safe).
     if (-not $PSBoundParameters.ContainsKey('TenantId')) {
-        $TenantId = @($env:IMPERION_M365_TENANT_IDS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+        $envTenants = @($env:IMPERION_M365_TENANT_IDS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+        if ($envTenants.Count -gt 0) {
+            $TenantId = $envTenants
+        }
+        else {
+            $TenantId = @(Get-ImperionConsentedTenant)
+        }
     }
     $tenantIds = @($TenantId | Where-Object { $_ })
     if ($tenantIds.Count -eq 0) {
