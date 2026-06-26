@@ -1,7 +1,7 @@
 function Invoke-ImperionMetaSocialSync {
     <#
     .SYNOPSIS
-        Collect FB Page posts/comments/DMs + IG media/comments into bronze, then run the Meta silver merge.
+        Collect FB Page posts/comments/DMs + IG media/comments/DMs into bronze, then run the Meta silver merge.
     .DESCRIPTION
         Thin orchestrator (CLAUDE.md §4, ADR-0007: cmdlet-first, no loose entry scripts) promoting
         scheduled-tasks/meta/social.task.ps1. Hops to the Page token once (New Pages Experience, #133)
@@ -42,6 +42,12 @@ function Invoke-ImperionMetaSocialSync {
         $media = @(Get-ImperionInstagramMedia -PageId $pageId -Token $pageToken)
         $media | Set-ImperionInstagramMediaToBronze
         $media | Get-ImperionInstagramComment -Token $pageToken | Set-ImperionInstagramCommentToBronze
+
+        # IG Direct Messages (LocalPipeline #361). Reuses the Page-token hop (the IG inbox is
+        # reached via the linked Page with platform=instagram). DORMANT until the IG messaging
+        # scope is approved at Meta App Review + conn-company-meta seeded; the catch below
+        # keeps a 403/unapplied-0206 from crashing the schedule (idempotent re-merge converges).
+        Get-ImperionInstagramMessage -PageId $pageId -PageToken $pageToken | Set-ImperionInstagramMessageToBronze
 
         Invoke-ImperionMetaMerge
     }
