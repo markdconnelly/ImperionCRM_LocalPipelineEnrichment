@@ -103,6 +103,28 @@ Describe 'Get-ImperionM365GroupMember' {
         }
     }
 
+    It 'skips an id-less member (no member_external_id → would 23502) and keeps the rest (#366)' {
+        InModuleScope ImperionPipeline {
+            # Graph occasionally returns a member with no id (an inaccessible directory object).
+            # member_external_id is NOT NULL in m365_group_members, so the edge must be dropped — not
+            # emitted with a null key — while the valid sibling member still lands.
+            Mock Invoke-ImperionGraphRequest {
+                if ($Uri -match '/groups\?\$select=id$') { @([pscustomobject]@{ id = 'grp-1' }) }
+                elseif ($Uri -match '/groups/grp-1/members') {
+                    @(
+                        [pscustomobject]@{ '@odata.type' = '#microsoft.graph.user'; id = $null; displayName = 'Ghost' }
+                        [pscustomobject]@{ '@odata.type' = '#microsoft.graph.user'; id = 'user-a'; displayName = 'Ada Byron' }
+                    )
+                }
+                else { , @() }
+            }
+            $rows = @(Get-ImperionM365GroupMember)
+            $rows.Count                  | Should -Be 1
+            $rows[0].member_external_id  | Should -Be 'user-a'
+            @($rows | Where-Object { [string]::IsNullOrEmpty($_.member_external_id) }).Count | Should -Be 0
+        }
+    }
+
     It 'collects from the requested tenant' {
         InModuleScope ImperionPipeline {
             Get-ImperionM365GroupMember -TenantId 'customer-9' | Out-Null

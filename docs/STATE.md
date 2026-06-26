@@ -52,6 +52,13 @@ A GUI-mapped, credentialed tenant hydrates on the next run with **no host env ed
 
 ## Live-caught regressions
 
+- **Group-membership 23502 null `member_external_id` (2026-06-25, #366 — FIXED).** The first
+  tenant-outer hydration run failed `Invoke-ImperionEntraGroupMemberSync` for **every** tenant
+  (`m365_group_members` empty everywhere) — Graph returned at least one id-less member, whose null
+  `member_external_id` hit the NOT NULL column (migration 0079). `Get-ImperionM365GroupMember` now
+  **skips id-less members** (no usable join key → no valid edge) and counts them (`skipped_members`),
+  so one bad member never aborts the tenant's membership upsert. Unblocks the directory merge
+  (`contact_enrichment` `directory_groups`). `okf-not-affected` (a null key was never a valid row).
 - **DB credential resolver enum cast (2026-06-24, #330 — FIXED).** After the #320 deploy,
   both registry resolvers (`Resolve-ImperionCompanyCredential`, `Resolve-ImperionTenantCredential`)
   threw `42883: operator does not exist: connection_provider = text` on every run — `connection.provider`
