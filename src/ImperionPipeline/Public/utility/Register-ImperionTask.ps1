@@ -155,7 +155,7 @@ function Register-ImperionTask {
         @{ Name = 'Imperion-MetaInsights';           Cmdlet = 'Invoke-ImperionMetaInsightSync';           At = '04:05' }
         # Lead Ads (leads_retrieval): forms + submitted leads -> bronze, then the co-located
         # lead_hook/lead_capture_event merge (LP #362). Dormant until the page token carries
-        # leads_retrieval + migration 0206 is applied.
+        # leads_retrieval + migration 0207 is applied.
         @{ Name = 'Imperion-MetaLeadAds';            Cmdlet = 'Invoke-ImperionMetaLeadAdsSync';           At = '04:08' }
         # Housekeeping: 180-day security retention prune (after collectors) + weekly OKF drift (dry-run)
         @{ Name = 'Imperion-SecurityRetentionSweep'; Cmdlet = 'Invoke-ImperionSecurityRetentionSweep';    At = '04:10' }

@@ -5,7 +5,7 @@ function Invoke-ImperionMetaLeadAdsMerge {
     .DESCRIPTION
         The bronze→silver merge for the Meta Lead Ads source (LP #362, transferred from
         backend #424), owned by this repo on the merge-co-locates-with-ingestion precedent
-        (ADR-0026; grants from front-end migration 0206 + the silver write surface already
+        (ADR-0026; grants from front-end migration 0207 + the silver write surface already
         granted by 0075). Ad Lead → capture-inbox lead (front-end ADR-0124 decision 6);
         source = meta_lead_ad. Four idempotent, set-based steps — every INSERT is gated by
         NOT EXISTS, so a re-run converges and never duplicates (CLAUDE.md §6):

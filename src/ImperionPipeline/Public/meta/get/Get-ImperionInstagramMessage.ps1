@@ -4,7 +4,7 @@ function Get-ImperionInstagramMessage {
         Collect Instagram Direct Messages and flatten ONE row per message to instagram_messages bronze.
     .DESCRIPTION
         Get-layer collector (CLAUDE.md §6) for the Meta source — the IG twin of
-        Get-ImperionMetaConversation (LocalPipeline #361; front-end migration 0206;
+        Get-ImperionMetaConversation (LocalPipeline #361; front-end migration 0207;
         ADR-0124 Social Media plane). IG Direct Messages are reached THROUGH the linked
         Facebook Page's inbox with `platform=instagram` on /{PageId}/conversations — the
         same Page-token requirement as the Messenger inbox (the system-user token is
@@ -12,7 +12,7 @@ function Get-ImperionInstagramMessage {
         The IG business-account (IG user) id is resolved once via
         /{PageId}?fields=instagram_business_account (override with -IgUserId to skip the
         hop) and stamped on every row. Emits one flat row per MESSAGE (external_id = the
-        message id) shaped to the instagram_messages column set (front-end migration 0206).
+        message id) shaped to the instagram_messages column set (front-end migration 0207).
         to_* is the first non-IG-account recipient.
 
         DM SENDERS BECOME LEADS in silver (lead_hook kind instagram_dm, the 0206 contract,

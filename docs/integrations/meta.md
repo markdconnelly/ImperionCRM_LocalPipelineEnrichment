@@ -6,7 +6,7 @@ ADR-0013 · front-end migrations 0075 + 0206
 Imperion's own Business Suite assets — the Facebook Page and the linked Instagram
 business account — are first-party marketing surfaces (NOT client data). This source
 collects organic posts, comments, page-inbox (Messenger) DMs, IG media/comments,
-**Instagram Direct Messages**, and daily insight snapshots into the 0075 / 0206 bronze
+**Instagram Direct Messages**, and daily insight snapshots into the 0075 / 0207 bronze
 tables, then merges them to silver locally (`Invoke-ImperionMetaMerge`, the posture-merge
 precedent). IG DMs are the READ half of the IG messaging use case (front-end ADR-0124
 Social Media plane; the outbound IG reply ships in ImperionCRM_Backend #419).
@@ -57,7 +57,7 @@ Writers: `Set-ImperionMetaPostToBronze`, `Set-ImperionMetaCommentToBronze`,
 `Set-ImperionMetaMessageToBronze`, `Set-ImperionInstagramMediaToBronze`,
 `Set-ImperionInstagramCommentToBronze`, `Set-ImperionInstagramMessageToBronze`,
 `Set-ImperionMetaInsightToBronze` — all thin
-adapters over `Invoke-ImperionBronzePost` with the exact 0075 / 0206 column sets
+adapters over `Invoke-ImperionBronzePost` with the exact 0075 / 0207 column sets
 (change-detected upsert on `(tenant_id, source, external_id)`).
 
 ## Silver merge (local ownership)
@@ -68,7 +68,7 @@ ON CONFLICT DO NOTHING; INSERT-only, never UPDATE/DELETE on silver):
 1–4. Posts/comments/media/DMs → `interaction` (kinds `social_post` /
 `social_comment` / `dm`; FB posts and IG media are outbound, comments inbound, FB DM
 direction by `from_id = page_id`, IG DM direction by `from_id = ig_user_id`).
-5. **DM senders become leads** (the 0075 / 0206 contract; commenters stay
+5. **DM senders become leads** (the 0075 / 0207 contract; commenters stay
 timeline-only), per channel: one `lead_hook` for the FB page inbox (kind `facebook_dm`,
 "Facebook page inbox") and one for the IG inbox (kind `instagram_dm`, "Instagram direct
 messages"); a minimal `contact` + `contact_social_identity` (platform `facebook` /
@@ -77,7 +77,7 @@ messages"); a minimal `contact` + `contact_social_identity` (platform `facebook`
 6. `meta_insights` → `social_metric` (platform `facebook` for `entity_kind='page'`,
 else `instagram`; guarded numeric/timestamptz casts).
 
-## Lead Ads (separate track — `leads_retrieval`, LP #362 / front-end migration 0206)
+## Lead Ads (separate track — `leads_retrieval`, LP #362 / front-end migration 0207)
 
 A **separate track** from the organic ingestion above (and from the Meta Marketing push,
 front-end #406): the App Review use case **"capture & manage ad leads"** / permission
@@ -148,7 +148,7 @@ retired names from `-PageMetric`/`-IgMetric` as Meta retires them.
 | `Imperion-MetaLeadAds` (`Invoke-ImperionMetaLeadAdsSync`) | Lead Ad forms + submitted leads + merge | Daily @ 04:08 |
 
 All are **gated**: missing `IMPERION_META_PAGE_ID`, an unprovisioned token (for Lead Ads,
-one lacking `leads_retrieval`), or a not-yet-applied migration (0075 / 0206) logs a warning
+one lacking `leads_retrieval`), or a not-yet-applied migration (0075 / 0207) logs a warning
 and exits cleanly. Task **registration is deferred to server bringup (#102)**.
 
 ### Manual run path

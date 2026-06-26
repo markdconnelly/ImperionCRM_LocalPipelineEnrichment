@@ -6,7 +6,7 @@ function Set-ImperionInstagramMessageToBronze {
         Post-layer writer (CLAUDE.md §6), LocalPipeline #361. Takes the flat per-message
         rows produced by Get-ImperionInstagramMessage and upserts them (standard envelope,
         change-detected). Each row is projected to exactly the instagram_messages column
-        set defined by front-end migration 0206 before the upsert; anything extra survives
+        set defined by front-end migration 0207 before the upsert; anything extra survives
         in raw_payload. DM senders become leads downstream (Invoke-ImperionMetaMerge) —
         these rows carry PII; never log their contents.
 
@@ -18,7 +18,7 @@ function Set-ImperionInstagramMessageToBronze {
     .PARAMETER Connection
         Optional open Npgsql connection to reuse. Opened from config + disposed when omitted.
     .PARAMETER Table
-        Target bronze table. Defaults to instagram_messages (front-end migration 0206).
+        Target bronze table. Defaults to instagram_messages (front-end migration 0207).
     .OUTPUTS
         The upsert tally { scanned; inserted; updated; unchanged }.
     .EXAMPLE
@@ -35,7 +35,7 @@ function Set-ImperionInstagramMessageToBronze {
     )
 
     begin {
-        # Exact column set of instagram_messages (front-end migration 0206).
+        # Exact column set of instagram_messages (front-end migration 0207).
         $tableColumns = @(
             'conversation_id', 'ig_user_id', 'message',
             'from_id', 'from_username', 'to_id', 'to_username', 'created_time',

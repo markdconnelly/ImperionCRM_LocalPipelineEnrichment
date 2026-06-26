@@ -17,7 +17,7 @@ function Set-ImperionMetaLeadToBronze {
     .PARAMETER Connection
         Optional open Npgsql connection to reuse. Opened from config + disposed when omitted.
     .PARAMETER Table
-        Target bronze table. Defaults to meta_lead_ads (front-end migration 0206).
+        Target bronze table. Defaults to meta_lead_ads (front-end migration 0207).
     .OUTPUTS
         The upsert tally { scanned; inserted; updated; unchanged }.
     .EXAMPLE
@@ -34,7 +34,7 @@ function Set-ImperionMetaLeadToBronze {
     )
 
     begin {
-        # Exact column set of meta_lead_ads (front-end migration 0206).
+        # Exact column set of meta_lead_ads (front-end migration 0207).
         $tableColumns = @(
             'form_id', 'page_id', 'ad_id', 'ad_name',
             'adset_id', 'campaign_id', 'campaign_name', 'platform',

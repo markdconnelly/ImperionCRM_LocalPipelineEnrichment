@@ -7,7 +7,7 @@ function Get-ImperionMetaLead {
         transferred from backend #424; permission leads_retrieval). Takes leadgen form ids
         from the pipeline (the rows Get-ImperionMetaLeadForm emits bind by their external_id
         property) or an explicit -FormId array, pages /{form-id}/leads per form, and
-        flattens to the meta_lead_ads column set (front-end migration 0206). Each lead =
+        flattens to the meta_lead_ads column set (front-end migration 0207). Each lead =
         field_data answers + ad/campaign/form ids + created_time. The form submitter IS the
         lead (the DM-sender precedent, 0075). Target: bronze `meta_lead_ads` → silver
         lead_hook / lead_capture_event via Invoke-ImperionMetaLeadAdsMerge (local merge

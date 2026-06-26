@@ -23,7 +23,7 @@ function Invoke-ImperionMetaMerge {
              contact_social_identity (platform facebook / instagram) or create a minimal
              contact + identity, then insert ONE lead_capture_event per sender (matched on
              hook + payload_bronze->>'from_id'). DM SENDERS ARE LEADS; commenters stay
-             timeline-only (the 0075 / 0206 contract).
+             timeline-only (the 0075 / 0207 contract).
           6. meta_insights → social_metric (platform facebook for entity_kind page,
              else instagram; guarded numeric/timestamptz casts; ON CONFLICT DO NOTHING
              on the 0075 unique key).
@@ -247,7 +247,7 @@ SELECT h.id,
 "@
 
         # ── 5d-5f. IG DM senders → leads ─────────────────────────────────────────
-        # The IG twin of 5a-5c (front-end migration 0206): own hook kind instagram_dm,
+        # The IG twin of 5a-5c (front-end migration 0207): own hook kind instagram_dm,
         # platform 'instagram' on contact_social_identity, sender = from_id <> ig_user_id.
         # IG participants carry from_username (not from_name).
         # 5d. Exactly one hook row for the IG inbox.

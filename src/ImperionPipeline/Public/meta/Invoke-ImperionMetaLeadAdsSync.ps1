@@ -9,7 +9,7 @@ function Invoke-ImperionMetaLeadAdsSync {
         (New Pages Experience, #133) and passes it to the form + lead gets, writes both bronze
         tables, then runs Invoke-ImperionMetaLeadAdsMerge (merge co-locates with ingestion,
         ADR-0026). GATED: until IMPERION_META_PAGE_ID + the page token (carrying
-        leads_retrieval) are provisioned (and migration 0206 applied) the task logs the gap
+        leads_retrieval) are provisioned (and migration 0207 applied) the task logs the gap
         and exits cleanly — the next run converges (idempotent upsert + NOT-EXISTS merge).
         Lead field_data is PII-adjacent — never logged. Requires Initialize-ImperionContext.
     .EXAMPLE

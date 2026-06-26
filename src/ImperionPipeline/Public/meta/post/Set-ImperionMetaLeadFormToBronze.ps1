@@ -6,7 +6,7 @@ function Set-ImperionMetaLeadFormToBronze {
         Post-layer writer (CLAUDE.md §6), LP #362. Takes the flat per-form rows produced by
         Get-ImperionMetaLeadForm and upserts them (standard envelope, change-detected). Each
         row is projected to exactly the meta_lead_ad_forms column set defined by front-end
-        migration 0206 before the upsert; anything extra survives in raw_payload. Form
+        migration 0207 before the upsert; anything extra survives in raw_payload. Form
         metadata only — no submitted PII.
 
         Thin adapter over Invoke-ImperionBronzePost (issue #105). Idempotent/resumable. Pass
@@ -16,7 +16,7 @@ function Set-ImperionMetaLeadFormToBronze {
     .PARAMETER Connection
         Optional open Npgsql connection to reuse. Opened from config + disposed when omitted.
     .PARAMETER Table
-        Target bronze table. Defaults to meta_lead_ad_forms (front-end migration 0206).
+        Target bronze table. Defaults to meta_lead_ad_forms (front-end migration 0207).
     .OUTPUTS
         The upsert tally { scanned; inserted; updated; unchanged }.
     .EXAMPLE
@@ -33,7 +33,7 @@ function Set-ImperionMetaLeadFormToBronze {
     )
 
     begin {
-        # Exact column set of meta_lead_ad_forms (front-end migration 0206).
+        # Exact column set of meta_lead_ad_forms (front-end migration 0207).
         $tableColumns = @(
             'page_id', 'form_name', 'status', 'locale',
             'questions', 'context_card', 'follow_up_action_url', 'leads_count', 'created_time',
