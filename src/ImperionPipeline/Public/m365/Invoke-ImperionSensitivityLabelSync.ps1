@@ -1,7 +1,7 @@
 function Invoke-ImperionSensitivityLabelSync {
     <#
     .SYNOPSIS
-        Collect information-protection sensitivity labels into the sensitivity_labels bronze table (scheduled-task entry point).
+        Collect information-protection sensitivity labels into the m365_sensitivity_labels bronze table (scheduled-task entry point).
     .DESCRIPTION
         Thin orchestrator (CLAUDE.md §4, ADR-0007: cmdlet-first, no loose entry scripts) promoting
         scheduled-tasks/m365/sensitivity-labels.task.ps1. Fans out per consented tenant via

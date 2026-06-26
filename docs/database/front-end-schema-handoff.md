@@ -136,12 +136,12 @@ CLAUDE.md §1); filed as front-end issue **ImperionCRM#663**.
   posture.
 
 ### f. Information protection — [`sql/information_protection_schema.sql`](../../sql/information_protection_schema.sql)
-- `sensitivity_labels`, `custom_security_attribute_definitions` — standard envelope, logical
-  source `m365` (local issue #141 / front-end request **ImperionCRM#259**, which also owns the
-  benchmark-vs-golden classification surface). The data-classification taxonomy: Purview
-  sensitivity labels + custom security attribute *definitions* (assignments deferred, PII).
-  Add the two to the `imperion-localpipeline` grant list (SELECT/INSERT/UPDATE, no DELETE) in
-  the same migration or a follow-on grant migration.
+- `m365_sensitivity_labels`, `entra_custom_security_attributes` — standard envelope, logical
+  source `m365` (local issue #141/#372 / front-end **ImperionCRM#575**, **applied to prod**,
+  which also owns the benchmark-vs-golden classification surface). The data-classification
+  taxonomy: Purview sensitivity labels + custom security attribute *definitions* (assignments
+  deferred, PII). The collectors were drift-corrected to these applied names/columns in #372;
+  the `imperion-localpipeline` SELECT/INSERT/UPDATE grant is in place.
 
 ## 3. Still new to the catalog (need migrations when those sources are built)
 Devices (`m365_devices`, `itglue_devices`, `website_devices`), apollo company/contact bronze

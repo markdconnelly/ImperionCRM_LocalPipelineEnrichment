@@ -64,10 +64,15 @@ A GUI-mapped, credentialed tenant hydrates on the next run with **no host env ed
   found" (that per-device navigation is beta-only). Now uses `/beta/...detectedApps` (device list
   stays v1.0). `intune_managed_apps` (mig 0148) is applied + app holds `DeviceManagementApps.Read.All`,
   so the feed lights up on the next host run. CONFIRM-BEFORE-LIVE on the `detectedApp` field shapes.
-  **Still gated on a front-end migration (NOT LP-fixable): `sensitivity_labels` +
-  `custom_security_attribute_definitions` tables do not exist in prod (FE #259)** — their collectors
-  log+exit until #259 lands; the sensitivity collector ALSO needs its endpoint moved to a beta path
-  at that point (same class as #369), to be verified live then.
+- **Info-protection collector drift (2026-06-26, #372 — FIXED).** Earlier framing was wrong:
+  the sensitivity-label + custom-sec-attr 42P01s were NOT a missing FE migration. FE #575
+  prod-applied the bronze tables as `m365_sensitivity_labels` + `entra_custom_security_attributes`;
+  the collectors wrote the non-existent `sensitivity_labels` / `custom_security_attribute_definitions`
+  (the `imperion-lp-collector-schema-drift` pattern). #372 renames the target tables, reworks the
+  flat maps to the applied columns (`label_id`/`name`/`priority`/`is_active` ·
+  `attribute_set`/`name`/`data_type`/`status`; surplus stays in `raw_payload`), and moves the
+  sensitivity GET to `/beta` (same class as #369). CONFIRM-BEFORE-LIVE: the beta sensitivity path +
+  app permission on the first real pull.
 - **DB credential resolver enum cast (2026-06-24, #330 — FIXED).** After the #320 deploy,
   both registry resolvers (`Resolve-ImperionCompanyCredential`, `Resolve-ImperionTenantCredential`)
   threw `42883: operator does not exist: connection_provider = text` on every run — `connection.provider`

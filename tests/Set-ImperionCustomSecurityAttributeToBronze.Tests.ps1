@@ -1,6 +1,6 @@
 #Requires -Modules Pester
 # Hermetic tests for Set-ImperionCustomSecurityAttributeToBronze: standard envelope, projected
-# to the exact custom_security_attribute_definitions column set (ImperionCRM#259; local #141).
+# to the exact entra_custom_security_attributes column set (applied ImperionCRM#575; local #141).
 
 BeforeAll {
     $module = Join-Path (Split-Path -Parent $PSScriptRoot) 'src\ImperionPipeline\ImperionPipeline.psd1'
@@ -8,7 +8,7 @@ BeforeAll {
 }
 
 Describe 'Set-ImperionCustomSecurityAttributeToBronze' {
-    It 'projects rows to the exact custom_security_attribute_definitions column set and upserts' {
+    It 'projects rows to the exact entra_custom_security_attributes column set and upserts' {
         InModuleScope ImperionPipeline {
             Mock Write-ImperionLog { }
             Mock New-ImperionDbConnection {
@@ -21,9 +21,8 @@ Describe 'Set-ImperionCustomSecurityAttributeToBronze' {
 
             $rows = @(
                 [pscustomobject]@{
-                    attribute_set = 'Engineering'; attribute_name = 'Project'; description = 'd'
-                    type = 'String'; status = 'Available'; is_collection = 'true'; is_searchable = 'true'
-                    use_predefined_values_only = 'true'; allowed_values = 'Alpha; Beta'
+                    attribute_set = 'Engineering'; name = 'Project'; data_type = 'String'
+                    status = 'Available'
                     future_extra = 'dropme'
                     tenant_id = 't1'; source = 'm365'; external_id = 'Engineering_Project'
                     collected_at = 'now'; raw_payload = '{}'; content_hash = 'h1'
@@ -31,12 +30,11 @@ Describe 'Set-ImperionCustomSecurityAttributeToBronze' {
             )
             $tally = $rows | Set-ImperionCustomSecurityAttributeToBronze
 
-            $script:captured.Table    | Should -Be 'custom_security_attribute_definitions'
+            $script:captured.Table    | Should -Be 'entra_custom_security_attributes'
             $script:captured.NoChange | Should -BeFalse
             $projected = $script:captured.Rows[0]
             ($projected.PSObject.Properties.Name | Sort-Object) | Should -Be (@(
-                    'attribute_set', 'attribute_name', 'description', 'type', 'status',
-                    'is_collection', 'is_searchable', 'use_predefined_values_only', 'allowed_values',
+                    'attribute_set', 'name', 'data_type', 'status',
                     'tenant_id', 'source', 'external_id', 'collected_at', 'raw_payload', 'content_hash'
                 ) | Sort-Object)
             ($projected.PSObject.Properties.Name -contains 'future_extra') | Should -BeFalse
