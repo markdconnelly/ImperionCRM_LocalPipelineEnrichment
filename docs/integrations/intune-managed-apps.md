@@ -61,6 +61,37 @@ isolated by `Invoke-ImperionM365EstateSweep`; the writer fails loud only on a mi
    `imperion-localpipeline` write grant), so the upsert path is ready.
 3. Host run is operator-driven on the on-prem server (#102).
 
+## Bronze → silver merge (`Invoke-ImperionSoftwareCiMerge`, ADR-0026)
+
+Merge-co-locates-with-ingestion: this repo ingests `intune_managed_apps`, so it also owns the
+bronze→silver merge into `software_ci` (front-end #652 / PR #1331 / migration **0204** — placeholder
+number, claimed at merge). The on-prem populate twin of that PR; `software_ci` stays 0 rows until
+this merge runs.
+
+| Bronze | Merge | Silver (frontend migration 0204) | Grain |
+| --- | --- | --- | --- |
+| `intune_managed_apps` | `Invoke-ImperionSoftwareCiMerge` | `software_ci` (source `intune`) | one row per software install (app on a device) |
+
+- **Column mapping.** `name`=`display_name` (COALESCE → `app_id`/`external_id` so the NOT NULL name
+  is always satisfied), `publisher`/`version`/`platform`/`install_state` straight across,
+  `external_ref`=`intune_managed_apps.external_id`, `last_seen_at`=bronze `collected_at`.
+- **Device resolution — the same keys the device CI laterals on (0069).** Each app resolves to a
+  silver `device` by `managed_device_id` (= `intune_managed_devices.external_id`, **primary**) with
+  `serial_number` (**fallback**). Silver `device` exposes only `serial_number` as the Intune lateral
+  key today, so the primary path reads the authoritative serial off the matched
+  `intune_managed_devices` row and the fallback uses the app row's own denormalised serial; both join
+  `device` on serial. `account_id` resolves **through** the device (`device.account_id`).
+- **Unresolved drop.** `software_ci.device_id` and `account_id` are both NOT NULL — an app whose
+  device hasn't merged to silver yet is **dropped** (counted `unresolved`, never written) and lands
+  on a later run once its device exists.
+- **Idempotent.** Upsert on the silver UNIQUE `(source, device_id, external_ref)` via ON CONFLICT;
+  each row upserts independently so one bad row never blocks the rest. Runs on 0 rows gracefully.
+- **Cadence.** Registered as `\Imperion\Imperion-SoftwareCiMerge` @ 03:46 — **AFTER** both Intune
+  collectors (apps 03:22, devices 03:24). Operator: re-run `Register-ImperionTask` once to register.
+- **Gates.** Inherits the collector gates above (DeviceManagementApps.Read.All + migration 0148) plus
+  front-end migration **0204** applied. The OKF concept file `software_ci.md` + coverage-matrix row
+  ship in the front-end PR #1331 (semantic-layer gate, system CLAUDE.md §11).
+
 ## Provenance & PII posture
 Rows are stamped source/collected_at per the envelope. Per-device app inventory is operational
 configuration, not personal data — but per-tenant isolation is absolute (`tenant_id` on every row,

@@ -131,6 +131,9 @@ function Register-ImperionTask {
         @{ Name = 'Imperion-EntraAuthMethods';       Cmdlet = 'Invoke-ImperionEntraAuthMethodSync';       At = '03:18' }
         @{ Name = 'Imperion-IntuneApps';             Cmdlet = 'Invoke-ImperionIntuneAppSync';             At = '03:22' }
         @{ Name = 'Imperion-IntuneDevices';          Cmdlet = 'Invoke-ImperionIntuneDeviceSync';          At = '03:24' }
+        # AFTER both Intune collectors (apps 03:22 + devices 03:24): fold intune_managed_apps ->
+        # silver software_ci, resolving each install onto its silver device (#354, ADR-0026).
+        @{ Name = 'Imperion-SoftwareCiMerge';        Cmdlet = 'Invoke-ImperionSoftwareCiMerge';           At = '03:46' }
         @{ Name = 'Imperion-SensitivityLabels';      Cmdlet = 'Invoke-ImperionSensitivityLabelSync';      At = '03:26' }
         @{ Name = 'Imperion-CustomSecurityAttrs';    Cmdlet = 'Invoke-ImperionCustomSecurityAttributeSync'; At = '03:28' }
         @{ Name = 'Imperion-SharePointSites';        Cmdlet = 'Invoke-ImperionSharePointSiteSync';        At = '03:32' }
