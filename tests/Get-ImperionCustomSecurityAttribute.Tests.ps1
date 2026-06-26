@@ -49,6 +49,20 @@ Describe 'Get-ImperionCustomSecurityAttribute' {
         }
     }
 
+    It 'skips a definition missing attributeSet (NOT NULL attribute_set, #375) without dropping the rest' {
+        InModuleScope ImperionPipeline {
+            Mock Invoke-ImperionGraphRequest {
+                @(
+                    [pscustomobject]@{ id = '_Orphan'; name = 'Orphan'; type = 'String'; status = 'Available' }  # no attributeSet
+                    [pscustomobject]@{ id = 'HR_Clearance'; attributeSet = 'HR'; name = 'Clearance'; type = 'String'; status = 'Available' }
+                )
+            }
+            $rows = @(Get-ImperionCustomSecurityAttribute)
+            $rows.Count | Should -Be 1
+            $rows[0].external_id | Should -Be 'HR_Clearance'
+        }
+    }
+
     It 'requests definitions with $expand=allowedValues' {
         InModuleScope ImperionPipeline {
             Get-ImperionCustomSecurityAttribute | Out-Null

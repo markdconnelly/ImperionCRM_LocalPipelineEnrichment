@@ -3,15 +3,19 @@ function Get-ImperionSensitivityLabel {
     .SYNOPSIS
         Collect a tenant's Microsoft Purview sensitivity labels and flatten them to bronze rows.
     .DESCRIPTION
-        Get-layer collector (CLAUDE.md §6) for information-protection posture (issue #141;
+        Get-layer collector (CLAUDE.md §6) for information-protection posture (issue #141/#375;
         front-end schema issue ImperionCRM#575, table m365_sensitivity_labels). Mints a Graph
-        token for the tenant (per-client onboarding app for customer tenants), pages
-        /beta/security/informationProtection/sensitivityLabels — application permission
-        SensitivityLabels.Read.All, read-only — and flattens each label to the standard
-        flat-table envelope, source 'm365', external_id = the label id (a GUID).
+        token for the tenant (per-client onboarding app for customer tenants) and flattens each
+        label to the standard flat-table envelope, source 'm365', external_id = the label id (a GUID).
 
-        The endpoint is beta-only: the /v1.0 path 400s 'segment informationProtection not found'
-        (same class as the intune detectedApps fix, #369).
+        ENDPOINT (app-only, #375): sensitivity labels are exposed app-only ONLY under a per-user
+        path — `GET /beta/users/{userId}/security/informationProtection/sensitivityLabels`
+        (permission InformationProtectionPolicy.Read.All, read-only). There is NO tenant-root
+        list: calling /beta/security/informationProtection/sensitivityLabels with no user resolves
+        as user-context with no user → 403 / 404 'policy is empty' / null-id rows (the 2026-06-26
+        live failure). So this resolves representative member users and evaluates the published
+        labels for the first that returns any — the set is label-policy-scoped, but the default
+        policy covers most users, so the first in-scope member is representative for bronze.
 
         Sensitivity labels are the data-classification taxonomy a tenant publishes (Public /
         Confidential / Highly Confidential and the like). The benchmark-vs-golden classification
@@ -42,9 +46,31 @@ function Get-ImperionSensitivityLabel {
     if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
 
     $token = Get-ImperionGraphToken -TenantId $TenantId
-    $labels = Invoke-ImperionGraphRequest `
-        -Uri 'https://graph.microsoft.com/beta/security/informationProtection/sensitivityLabels' `
-        -AccessToken $token
+
+    # Resolve representative member users (guests can't carry a label policy), then evaluate the
+    # published labels for the first that returns any. Cap the probe so a labels-less tenant never
+    # walks the whole directory.
+    $candidateUsers = @(Invoke-ImperionGraphRequest `
+            -Uri 'https://graph.microsoft.com/v1.0/users?$top=25' `
+            -AccessToken $token -Select 'id,userType')
+
+    $labels = @()
+    $usersProbed = 0
+    foreach ($user in $candidateUsers) {
+        if ($usersProbed -ge 10) { break }
+        $userId = [string](Get-ImperionMember $user 'id')
+        if (-not $userId) { continue }
+        if ((Get-ImperionMember $user 'userType') -eq 'Guest') { continue }
+        $usersProbed++
+        $found = @(Invoke-ImperionGraphRequest `
+                -Uri "https://graph.microsoft.com/beta/users/$userId/security/informationProtection/sensitivityLabels" `
+                -AccessToken $token)
+        if ($found.Count -gt 0) { $labels = $found; break }
+    }
+
+    # Drop any label without an id — label_id is NOT NULL (a null-id row 23502'd IPG's whole batch,
+    # #375); the bad row is skipped, the rest still land. Same defensive class as the #366 skip.
+    $labels = @($labels | Where-Object { Get-ImperionMember $_ 'id' })
 
     # Applied #575 flat columns (m365_sensitivity_labels): label_id, name, priority, is_active.
     # external_id is also the label GUID (-ExternalIdProperty 'id'); label_id repeats it as a
@@ -62,7 +88,7 @@ function Get-ImperionSensitivityLabel {
             -Source 'm365' -TenantId $TenantId -ExternalIdProperty 'id')
 
     Write-ImperionLog -Source 'm365' -Message 'Sensitivity labels collected.' -Data @{
-        tenant = $TenantId; labels = @($labels).Count; rows = $rows.Count
+        tenant = $TenantId; usersProbed = $usersProbed; labels = @($labels).Count; rows = $rows.Count
     }
     return $rows
 }

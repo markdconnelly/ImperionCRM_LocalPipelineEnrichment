@@ -78,6 +78,16 @@ A GUI-mapped, credentialed tenant hydrates on the next run with **no host env ed
   `attribute_set`/`name`/`data_type`/`status`; surplus stays in `raw_payload`), and moves the
   sensitivity GET to `/beta` (same class as #369). CONFIRM-BEFORE-LIVE: the beta sensitivity path +
   app permission on the first real pull.
+- **Info-protection live findings (2026-06-26, #375 — FIXED).** First host run after #372 confirmed
+  CSA reconciliation works (`entra_custom_security_attributes`=76 / 3 tenants) but surfaced two
+  defects. (1) **Sensitivity-label endpoint wrong for app-only:** `/beta/security/informationProtection/
+  sensitivityLabels` (no user) resolves as user-context → Imperion 403, KJLA/RGC 404 'policy is empty',
+  IPG null-`label_id`. Sensitivity labels are exposed app-only ONLY per-user — now resolves a
+  representative **member** user and calls `/beta/users/{id}/security/informationProtection/sensitivityLabels`
+  (`InformationProtectionPolicy.Read.All`), first member with labels wins. (2) **Null-required-key
+  abort:** a null `attribute_set` (CSA, IPG) / null `label_id` aborted the whole tenant batch (23502);
+  both collectors now skip null-key rows (same class as #366). CONFIRM-BEFORE-LIVE: Imperion home-tenant
+  403 (licensing/consent) + that the picked member is in a label-policy scope.
 - **DB credential resolver enum cast (2026-06-24, #330 — FIXED).** After the #320 deploy,
   both registry resolvers (`Resolve-ImperionCompanyCredential`, `Resolve-ImperionTenantCredential`)
   threw `42883: operator does not exist: connection_provider = text` on every run — `connection.provider`

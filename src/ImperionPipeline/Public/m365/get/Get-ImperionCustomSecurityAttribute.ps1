@@ -49,6 +49,12 @@ function Get-ImperionCustomSecurityAttribute {
         -Uri 'https://graph.microsoft.com/v1.0/directory/customSecurityAttributeDefinitions?$expand=allowedValues' `
         -AccessToken $token
 
+    # Drop any definition missing attributeSet/name — both are NOT NULL (a null attribute_set
+    # 23502'd IPG's whole batch, #375). Skip the bad row, keep the rest. Same class as #366.
+    $definitions = @($definitions | Where-Object {
+            (Get-ImperionMember $_ 'attributeSet') -and (Get-ImperionMember $_ 'name')
+        })
+
     # Applied #575 flat columns (entra_custom_security_attributes): attribute_set, name,
     # data_type, status. external_id = id (Graph keys these on `{attributeSet}_{name}`).
     # data_type maps from the Graph `type` property. The rest stays lossless in raw_payload.
