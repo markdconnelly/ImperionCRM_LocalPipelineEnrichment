@@ -39,6 +39,8 @@ A GUI-mapped, credentialed tenant hydrates on the next run with **no host env ed
     `Register-ImperionTask` re-run).
   - Bug caught pre-merge: the inner loop var `$routine` collided (case-insensitively) with the
     `$Routine` param → every tenant after the first ran only its last routine; fixed (`$routineName`).
+  - OKF: this slice is **orchestration only** (a `-TenantId` passthrough + the driver) — it changes
+    no bronze shape, source-of-record, or silver meaning, so it carries `okf-not-affected` (ADR-0104).
 
 ---
 
