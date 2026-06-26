@@ -33,10 +33,16 @@ A GUI-mapped, credentialed tenant hydrates on the next run with **no host env ed
   (tenant-outer). Per-tenant fail-closed skip + per-routine isolation + one Metric summary. **Landed
   additive — the per-collector M365 scheduled tasks are UNCHANGED (still the safety net); the driver
   is callable but not yet the scheduled entry.**
-  - **VERIFY ON HOST (Mark, before the cutover):** `Invoke-ImperionTenantHydration` — confirm all 4
-    tenants hydrate (log Metric `tenants_hydrated=4`, `routine_failures=0`). Then the **cutover PR**
-    registers `Imperion-TenantHydration` and removes the 14 per-collector entries (needs a
-    `Register-ImperionTask` re-run).
+  - **VERIFIED ON HOST 2026-06-25:** `Invoke-ImperionTenantHydration` ran tenant-outer across all 4
+    tenants (`Tenant hydration complete`); M365 users wrote 152/87/… for the non-first tenants — the
+    exact writes the loop-var bug would have dropped. Token reused per tenant. The `Warn` lines are
+    pre-existing per-source issues (group-members 23502 #366, per-tenant consent gaps, gated tables),
+    all fail-isolated — not driver faults.
+  - **CUTOVER LANDED (#359 pt2):** `Register-ImperionTask` now registers ONE `Imperion-TenantHydration`
+    @ 03:02 and the 14 per-collector M365 entries are REMOVED (`SecurityIncidents` + `PurviewCompliance`
+    stay — not sweep-based). **DORMANT until Mark re-runs `Register-ImperionTask` on the host** (admin)
+    to apply the new task set. The per-collector cmdlets stay exported + callable (the driver invokes
+    them), just not separately scheduled.
   - Bug caught pre-merge: the inner loop var `$routine` collided (case-insensitively) with the
     `$Routine` param → every tenant after the first ran only its last routine; fixed (`$routineName`).
   - OKF: this slice is **orchestration only** (a `-TenantId` passthrough + the driver) — it changes

@@ -119,25 +119,20 @@ function Register-ImperionTask {
         @{ Name = 'Imperion-AzureResourceInventory'; Cmdlet = 'Invoke-ImperionAzureResourceInventorySync'; At = '02:35' }
         @{ Name = 'Imperion-Sentinel';               Cmdlet = 'Invoke-ImperionSentinelSync';              At = '02:40' }
         @{ Name = 'Imperion-DnsZones';               Cmdlet = 'Invoke-ImperionDnsZoneSync';               At = '02:55' }
-        # M365 estate collectors (per-client onboarding app; dormant until consent) - run before
-        # the M365 directory merge (03:15) and posture merge (03:20).
-        @{ Name = 'Imperion-M365Users';              Cmdlet = 'Invoke-ImperionM365UserSync';              At = '03:02' }
-        @{ Name = 'Imperion-M365Devices';            Cmdlet = 'Invoke-ImperionM365DeviceSync';            At = '03:04' }
-        @{ Name = 'Imperion-EntraGroups';            Cmdlet = 'Invoke-ImperionEntraGroupSync';            At = '03:06' }
-        @{ Name = 'Imperion-EntraGroupMembers';      Cmdlet = 'Invoke-ImperionEntraGroupMemberSync';      At = '03:08' }
-        @{ Name = 'Imperion-EntraDomains';           Cmdlet = 'Invoke-ImperionEntraDomainSync';           At = '03:12' }
-        @{ Name = 'Imperion-EntraAppRegistrations';  Cmdlet = 'Invoke-ImperionEntraAppRegistrationSync';  At = '03:14' }
-        @{ Name = 'Imperion-EntraRoleAssignments';   Cmdlet = 'Invoke-ImperionEntraRoleAssignmentSync';   At = '03:16' }
-        @{ Name = 'Imperion-EntraAuthMethods';       Cmdlet = 'Invoke-ImperionEntraAuthMethodSync';       At = '03:18' }
-        @{ Name = 'Imperion-IntuneApps';             Cmdlet = 'Invoke-ImperionIntuneAppSync';             At = '03:22' }
-        @{ Name = 'Imperion-IntuneDevices';          Cmdlet = 'Invoke-ImperionIntuneDeviceSync';          At = '03:24' }
-        # AFTER both Intune collectors (apps 03:22 + devices 03:24): fold intune_managed_apps ->
-        # silver software_ci, resolving each install onto its silver device (#354, ADR-0026).
+        # M365 estate — TENANT-OUTER driver (#359, ADR-0030 Decision #4). ONE job hydrates every
+        # consented tenant: acquire each tenant's Graph token once, then run all 14 sweep-based
+        # estate collectors pinned to that tenant (per-tenant fail-closed skip + per-routine
+        # isolation + one Metric summary). Replaces the 14 per-collector M365 tasks (the
+        # registry-as-enable fan-out, #358). Runs before the M365 directory merge (03:15) and
+        # posture merge (03:20); ~18s/tenant keeps it inside that window for dozens of tenants.
+        # NB this reverses §1 "one task per source" for the 365 estate plane only (ADR-0030) —
+        # fail-isolation is preserved per (tenant, source) inside the driver. SecurityIncidents +
+        # PurviewCompliance keep their own entries (not sweep-based collectors).
+        @{ Name = 'Imperion-TenantHydration';        Cmdlet = 'Invoke-ImperionTenantHydration';           At = '03:02' }
+        # AFTER the Intune collectors run inside TenantHydration (~03:02-03:05): fold
+        # intune_managed_apps -> silver software_ci, resolving each install onto its silver device
+        # (#354, ADR-0026).
         @{ Name = 'Imperion-SoftwareCiMerge';        Cmdlet = 'Invoke-ImperionSoftwareCiMerge';           At = '03:46' }
-        @{ Name = 'Imperion-SensitivityLabels';      Cmdlet = 'Invoke-ImperionSensitivityLabelSync';      At = '03:26' }
-        @{ Name = 'Imperion-CustomSecurityAttrs';    Cmdlet = 'Invoke-ImperionCustomSecurityAttributeSync'; At = '03:28' }
-        @{ Name = 'Imperion-SharePointSites';        Cmdlet = 'Invoke-ImperionSharePointSiteSync';        At = '03:32' }
-        @{ Name = 'Imperion-Defender';               Cmdlet = 'Invoke-ImperionDefenderSync';              At = '03:34' }
         @{ Name = 'Imperion-SecurityIncidents';      Cmdlet = 'Invoke-ImperionSecurityIncidentSync';      At = '03:36' }
         @{ Name = 'Imperion-PurviewCompliance';      Cmdlet = 'Invoke-ImperionPurviewComplianceSync';     At = '03:38' }
         # DNS public-resolve + silver merge (merge AFTER both DNS collectors)
