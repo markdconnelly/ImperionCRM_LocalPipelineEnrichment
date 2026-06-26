@@ -68,6 +68,44 @@ Describe 'Get-ImperionIntuneManagedApp' {
         }
     }
 
+    It 'skips a detectedApp missing id (StrictMode) without aborting the tenant (#374)' {
+        InModuleScope ImperionPipeline {
+            Mock Invoke-ImperionGraphRequest -ParameterFilter { $Uri -match 'managedDevices' -and $Uri -notmatch 'detectedApps' } {
+                , @([pscustomobject]@{ id = 'dev-1'; deviceName = 'A'; serialNumber = 'S1' })
+            }
+            # First app has no id (the live failure shape); second is well-formed.
+            Mock Invoke-ImperionGraphRequest -ParameterFilter { $Uri -match 'detectedApps' } {
+                , @(
+                    [pscustomobject]@{ displayName = 'Ghost'; version = '1.0' },
+                    [pscustomobject]@{ id = 'app-2'; displayName = 'Real App' }
+                )
+            }
+
+            # A throw here (the pre-#374 behavior) fails the test; the row count proves the skip.
+            $rows = @(Get-ImperionIntuneManagedApp)
+            $rows.Count | Should -Be 1
+            $rows[0].external_id | Should -Be 'dev-1:app-2'
+        }
+    }
+
+    It 'skips a device missing id (StrictMode) without aborting (#374)' {
+        InModuleScope ImperionPipeline {
+            Mock Invoke-ImperionGraphRequest -ParameterFilter { $Uri -match 'managedDevices' -and $Uri -notmatch 'detectedApps' } {
+                , @(
+                    [pscustomobject]@{ deviceName = 'NoId'; serialNumber = 'S0' },
+                    [pscustomobject]@{ id = 'dev-2'; deviceName = 'B'; serialNumber = 'S2' }
+                )
+            }
+            Mock Invoke-ImperionGraphRequest -ParameterFilter { $Uri -match 'dev-2/detectedApps' } {
+                , @([pscustomobject]@{ id = 'app-1'; displayName = 'App One' })
+            }
+
+            $rows = @(Get-ImperionIntuneManagedApp)
+            $rows.Count | Should -Be 1
+            $rows[0].external_id | Should -Be 'dev-2:app-1'
+        }
+    }
+
     It 'calls per-device detectedApps on the BETA endpoint, keeping the managedDevices list on v1.0 (#369)' {
         InModuleScope ImperionPipeline {
             Mock Invoke-ImperionGraphRequest -ParameterFilter { $Uri -match 'managedDevices' -and $Uri -notmatch 'detectedApps' } {
