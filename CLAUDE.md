@@ -101,7 +101,12 @@ here). Coverage is the goal; gaps are bugs.
 **one scheduled task per (source, entity)** rather than a monolith — smaller jobs schedule
 independently, retry in isolation, stay idempotent, give per-source observability and cost
 telemetry, and let a slow or failing source never block the rest. Compose breadth from
-many narrow, reliable tasks.
+many narrow, reliable tasks. **One sanctioned exception: the 365 estate plane is
+TENANT-OUTER** — a single `Invoke-ImperionTenantHydration` task (ADR-0030 Decision #4, §3)
+acquires each consented tenant's Graph token once and runs all the estate collectors pinned
+to that tenant, so a client's full picture lands together with one token-acquire. It keeps
+per-(tenant, source) fail-isolation, so the "a failing source never blocks the rest"
+guarantee still holds inside the job.
 
 ### The division of labour with the cloud `ImperionCRM_Pipeline`
 The system now has **two pipeline planes** (decision: **coexist**, record as this repo's
