@@ -253,6 +253,7 @@
         'Get-ImperionDnsDrift',
         'Invoke-ImperionDnsMerge',
         'Invoke-ImperionCloudAssetMerge',
+        'Invoke-ImperionSoftwareCiMerge',
         'Set-ImperionSentinelToBronze',
         'Set-ImperionDefenderToBronze',
         'Set-ImperionEntraAuthMethodToBronze',
