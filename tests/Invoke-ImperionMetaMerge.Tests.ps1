@@ -34,11 +34,14 @@ Describe 'Invoke-ImperionMetaMerge' {
             }
         }
 
-        It 'runs all nine steps and returns the tally' {
+        It 'runs all thirteen steps and returns the tally' {
             InModuleScope ImperionPipeline {
                 $tally = Invoke-ImperionMetaMerge -Confirm:$false
-                $script:capturedMergeSql.Count | Should -Be 9
+                # 6 interaction inserts + FB lead(hook/contacts/captures) + IG lead(hook/contacts/captures) + social_metric
+                $script:capturedMergeSql.Count | Should -Be 13
                 $tally.facebook_posts_to_interaction | Should -Be 1
+                $tally.instagram_messages_to_interaction | Should -Be 1
+                $tally.ig_lead_captures_created | Should -Be 1
                 $tally.social_metrics_merged | Should -Be 1
                 Should -Invoke Write-ImperionLog -Times 1 -ParameterFilter { $Level -eq 'Metric' -and $Message -match 'Meta merge complete' }
             }
@@ -48,7 +51,7 @@ Describe 'Invoke-ImperionMetaMerge' {
             InModuleScope ImperionPipeline {
                 Invoke-ImperionMetaMerge -Confirm:$false | Out-Null
                 $interactionInserts = @($script:capturedMergeSql | Where-Object { $_ -match 'INSERT INTO interaction' })
-                $interactionInserts.Count | Should -Be 5
+                $interactionInserts.Count | Should -Be 6
                 foreach ($sql in $interactionInserts) {
                     $sql | Should -Match '(?s)NOT EXISTS \(SELECT 1 FROM interaction i\s+WHERE i\.source = '
                     $sql | Should -Match 'i\.external_ref = b\.external_id'
@@ -70,6 +73,34 @@ Describe 'Invoke-ImperionMetaMerge' {
                 $bySql['instagram_media'] | Should -Match "'instagram'::interaction_source, 'social_post'"
                 $bySql['instagram_comments'] | Should -Match "'instagram'::interaction_source, 'social_comment'"
                 $bySql['facebook_messages'] | Should -Match "'dm'"
+
+                $igDm = @($script:capturedMergeSql | Where-Object { $_ -match 'FROM instagram_messages b' })[0]
+                $igDm | Should -Match "'instagram'::interaction_source, 'dm'"
+            }
+        }
+
+        It 'IG DM direction flips on from_id = ig_user_id (account outbound, sender inbound)' {
+            InModuleScope ImperionPipeline {
+                Invoke-ImperionMetaMerge -Confirm:$false | Out-Null
+                $igDm = @($script:capturedMergeSql | Where-Object { $_ -match 'FROM instagram_messages b' })[0]
+                $igDm | Should -Match "(?s)CASE WHEN b\.from_id = b\.ig_user_id THEN 'outbound'::interaction_direction\s+ELSE 'inbound'::interaction_direction END"
+            }
+        }
+
+        It 'ensures ONE instagram_dm hook + IG identity on platform instagram, one lead per sender' {
+            InModuleScope ImperionPipeline {
+                Invoke-ImperionMetaMerge -Confirm:$false | Out-Null
+                $igHook = @($script:capturedMergeSql | Where-Object { $_ -match "kind = 'instagram_dm'" -and $_ -match 'INSERT INTO lead_hook' })[0]
+                $igHook | Should -Match "(?s)NOT EXISTS \(SELECT 1 FROM lead_hook\s+WHERE kind = 'instagram_dm' AND name = 'Instagram direct messages'\)"
+
+                $igContact = @($script:capturedMergeSql | Where-Object { $_ -match "csi\.platform = 'instagram'" -and $_ -match 'INSERT INTO contact ' })[0]
+                $igContact | Should -Match "INSERT INTO contact_social_identity"
+                $igContact | Should -Match "'instagram', nc\.from_id"
+
+                $igCapture = @($script:capturedMergeSql | Where-Object { $_ -match 'INSERT INTO lead_capture_event' -and $_ -match 'ig_user_id' })[0]
+                $igCapture | Should -Match 'DISTINCT ON \(from_id\)'
+                $igCapture | Should -Match 'from_id <> ig_user_id'
+                $igCapture | Should -Match "e\.payload_bronze->>'from_id' = s\.from_id"
             }
         }
 

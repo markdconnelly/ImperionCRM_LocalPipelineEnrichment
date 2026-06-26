@@ -1,13 +1,15 @@
 # Meta Business Manager (Facebook Page + Instagram) — organic social ingestion
 
-_ImperionCRM_LocalPipelineEnrichment — `docs/integrations`_ · issue #126 · ADR-0013 ·
-front-end migration 0075
+_ImperionCRM_LocalPipelineEnrichment — `docs/integrations`_ · issue #126 · IG DMs #361 ·
+ADR-0013 · front-end migrations 0075 + 0206
 
 Imperion's own Business Suite assets — the Facebook Page and the linked Instagram
 business account — are first-party marketing surfaces (NOT client data). This source
-collects organic posts, comments, page-inbox (Messenger) DMs, IG media/comments, and
-daily insight snapshots into the 0075 bronze tables, then merges them to silver
-locally (`Invoke-ImperionMetaMerge`, the posture-merge precedent).
+collects organic posts, comments, page-inbox (Messenger) DMs, IG media/comments,
+**Instagram Direct Messages**, and daily insight snapshots into the 0075 / 0206 bronze
+tables, then merges them to silver locally (`Invoke-ImperionMetaMerge`, the posture-merge
+precedent). IG DMs are the READ half of the IG messaging use case (front-end ADR-0124
+Social Media plane; the outbound IG reply ships in ImperionCRM_Backend #419).
 
 ## Auth model
 
@@ -16,7 +18,10 @@ locally (`Invoke-ImperionMetaMerge`, the posture-merge precedent).
   and assign the Page + IG asset to the system user.
 - **Scopes:** `pages_show_list`, `pages_read_engagement`, `pages_read_user_content`,
   `pages_messaging`, `pages_manage_metadata`, `read_insights`, `instagram_basic`,
-  `instagram_manage_insights`, `business_management`.
+  `instagram_manage_insights`, `business_management`, and (IG DMs, #361)
+  `instagram_manage_messages`. The IG-messaging scope is **still in Meta App Review** —
+  IG DM collection is dormant/fail-closed until it is approved and `conn-company-meta`
+  is seeded (same gate as the outbound reply, ImperionCRM_Backend #419).
 - **Custody (the KQM pattern, ADR-0013):** `Resolve-ImperionMetaToken` resolves
   explicit `-Token` → SecretStore mirror `meta-system-user-token` (config key
   `MetaSystemUserToken`) → Key Vault original `Meta-SystemUser-Token` (config key
@@ -43,26 +48,30 @@ locally (`Invoke-ImperionMetaMerge`, the posture-merge precedent).
 | `Get-ImperionMetaConversation` | `/{page-id}/conversations` + nested messages (PAGE token) | `facebook_messages` (one row per **message**) | `facebook` |
 | `Get-ImperionInstagramMedia` | `/{page-id}?fields=instagram_business_account` → `/{ig-user-id}/media` | `instagram_media` | `instagram` |
 | `Get-ImperionInstagramComment` | `/{media-id}/comments` | `instagram_comments` | `instagram` |
+| `Get-ImperionInstagramMessage` | `/{page-id}/conversations?platform=instagram` + nested messages (PAGE token) | `instagram_messages` (one row per **message**, 0206) | `instagram` |
 | `Get-ImperionMetaInsight` | `/{page-id}/insights`, `/{ig-user-id}/insights`, `/{ig-user-id}?fields=followers_count` | `meta_insights` (external_id `<entity_kind>:<entity_id>:<metric>:<period>:<end_time>`) | `meta` |
 
 Writers: `Set-ImperionMetaPostToBronze`, `Set-ImperionMetaCommentToBronze`,
 `Set-ImperionMetaMessageToBronze`, `Set-ImperionInstagramMediaToBronze`,
-`Set-ImperionInstagramCommentToBronze`, `Set-ImperionMetaInsightToBronze` — all thin
-adapters over `Invoke-ImperionBronzePost` with the exact 0075 column sets
+`Set-ImperionInstagramCommentToBronze`, `Set-ImperionInstagramMessageToBronze`,
+`Set-ImperionMetaInsightToBronze` — all thin
+adapters over `Invoke-ImperionBronzePost` with the exact 0075 / 0206 column sets
 (change-detected upsert on `(tenant_id, source, external_id)`).
 
 ## Silver merge (local ownership)
 
-`Invoke-ImperionMetaMerge` — six idempotent set-based steps (NOT EXISTS /
+`Invoke-ImperionMetaMerge` — idempotent set-based steps (NOT EXISTS /
 ON CONFLICT DO NOTHING; INSERT-only, never UPDATE/DELETE on silver):
 
 1–4. Posts/comments/media/DMs → `interaction` (kinds `social_post` /
-`social_comment` / `dm`; FB posts and IG media are outbound, comments inbound, DM
-direction by `from_id = page_id`).
-5. **DM senders become leads** (the 0075 contract; commenters stay timeline-only):
-one `lead_hook` (kind `facebook_dm`, "Facebook page inbox"), a minimal `contact` +
-`contact_social_identity` (platform `facebook`) per unknown sender, and ONE
-`lead_capture_event` per sender keyed on `payload_bronze->>'from_id'`.
+`social_comment` / `dm`; FB posts and IG media are outbound, comments inbound, FB DM
+direction by `from_id = page_id`, IG DM direction by `from_id = ig_user_id`).
+5. **DM senders become leads** (the 0075 / 0206 contract; commenters stay
+timeline-only), per channel: one `lead_hook` for the FB page inbox (kind `facebook_dm`,
+"Facebook page inbox") and one for the IG inbox (kind `instagram_dm`, "Instagram direct
+messages"); a minimal `contact` + `contact_social_identity` (platform `facebook` /
+`instagram`) per unknown sender; and ONE `lead_capture_event` per sender keyed on
+`payload_bronze->>'from_id'`.
 6. `meta_insights` → `social_metric` (platform `facebook` for `entity_kind='page'`,
 else `instagram`; guarded numeric/timestamptz casts).
 

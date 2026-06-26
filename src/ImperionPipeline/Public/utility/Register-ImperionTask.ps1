@@ -149,7 +149,8 @@ function Register-ImperionTask {
         @{ Name = 'Imperion-M365TeamsMeeting';       Cmdlet = 'Invoke-ImperionM365TeamsMeetingSync';      At = '03:50' }
         @{ Name = 'Imperion-ScopedInteractionMail';  Cmdlet = 'Invoke-ImperionScopedInteractionMailSync'; At = '03:52' }
         @{ Name = 'Imperion-ScopedInteractionTeams'; Cmdlet = 'Invoke-ImperionScopedInteractionTeamsSync'; At = '03:54' }
-        # Meta (each *Sync runs Invoke-ImperionMetaMerge itself, ADR-0026)
+        # Meta (each *Sync runs Invoke-ImperionMetaMerge itself, ADR-0026). MetaSocial collects
+        # FB posts/comments/DMs + IG media/comments/DMs (IG DMs LocalPipeline #361) in one run.
         @{ Name = 'Imperion-MetaSocial';             Cmdlet = 'Invoke-ImperionMetaSocialSync';            At = '04:00' }
         @{ Name = 'Imperion-MetaInsights';           Cmdlet = 'Invoke-ImperionMetaInsightSync';           At = '04:05' }
         # Housekeeping: 180-day security retention prune (after collectors) + weekly OKF drift (dry-run)
