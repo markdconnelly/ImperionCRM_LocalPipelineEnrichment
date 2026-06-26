@@ -1,7 +1,8 @@
 # Meta Business Manager (Facebook Page + Instagram) — organic social ingestion
 
 _ImperionCRM_LocalPipelineEnrichment — `docs/integrations`_ · issue #126 · IG DMs #361 ·
-ADR-0013 · front-end migrations 0075 + 0206
+Social Engagement + post/ad metrics (slice H) #357 · ADR-0013 · ADR-0124 ·
+front-end migrations 0075 + 0206 + 0210
 
 Imperion's own Business Suite assets — the Facebook Page and the linked Instagram
 business account — are first-party marketing surfaces (NOT client data). This source
@@ -113,6 +114,102 @@ Page and merged to the lead pipeline as capture-inbox leads (front-end ADR-0124 
 - **Real-time path (future):** leadgen webhooks could front this via the cloud Pipeline
   (APIM callback ingress); the baseline here is the scheduled poll (poll-first, ADR-0124 #8).
 
+## Social Engagement + Social Metric (slice H — #357 / front-end Social plane epic #1338, ADR-0124)
+
+Slice H lands two NEW silver surfaces from the Meta source — the inbound **Social Engagement**
+store and normalized **Social Metric** time-series — plus the **post** and **ad** metric
+collectors that feed them. Poll-first (no webhooks v1, ADR-0124 #8); merge co-locates with
+ingestion (ADR-0026). No new bronze table — both reuse the 0075 tables.
+
+### Social Engagement (comments → silver `social_engagement`, migration 0210)
+
+`Invoke-ImperionSocialEngagementSync` collects FB post comments + IG media comments into the
+existing `facebook_comments` / `instagram_comments` bronze, then `Invoke-ImperionSocialEngagementMerge`
+merges them to silver **`social_engagement`** (ADR-0124 #2 inbound split — the store that keeps
+public chatter OFF the contact-centric Interaction timeline). Two idempotent steps, each
+`ON CONFLICT (channel, external_id) DO NOTHING`:
+
+| Bronze | → silver `social_engagement` | channel | kind |
+| --- | --- | --- | --- |
+| `facebook_comments` | one row per comment | `facebook` | `comment` |
+| `instagram_comments` | one row per comment | `instagram` | `comment` |
+
+The merge lands ONLY the ingestion-owned columns: `channel`, `external_id`, `kind`, `body`,
+`posted_at`, the `author_*` fields (third-party PII — OKF lawful-basis note, ADR-0025), and
+`source_url`. It leaves `contact_id` / `intent` / `assigned_agent_key` NULL and `status` at its
+`'new'` default — **slice G** (contact-link on match) and triage set those. INSERT-only.
+
+**Brand MENTIONS are DEFERRED.** Meta has no brand-mention bronze table yet; the `kind` enum
+(`comment`|`mention`) and the merge are mention-ready, but landing mentions needs a new bronze
+table + collector (a front-end schema change — filed as an ImperionCRM issue, NOT authored here).
+
+> **GRANT GAP (verify before prod).** LP connects as the Postgres role
+> **`imperion-localpipeline`** (config `Db.Username`). Migration 0210 grants `social_engagement`
+> RW to **`mgid-imperioncrmpipeline`**, NOT to `imperion-localpipeline`. So the prod
+> `social_engagement` write FAILS CLOSED until the front-end adds the LP grant. A front-end
+> issue requests `GRANT SELECT, INSERT, UPDATE ON social_engagement TO "imperion-localpipeline"`
+> (schema/grants are front-end-owned, system CLAUDE.md §1 — no migration is authored in this
+> repo). The collector is built and idempotent; it converges on the next run once the grant
+> lands + applies. `social_metric` already grants LP write (0075), so the metric half is unaffected.
+
+### Social Metric (post + ad insights → silver `social_metric`, NORMALIZED names — resolves #135)
+
+`Invoke-ImperionSocialMetricSync` collects per-post + per-media insights (and, when an ad account
+is configured, paid ad + campaign insights) into the existing `meta_insights` bronze, then
+`Invoke-ImperionSocialMetricMerge` merges them to silver **`social_metric`** with the metric names
+**normalized** at silver. This resolves front-end issue **#135** (raw Meta metric names are
+unstable across networks and API versions): bronze stays lossless (raw name preserved), silver
+carries ONE canonical, network-agnostic vocabulary.
+
+| Cmdlet | Edge | entity_kind | Bronze table |
+| --- | --- | --- | --- |
+| `Get-ImperionMetaPostInsight` | `/{post-id}/insights`, `/{media-id}/insights` | `post`, `media` | `meta_insights` |
+| `Get-ImperionMetaAdInsight` | `/act_{ad-account-id}/insights?level={campaign\|ad}` | `campaign`, `ad` | `meta_insights` |
+
+The merge derives `social_metric.platform` from `entity_kind` (`page`/`post` → `facebook`;
+`ig_user`/`media` → `instagram`; `ad`/`campaign`/`adset`/`adaccount` → `meta_ads`) and is
+`ON CONFLICT (platform, entity_kind, entity_external_id, metric, period, captured_at) DO NOTHING`.
+The ad half is **optional** — with no `IMPERION_META_AD_ACCOUNT_ID` the ad collector returns
+nothing and the run proceeds with organic post/media metrics only (a Page with no spend never
+breaks the task). Spend/amount values are never logged (counts/ids only).
+
+**Canonical metric vocabulary (#135)** — the single source of truth is the module-internal
+`Get-ImperionSocialMetricCanonSql` (a SQL `CASE` applied in the merge); an un-mapped raw name
+passes through lower-cased (never dropped). Current mappings:
+
+| canonical | raw Meta names collapsed onto it |
+| --- | --- |
+| `impressions` | `page_impressions`, `page_impressions_unique`, `impressions`, `post_impressions`, `post_impressions_unique` |
+| `reach` | `page_reach`, `reach`, `page_impressions_organic_unique` |
+| `engagement` | `page_post_engagements`, `post_engagements`, `post_clicks`, `accounts_engaged`, `total_interactions` |
+| `profile_views` | `profile_views`, `page_views_total` |
+| `follower_count` | `followers_count`, `page_fans`, `follower_count` |
+| `video_views` | `post_video_views`, `video_views`, `plays` |
+| `saved` | `saved` |
+| `shares` | `shares`, `post_shares` |
+| `comments` | `comments`, `post_comments` |
+| `spend` | `spend` (paid) |
+| `clicks` | `clicks`, `inline_link_clicks` (paid) |
+| `ctr` / `cpc` / `cpm` / `frequency` | `ctr` / `cpc` / `cpm` / `frequency` (paid) |
+
+> The existing `Invoke-ImperionMetaMerge` step 6 (`meta_insights → social_metric`, #126) keeps
+> its passthrough mapping for the page/ig organic snapshots it already owns; slice H's new
+> post/ad collectors merge through `Invoke-ImperionSocialMetricMerge` so the normalized
+> vocabulary applies to the slice-H entity kinds. A future tidy-up may route all
+> `meta_insights → social_metric` through the normalized merge (tracked in the PR).
+
+### Slice-H tasks
+
+| Task (cmdlet) | Entities | Cadence |
+| --- | --- | --- |
+| `Imperion-MetaEngagement` (`Invoke-ImperionSocialEngagementSync`) | FB/IG post comments → `social_engagement` | Daily |
+| `Imperion-MetaMetrics` (`Invoke-ImperionSocialMetricSync`) | post + media + ad/campaign insights → `social_metric` (normalized) | Daily |
+
+Both are **gated** (missing `IMPERION_META_PAGE_ID` / unprovisioned token / unapplied
+0075/0210 → log + exit cleanly) and **dormant until registration** (Mark runs
+`Register-ImperionTask` on the host — admin-gated, server bringup #102). Promoted to `*Sync`
+cmdlets per ADR-0007 (epic #286); no loose `.task.ps1` entry script.
+
 ## Rate limits & retry
 
 Meta applies per-app + per-page Platform Rate Limits (sliding-window, headers
@@ -146,6 +243,8 @@ retired names from `-PageMetric`/`-IgMetric` as Meta retires them.
 | `meta/social.task.ps1` | posts, comments, DMs, IG media/comments + merge | Daily |
 | `meta/insights.task.ps1` | Page + IG insight snapshots + merge | Daily |
 | `Imperion-MetaLeadAds` (`Invoke-ImperionMetaLeadAdsSync`) | Lead Ad forms + submitted leads + merge | Daily @ 04:08 |
+| `meta/engagement.task.ps1` (`Invoke-ImperionSocialEngagementSync`) | FB/IG post comments → `social_engagement` + merge (slice H #357) | Daily |
+| `meta/metrics.task.ps1` (`Invoke-ImperionSocialMetricSync`) | post + media + ad/campaign insights → normalized `social_metric` + merge (slice H #357 / #135) | Daily |
 
 All are **gated**: missing `IMPERION_META_PAGE_ID`, an unprovisioned token (for Lead Ads,
 one lacking `leads_retrieval`), or a not-yet-applied migration (0075 / 0207) logs a warning
@@ -163,6 +262,11 @@ Get-ImperionMetaPageToken -Discover | Select-Object page_id, page_name
 $env:IMPERION_META_PAGE_ID = '<page-id>'
 & "<repo>\scheduled-tasks\meta\social.task.ps1"
 & "<repo>\scheduled-tasks\meta\insights.task.ps1"
+
+# Slice H (#357) — promoted *Sync cmdlets (no entry script):
+Invoke-ImperionSocialEngagementSync          # FB/IG comments → social_engagement
+$env:IMPERION_META_AD_ACCOUNT_ID = '<act_id>'  # optional: enables the paid ad/campaign half
+Invoke-ImperionSocialMetricSync              # post + ad insights → normalized social_metric
 ```
 
 ## Field assumptions — VERIFY LIVE
