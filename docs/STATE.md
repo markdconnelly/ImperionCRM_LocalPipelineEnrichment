@@ -64,6 +64,11 @@ A GUI-mapped, credentialed tenant hydrates on the next run with **no host env ed
   found" (that per-device navigation is beta-only). Now uses `/beta/...detectedApps` (device list
   stays v1.0). `intune_managed_apps` (mig 0148) is applied + app holds `DeviceManagementApps.Read.All`,
   so the feed lights up on the next host run. CONFIRM-BEFORE-LIVE on the `detectedApp` field shapes.
+- **Intune detected-apps id-less abort (2026-06-26, #374 — FIXED).** Live host run: 3/4 tenants
+  skipped with "The property 'id' cannot be found" — a direct `$app.id`/`$device.id` read throws
+  under StrictMode when a `detectedApp`/device omits `id`, aborting the whole tenant (only RGC, 1
+  device, populated → `intune_managed_apps`=91). Now reads via `Get-ImperionMember` and `continue`s
+  past the id-less row. Re-verify per-tenant counts on the next host run.
 - **Info-protection collector drift (2026-06-26, #372 — FIXED).** Earlier framing was wrong:
   the sensitivity-label + custom-sec-attr 42P01s were NOT a missing FE migration. FE #575
   prod-applied the bronze tables as `m365_sensitivity_labels` + `entra_custom_security_attributes`;

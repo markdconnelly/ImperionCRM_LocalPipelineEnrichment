@@ -75,10 +75,13 @@ function Get-ImperionIntuneManagedApp {
 
     $rows = [System.Collections.Generic.List[object]]::new()
     foreach ($device in $devices) {
-        $managedDeviceId = [string]$device.id
+        # StrictMode-safe reads (#374): a device/app whose payload omits 'id' must skip the row,
+        # NOT throw — a direct `$device.id`/`$app.id` access throws under StrictMode and aborts the
+        # whole tenant's app sync (one id-less detectedApp killed 3/4 tenants on 2026-06-26).
+        $managedDeviceId = [string](Get-ImperionMember $device 'id')
         if (-not $managedDeviceId) { continue }
-        $serialNumber = [string]$device.serialNumber
-        $deviceName = [string]$device.deviceName
+        $serialNumber = [string](Get-ImperionMember $device 'serialNumber')
+        $deviceName = [string](Get-ImperionMember $device 'deviceName')
 
         # The per-device detectedApps navigation is exposed in Graph BETA only — v1.0 has no
         # managedDevices/{id}/detectedApps segment (returns 400 "Resource not found for the segment
@@ -88,7 +91,7 @@ function Get-ImperionIntuneManagedApp {
             -AccessToken $token
 
         foreach ($app in $detectedApps) {
-            $appId = [string]$app.id
+            $appId = [string](Get-ImperionMember $app 'id')
             if (-not $appId) { continue }
 
             # Splice the device join context + the composite PK id onto the app object. Add-Member
