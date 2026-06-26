@@ -5,7 +5,30 @@ the durable contract lives in `CLAUDE.md`; anything dated, in-flight, or run-spe
 lives here. When a fact here hardens into a rule, move it to `CLAUDE.md`; when it is
 done or superseded, prune it.
 
-Last reviewed: **2026-06-24.**
+Last reviewed: **2026-06-25.**
+
+---
+
+## M365 hydration — registry-driven fan-out (2026-06-25, #358)
+
+The M365 estate collectors now fan out over the **consented-tenant registry** by default
+(`Get-ImperionConsentedTenant`: `account_tenant ⨝` an active `m365` `connection`), not the
+`IMPERION_M365_TENANT_IDS` env var (#358, ADR-0030 Decision #4 — the "registry-as-enable" half).
+A GUI-mapped, credentialed tenant hydrates on the next run with **no host env edit**.
+
+- **HOST ACTION (Mark):** **unset `IMPERION_M365_TENANT_IDS`** on the home server so the registry
+  drives discovery (if it is still set, it pins the sweep to that subset — back-compat). Then run
+  the M365 tasks (or wait for the nightly).
+- **Grounded 2026-06-25 (pg-MCP):** 4 tenants are mapped + credentialed (Imperion `49307c12`,
+  M365KJLA `bb2a08c8`, M365IPG `d3f6481e`, M365RGC `b5a76f96`) — all have `account_tenant` + live
+  `entity_xref` + an active `m365` `connection`. Pre-#358 only Imperion's tenant was in bronze
+  because the env var was Imperion-only. After the host action above, all four should sweep
+  (each fail-isolated; an unconsented tenant logs Warn + skips).
+- **Still per-tenant Mark-gated:** each client tenant's onboarding app must be **admin-consented**
+  (`build/New-ImperionClientOnboardingApp.ps1` run as that tenant's Global Admin) or its Graph
+  reads 403 — an active registry row is not proof of consent.
+- **Follow-up (epic #324 slice 3b):** the literal tenant-outer single-driver `Invoke-ImperionTenantHydration`
+  + per-tenant token reuse (replaces the per-collector scheduled tasks; changes host task topology).
 
 ---
 

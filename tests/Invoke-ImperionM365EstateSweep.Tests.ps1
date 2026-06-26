@@ -13,6 +13,11 @@ Describe 'Invoke-ImperionM365EstateSweep' {
     BeforeEach {
         InModuleScope ImperionPipeline {
             Mock Write-ImperionLog {}
+            # Default: the registry returns nothing, so the existing env-driven + dormant-safe
+            # tests behave exactly as before (env set => env wins; env empty => $null partner run).
+            # The registry-path tests below override this mock. Mocking it also keeps these tests
+            # hermetic — no DB connection is opened.
+            Mock Get-ImperionConsentedTenant { @() }
         }
         $env:IMPERION_M365_TENANT_IDS = ''
     }
@@ -81,6 +86,45 @@ Describe 'Invoke-ImperionM365EstateSweep' {
                 param($TenantId) $script:seenTenants.Add($TenantId)
             }
             $script:seenTenants | Should -Be @('explicit-tenant')
+        }
+    }
+
+    It 'defaults to the consented-tenant registry when the env var is unset (GUI-as-enable)' {
+        InModuleScope ImperionPipeline {
+            $env:IMPERION_M365_TENANT_IDS = ''
+            Mock Get-ImperionConsentedTenant { @('reg-a', 'reg-b') }
+            $script:seenTenants = [System.Collections.Generic.List[object]]::new()
+            Invoke-ImperionM365EstateSweep -Label 'test' -PerTenant {
+                param($TenantId) $script:seenTenants.Add($TenantId)
+            }
+            $script:seenTenants | Should -Be @('reg-a', 'reg-b')
+            Should -Invoke Get-ImperionConsentedTenant -Times 1
+        }
+    }
+
+    It 'lets IMPERION_M365_TENANT_IDS pin/override the registry when set (no registry read)' {
+        InModuleScope ImperionPipeline {
+            $env:IMPERION_M365_TENANT_IDS = 'pinned-tenant'
+            Mock Get-ImperionConsentedTenant { @('reg-a', 'reg-b') }
+            $script:seenTenants = [System.Collections.Generic.List[object]]::new()
+            Invoke-ImperionM365EstateSweep -Label 'test' -PerTenant {
+                param($TenantId) $script:seenTenants.Add($TenantId)
+            }
+            $script:seenTenants | Should -Be @('pinned-tenant')
+            Should -Invoke Get-ImperionConsentedTenant -Times 0
+        }
+    }
+
+    It 'is dormant-safe when both the env var and the registry are empty (partner tenant once)' {
+        InModuleScope ImperionPipeline {
+            $env:IMPERION_M365_TENANT_IDS = ''
+            Mock Get-ImperionConsentedTenant { @() }
+            $script:seenTenants = [System.Collections.Generic.List[object]]::new()
+            Invoke-ImperionM365EstateSweep -Label 'test' -PerTenant {
+                param($TenantId) $script:seenTenants.Add($TenantId)
+            }
+            $script:seenTenants.Count | Should -Be 1
+            $script:seenTenants[0] | Should -BeNullOrEmpty
         }
     }
 

@@ -60,12 +60,20 @@ Tenant mapping** (`account_tenant`).
 
 ## 3. The pipeline picks it up
 
-On its next scheduled run the estate collectors fan out over `account_tenant`, and
-`Resolve-ImperionTenantCredential -Provider m365` (issue #257) reads the registry row and
-returns a credential splat — `@{ ClientId; CertThumbprint }` or `@{ ClientId; ClientSecret }`
-— that the token primitives mint a per-client token from, reading that tenant read-only and
-failing closed (`-FailClosed`) when the credential is absent/expired. **Imperion's own tenant
-is onboarded the same way** (client-zero, ADR-0028).
+On its next scheduled run the estate collectors fan out over the **consented-tenant registry**
+(`Get-ImperionConsentedTenant`: `account_tenant ⨝` an active `m365` `connection`; #358,
+ADR-0030 Decision #4) — **GUI-save is the enable**, no host env edit (CLAUDE.md §1
+pull/registry-driven). For each tenant, `Resolve-ImperionTenantCredential -Provider m365`
+(issue #257) reads the registry row and returns a credential splat — `@{ ClientId; CertThumbprint }`
+or `@{ ClientId; ClientSecret }` — that the token primitives mint a per-client token from,
+reading that tenant read-only and failing closed (`-FailClosed`) when the credential is
+absent/expired. **Imperion's own tenant is onboarded the same way** (client-zero, ADR-0028).
+
+> Setting `IMPERION_M365_TENANT_IDS` (comma-separated tenant ids) on the host **pins/overrides**
+> the registry to that subset — useful for a targeted run, but leave it **unset** for full
+> registry-driven discovery. An empty registry **and** unset env → the partner tenant only
+> (dormant-safe). The literal tenant-outer single-driver + per-tenant token reuse is a separate
+> follow-up (epic #324 slice 3b).
 
 > UniFi consoles are **not** Entra apps — seed those as `provider=unifi` API-key
 > credentials in the same GUI; no app-registration script is involved.
