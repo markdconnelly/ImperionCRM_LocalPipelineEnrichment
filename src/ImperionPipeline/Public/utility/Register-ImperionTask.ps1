@@ -152,6 +152,11 @@ function Register-ImperionTask {
         # lead_hook/lead_capture_event merge (LP #362). Dormant until the page token carries
         # leads_retrieval + migration 0207 is applied.
         @{ Name = 'Imperion-MetaLeadAds';            Cmdlet = 'Invoke-ImperionMetaLeadAdsSync';           At = '04:08' }
+        # Threads (separate API graph.threads.net + own conn-company-threads token; LP #356,
+        # front-end #1334/ADR-0125). One run collects our posts + replies + mentions + insights,
+        # then runs Invoke-ImperionThreadsMerge itself (ADR-0026). Dormant until the connector is
+        # seeded + the 6 App Review scopes clear + 0208 is applied (fail-closed log + exit).
+        @{ Name = 'Imperion-Threads';                Cmdlet = 'Invoke-ImperionThreadsSync';               At = '04:12' }
         # Housekeeping: 180-day security retention prune (after collectors) + weekly OKF drift (dry-run)
         @{ Name = 'Imperion-SecurityRetentionSweep'; Cmdlet = 'Invoke-ImperionSecurityRetentionSweep';    At = '04:10' }
         @{ Name = 'Imperion-SemanticDrift';          Cmdlet = 'Invoke-ImperionSemanticDriftSync';         At = '04:15' }
