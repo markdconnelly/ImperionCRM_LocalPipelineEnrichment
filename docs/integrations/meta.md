@@ -18,10 +18,12 @@ Social Media plane; the outbound IG reply ships in ImperionCRM_Backend #419).
   and assign the Page + IG asset to the system user.
 - **Scopes:** `pages_show_list`, `pages_read_engagement`, `pages_read_user_content`,
   `pages_messaging`, `pages_manage_metadata`, `read_insights`, `instagram_basic`,
-  `instagram_manage_insights`, `business_management`, and (IG DMs, #361)
-  `instagram_manage_messages`. The IG-messaging scope is **still in Meta App Review** —
-  IG DM collection is dormant/fail-closed until it is approved and `conn-company-meta`
-  is seeded (same gate as the outbound reply, ImperionCRM_Backend #419).
+  `instagram_manage_insights`, `business_management`, (IG DMs, #361)
+  `instagram_manage_messages`, and (Lead Ads, #362) `leads_retrieval`. The IG-messaging
+  scope is **still in Meta App Review** — IG DM collection is dormant/fail-closed until it
+  is approved and `conn-company-meta` is seeded (same gate as the outbound reply,
+  ImperionCRM_Backend #419). The **Lead Ads** track additionally needs `leads_retrieval`
+  on the page token (see the Lead Ads section below).
 - **Custody (the KQM pattern, ADR-0013):** `Resolve-ImperionMetaToken` resolves
   explicit `-Token` → SecretStore mirror `meta-system-user-token` (config key
   `MetaSystemUserToken`) → Key Vault original `Meta-SystemUser-Token` (config key
@@ -75,6 +77,42 @@ messages"); a minimal `contact` + `contact_social_identity` (platform `facebook`
 6. `meta_insights` → `social_metric` (platform `facebook` for `entity_kind='page'`,
 else `instagram`; guarded numeric/timestamptz casts).
 
+## Lead Ads (separate track — `leads_retrieval`, LP #362 / front-end migration 0206)
+
+A **separate track** from the organic ingestion above (and from the Meta Marketing push,
+front-end #406): the App Review use case **"capture & manage ad leads"** / permission
+**`leads_retrieval`**. Facebook/Instagram instant-form leads are pulled from the company
+Page and merged to the lead pipeline as capture-inbox leads (front-end ADR-0124 decision 6;
+`source = meta_lead_ad`).
+
+- **Auth:** the **page access token** (`Get-ImperionMetaPageToken`) must additionally carry
+  `leads_retrieval`. Same bearer-header transport + paging-token stripping as the organic
+  track. No new credential — `conn-company-meta`.
+- **Collectors (Graph v23.0):**
+
+  | Cmdlet | Edge | Bronze table | source |
+  | --- | --- | --- | --- |
+  | `Get-ImperionMetaLeadForm` | `/{page-id}/leadgen_forms` | `meta_lead_ad_forms` (form metadata, no PII) | `meta_lead_ad` |
+  | `Get-ImperionMetaLead` | `/{form-id}/leads` (fanned per form) | `meta_lead_ads` (one row per submitted lead) | `meta_lead_ad` |
+
+  Writers `Set-ImperionMetaLeadFormToBronze` / `Set-ImperionMetaLeadToBronze` — thin
+  adapters over `Invoke-ImperionBronzePost` with the exact 0206 column sets. `field_data`
+  answers are **PII-adjacent — never logged** (counts/ids only, ADR-0086); the convenience
+  flat columns `full_name`/`email`/`phone_number` are extracted from `field_data` while the
+  full answer array is kept as JSON + in `raw_payload`.
+- **Silver merge (local ownership, ADR-0026):** `Invoke-ImperionMetaLeadAdsMerge` — three
+  idempotent set-based steps (NOT EXISTS; INSERT-only):
+  1. ONE `lead_hook` (kind `facebook_lead`, "Facebook Lead Ads"), `config` stamping
+     `source=meta_lead_ad` + the page id.
+  2. A minimal `contact` + `contact_social_identity` (platform `facebook`) per unknown
+     submitter, identity key = the submitter's email when present (stable across forms),
+     else `leadgen:<leadgen_id>`.
+  3. ONE `lead_capture_event` per submitted lead, **idempotent on the Meta leadgen id**
+     (`payload_bronze->>'leadgen_id'`); payload carries `source=meta_lead_ad`, the leadgen
+     id, form/ad/campaign ids, and the field-data answers.
+- **Real-time path (future):** leadgen webhooks could front this via the cloud Pipeline
+  (APIM callback ingress); the baseline here is the scheduled poll (poll-first, ADR-0124 #8).
+
 ## Rate limits & retry
 
 Meta applies per-app + per-page Platform Rate Limits (sliding-window, headers
@@ -107,10 +145,11 @@ retired names from `-PageMetric`/`-IgMetric` as Meta retires them.
 | --- | --- | --- |
 | `meta/social.task.ps1` | posts, comments, DMs, IG media/comments + merge | Daily |
 | `meta/insights.task.ps1` | Page + IG insight snapshots + merge | Daily |
+| `Imperion-MetaLeadAds` (`Invoke-ImperionMetaLeadAdsSync`) | Lead Ad forms + submitted leads + merge | Daily @ 04:08 |
 
-Both are **gated**: missing `IMPERION_META_PAGE_ID`, an unprovisioned token, or a
-not-yet-applied 0075 logs a warning and exits cleanly. Task **registration is
-deferred to server bringup (#102)**.
+All are **gated**: missing `IMPERION_META_PAGE_ID`, an unprovisioned token (for Lead Ads,
+one lacking `leads_retrieval`), or a not-yet-applied migration (0075 / 0206) logs a warning
+and exits cleanly. Task **registration is deferred to server bringup (#102)**.
 
 ### Manual run path
 
