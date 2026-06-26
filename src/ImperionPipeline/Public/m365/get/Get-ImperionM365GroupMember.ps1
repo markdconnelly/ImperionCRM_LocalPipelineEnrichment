@@ -52,6 +52,7 @@ function Get-ImperionM365GroupMember {
         member_mail                = 'member_mail'
     }
 
+    $skippedMembers = 0
     $edges = foreach ($group in $groups) {
         $groupId = $group.id
         $members = Invoke-ImperionGraphRequest `
@@ -64,6 +65,16 @@ function Get-ImperionM365GroupMember {
             # device, servicePrincipal) has no userPrincipalName/mail, so read every field
             # through the safe accessor (direct $member.prop throws under StrictMode). #337
             $memberId = Get-ImperionMember $member 'id'
+            # A membership with no member directory id can't form a valid edge: member_external_id
+            # is NOT NULL in m365_group_members (migration 0079) and the composite external_id would
+            # collapse to '<group>/'. Graph occasionally returns an id-less member (an inaccessible /
+            # partially-readable directory object); skip it so one such member never 23502s the whole
+            # tenant's membership upsert (#366). An id-less member carries no usable join key, so it
+            # is dropped entirely; skips are counted into the run log.
+            if ([string]::IsNullOrEmpty([string]$memberId)) {
+                $skippedMembers++
+                continue
+            }
             [pscustomobject]@{
                 group_external_id          = $groupId
                 member_external_id         = $memberId
@@ -81,7 +92,7 @@ function Get-ImperionM365GroupMember {
             -Source 'm365' -TenantId $TenantId -ExternalIdProperty 'edge_external_id')
 
     Write-ImperionLog -Source 'm365' -Message 'Entra/M365 group membership expanded.' -Data @{
-        groups = @($groups).Count; edges = $rows.Count
+        groups = @($groups).Count; edges = $rows.Count; skipped_members = $skippedMembers
     }
     return $rows
 }
