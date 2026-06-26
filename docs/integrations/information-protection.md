@@ -23,10 +23,16 @@ ImperionCRM#575 (the applied bronze tables; the earlier #259 framing is supersed
 - **Cert-based app-only** token (`Get-MsalToken -ClientCertificate`) for Microsoft Graph,
   scope `https://graph.microsoft.com/.default`. Same cert SP as every other Graph collector.
 - **Graph application permissions required (read-only):**
-  - `SensitivityLabels.Read.All` — `/beta/security/informationProtection/sensitivityLabels`
+  - `InformationProtectionPolicy.Read.All` — `/beta/users/{userId}/security/informationProtection/sensitivityLabels`
   - `CustomSecAttributeDefinition.Read.All` — `/directory/customSecurityAttributeDefinitions`
   - Both are part of the **read-only-by-default** grant (ADR-0002); neither is a write or
     data-plane grant. Adding/consenting them is a human-approval gate (CLAUDE.md §8).
+  - **Note (sensitivity labels, #375):** app-only, labels are exposed ONLY per-user — there is
+    no tenant-root list (calling `/security/informationProtection/sensitivityLabels` with no
+    user resolves as user-context → 403 / 404 'policy is empty' / null-id rows). The collector
+    resolves representative **member** users and evaluates the published labels for the first
+    that returns any. **CONFIRM-BEFORE-LIVE:** Imperion's home tenant 403'd on 2026-06-26
+    (licensing/consent for InformationProtectionPolicy.Read.All) — re-verify on the next pull.
   - **Note (custom security attributes):** reading attribute definitions requires the caller
     to hold the **Attribute Definition Reader** directory role *in addition to* the app
     permission — custom security attributes are access-gated beyond the scope grant. Confirm
@@ -38,7 +44,8 @@ ImperionCRM#575 (the applied bronze tables; the earlier #259 framing is supersed
 ## Source endpoints (paged via `@odata.nextLink`)
 | Object | Endpoint | Notes |
 | --- | --- | --- |
-| Sensitivity labels | `GET /beta/security/informationProtection/sensitivityLabels` | `id` = label GUID; **beta-only** (`/v1.0` 400s 'segment informationProtection not found') |
+| Member users (probe) | `GET /v1.0/users?$top=25&$select=id,userType` | resolves a representative member to evaluate labels for (sensitivity labels are per-user only, #375) |
+| Sensitivity labels | `GET /beta/users/{userId}/security/informationProtection/sensitivityLabels` | `id` = label GUID; **per-user, app-only** — no tenant-root list exists (#375); first member that returns labels wins |
 | Custom security attribute definitions | `GET /v1.0/directory/customSecurityAttributeDefinitions?$expand=allowedValues` | `id` = `{attributeSet}_{name}`; `$expand` carries the predefined value list (lands in `raw_payload`) |
 
 ## Flattened fields (the classification taxonomy)
@@ -83,9 +90,10 @@ collector would read principal-level data and must carry the lawful-basis / prov
 guardrail (CLAUDE.md §8) before it is built.
 
 ## Assumptions to confirm on first live run
-- The onboarding app has `SensitivityLabels.Read.All` and `CustomSecAttributeDefinition.Read.All`
+- The onboarding app has `InformationProtectionPolicy.Read.All` and `CustomSecAttributeDefinition.Read.All`
   admin-consented in Imperion's own tenant (and per client tenant for client fan-out), plus
-  the **Attribute Definition Reader** role for the custom-security-attribute read.
+  the **Attribute Definition Reader** role for the custom-security-attribute read. Imperion's
+  home tenant 403'd for sensitivity labels on 2026-06-26 (#375) — re-verify consent/licensing.
 - The front-end `m365_sensitivity_labels` / `entra_custom_security_attributes` bronze tables
   (ImperionCRM#575) are applied to prod (confirmed) and the local-pipeline SP has the write
   grant on them.
