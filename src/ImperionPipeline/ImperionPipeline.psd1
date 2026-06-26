@@ -104,6 +104,7 @@
         'Invoke-ImperionSemanticConceptSync',
         # Building blocks (reusable helpers)
         'Invoke-ImperionM365EstateSweep',
+        'Invoke-ImperionTenantHydration',
         'Write-ImperionLog',
         'Get-ImperionContentHash',
         'ConvertTo-ImperionFlatObject',

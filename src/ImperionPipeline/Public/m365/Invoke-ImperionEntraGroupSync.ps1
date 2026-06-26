@@ -11,9 +11,13 @@ function Invoke-ImperionEntraGroupSync {
         Invoke-ImperionEntraGroupSync
     #>
     [CmdletBinding()]
-    param()
+    param([string] $TenantId)
 
-    Invoke-ImperionM365EstateSweep -Label 'Entra group inventory' -PerTenant {
+    # -TenantId pins the sweep to one tenant (the tenant-outer driver, #359); no arg => the
+    # registry-driven estate fan-out (#358). Forward only when supplied so the default is unchanged.
+    $sweep = @{}
+    if ($PSBoundParameters.ContainsKey('TenantId')) { $sweep.TenantId = $TenantId }
+    Invoke-ImperionM365EstateSweep @sweep -Label 'Entra group inventory' -PerTenant {
         param($TenantId)
         if ($TenantId) { Get-ImperionM365Group -TenantId $TenantId | Set-ImperionM365GroupToBronze }
         else { Get-ImperionM365Group | Set-ImperionM365GroupToBronze }
