@@ -1,6 +1,6 @@
 #Requires -Modules Pester
 # Hermetic tests for Set-ImperionSensitivityLabelToBronze: standard envelope, projected to the
-# exact sensitivity_labels column set (front-end schema issue ImperionCRM#259; local issue #141).
+# exact m365_sensitivity_labels column set (applied front-end ImperionCRM#575; local issue #141).
 
 BeforeAll {
     $module = Join-Path (Split-Path -Parent $PSScriptRoot) 'src\ImperionPipeline\ImperionPipeline.psd1'
@@ -8,7 +8,7 @@ BeforeAll {
 }
 
 Describe 'Set-ImperionSensitivityLabelToBronze' {
-    It 'projects rows to the exact sensitivity_labels column set and change-detect upserts' {
+    It 'projects rows to the exact m365_sensitivity_labels column set and change-detect upserts' {
         InModuleScope ImperionPipeline {
             Mock Write-ImperionLog { }
             Mock New-ImperionDbConnection {
@@ -21,9 +21,7 @@ Describe 'Set-ImperionSensitivityLabelToBronze' {
 
             $rows = @(
                 [pscustomobject]@{
-                    label_name = 'Confidential'; display_name = 'Confidential'; description = 'd'
-                    is_active = 'true'; is_appendable = 'false'; sensitivity = '2'; tooltip = 't'
-                    applies_to = 'email'; parent_label_id = $null; parent_label_name = $null
+                    label_id = 'label-conf'; name = 'Confidential'; priority = '2'; is_active = 'true'
                     future_extra = 'dropme'
                     tenant_id = 't1'; source = 'm365'; external_id = 'label-conf'
                     collected_at = 'now'; raw_payload = '{}'; content_hash = 'h1'
@@ -31,12 +29,11 @@ Describe 'Set-ImperionSensitivityLabelToBronze' {
             )
             $tally = $rows | Set-ImperionSensitivityLabelToBronze
 
-            $script:captured.Table    | Should -Be 'sensitivity_labels'
+            $script:captured.Table    | Should -Be 'm365_sensitivity_labels'
             $script:captured.NoChange | Should -BeFalse
             $projected = $script:captured.Rows[0]
             ($projected.PSObject.Properties.Name | Sort-Object) | Should -Be (@(
-                    'label_name', 'display_name', 'description', 'is_active', 'is_appendable',
-                    'sensitivity', 'tooltip', 'applies_to', 'parent_label_id', 'parent_label_name',
+                    'label_id', 'name', 'priority', 'is_active',
                     'tenant_id', 'source', 'external_id', 'collected_at', 'raw_payload', 'content_hash'
                 ) | Sort-Object)
             ($projected.PSObject.Properties.Name -contains 'future_extra') | Should -BeFalse
@@ -52,7 +49,7 @@ Describe 'Set-ImperionSensitivityLabelToBronze' {
             Mock Invoke-ImperionBronzeUpsert { throw 'should not upsert' }
 
             (@() | Set-ImperionSensitivityLabelToBronze).scanned | Should -Be 0
-            $row = [pscustomobject]@{ label_name = 'Public'; external_id = 'label-pub'; content_hash = 'h' }
+            $row = [pscustomobject]@{ label_id = 'label-pub'; name = 'Public'; external_id = 'label-pub'; content_hash = 'h' }
             { $row | Set-ImperionSensitivityLabelToBronze -WhatIf } | Should -Not -Throw
             Should -Invoke Invoke-ImperionBronzeUpsert -Times 0
         }

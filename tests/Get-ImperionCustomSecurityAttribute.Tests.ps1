@@ -33,29 +33,19 @@ Describe 'Get-ImperionCustomSecurityAttribute' {
         }
     }
 
-    It 'flattens definitions to the schema-259 columns + standard envelope (id = set_name)' {
+    It 'flattens definitions to the applied #575 columns + standard envelope (id = set_name)' {
         InModuleScope ImperionPipeline {
             $rows = @(Get-ImperionCustomSecurityAttribute)
             $rows.Count | Should -Be 2
 
             $proj = $rows | Where-Object { $_.external_id -eq 'Engineering_Project' }
             $proj.attribute_set  | Should -Be 'Engineering'
-            $proj.attribute_name | Should -Be 'Project'
-            $proj.type           | Should -Be 'String'
+            $proj.name           | Should -Be 'Project'
+            $proj.data_type      | Should -Be 'String'
             $proj.status         | Should -Be 'Available'
-            $proj.is_collection  | Should -Be 'true'
-            $proj.use_predefined_values_only | Should -Be 'true'
-            $proj.allowed_values | Should -Be 'Alpha; Beta'
             $proj.source         | Should -Be 'm365'
             $proj.tenant_id      | Should -Be 'partner'
             $proj.content_hash   | Should -Match '^[0-9a-f]{64}$'
-        }
-    }
-
-    It 'leaves allowed_values empty when there is no predefined list' {
-        InModuleScope ImperionPipeline {
-            $hr = @(Get-ImperionCustomSecurityAttribute) | Where-Object { $_.external_id -eq 'HR_Clearance' }
-            $hr.allowed_values | Should -BeNullOrEmpty
         }
     }
 
@@ -72,7 +62,7 @@ Describe 'Get-ImperionCustomSecurityAttribute' {
         InModuleScope ImperionPipeline {
             Mock Invoke-ImperionGraphRequest { @([pscustomobject]@{ id = 'S_A'; attributeSet = 'S'; name = 'A' }) }
             { Get-ImperionCustomSecurityAttribute } | Should -Not -Throw
-            (@(Get-ImperionCustomSecurityAttribute)[0]).allowed_values | Should -BeNullOrEmpty
+            (@(Get-ImperionCustomSecurityAttribute)[0]).data_type | Should -BeNullOrEmpty
         }
     }
 

@@ -30,35 +30,35 @@ Describe 'Get-ImperionSensitivityLabel' {
         }
     }
 
-    It 'flattens /sensitivityLabels to the schema-259 columns + standard envelope (id = the GUID)' {
+    It 'flattens /sensitivityLabels to the applied #575 columns + standard envelope (id = the GUID)' {
         InModuleScope ImperionPipeline {
             $rows = @(Get-ImperionSensitivityLabel)
             $rows.Count | Should -Be 2
 
             $conf = $rows | Where-Object { $_.external_id -eq 'label-conf' }
-            $conf.label_name   | Should -Be 'Confidential'
+            $conf.label_id     | Should -Be 'label-conf'
+            $conf.name         | Should -Be 'Confidential'
+            $conf.priority     | Should -Be '2'
             $conf.is_active    | Should -Be 'true'
-            $conf.is_appendable | Should -Be 'false'
-            $conf.applies_to   | Should -Be 'email'
             $conf.source       | Should -Be 'm365'
             $conf.tenant_id    | Should -Be 'partner'
             $conf.content_hash | Should -Match '^[0-9a-f]{64}$'
         }
     }
 
-    It 'surfaces the parent label id for a sublabel' {
+    It 'maps priority from the Graph sensitivity ordering for a sublabel' {
         InModuleScope ImperionPipeline {
             $sub = @(Get-ImperionSensitivityLabel) | Where-Object { $_.external_id -eq 'label-conf-internal' }
-            $sub.parent_label_id   | Should -Be 'label-conf'
-            $sub.parent_label_name | Should -Be 'Confidential'
+            $sub.label_id | Should -Be 'label-conf-internal'
+            $sub.priority | Should -Be '3'
         }
     }
 
-    It 'calls the sensitivityLabels endpoint' {
+    It 'calls the beta sensitivityLabels endpoint' {
         InModuleScope ImperionPipeline {
             Get-ImperionSensitivityLabel | Out-Null
             Should -Invoke Invoke-ImperionGraphRequest -Times 1 -ParameterFilter {
-                $Uri -eq 'https://graph.microsoft.com/v1.0/security/informationProtection/sensitivityLabels'
+                $Uri -eq 'https://graph.microsoft.com/beta/security/informationProtection/sensitivityLabels'
             }
         }
     }
@@ -67,7 +67,7 @@ Describe 'Get-ImperionSensitivityLabel' {
         InModuleScope ImperionPipeline {
             Mock Invoke-ImperionGraphRequest { @([pscustomobject]@{ id = 'bare'; name = 'Public' }) }
             { Get-ImperionSensitivityLabel } | Should -Not -Throw
-            (@(Get-ImperionSensitivityLabel)[0]).parent_label_id | Should -BeNullOrEmpty
+            (@(Get-ImperionSensitivityLabel)[0]).priority | Should -BeNullOrEmpty
         }
     }
 

@@ -1,21 +1,21 @@
 function Set-ImperionSensitivityLabelToBronze {
     <#
     .SYNOPSIS
-        Write flattened sensitivity-label rows into the sensitivity_labels bronze table.
+        Write flattened sensitivity-label rows into the m365_sensitivity_labels bronze table.
     .DESCRIPTION
         Post-layer writer (CLAUDE.md §6) for information-protection posture (issue #141;
-        front-end schema issue ImperionCRM#259): sensitivity_labels — standard envelope, PK
+        front-end schema issue ImperionCRM#575): m365_sensitivity_labels — standard envelope, PK
         (tenant_id, source, external_id) where external_id = the label GUID, change-detected
         (unchanged content hashes are not rewritten).
 
-        Rows are projected to exactly the schema-#259 column set (Invoke-ImperionBronzePost
+        Rows are projected to exactly the applied #575 column set (Invoke-ImperionBronzePost
         -ColumnSet): missing columns land NULL, any future collector field is dropped from the
         flat projection but survives in raw_payload, so the insert can never break on collector
         drift.
 
-        SCHEMA GATE: the sensitivity_labels migration lands in the front-end repo (issue #259);
-        until it is applied to prod the upsert fails loudly — by design (this repo never creates
-        tables, CLAUDE.md §6; the task file's catch logs + exits cleanly).
+        The table was prod-applied by front-end #575; until that migration is present the upsert
+        fails loudly — by design (this repo never creates tables, CLAUDE.md §6; the task file's
+        catch logs + exits cleanly).
 
         Thin adapter over Invoke-ImperionBronzePost (issue #105 scaffold). Idempotent/
         resumable. Pass an open -Connection to share one across a batch.
@@ -25,7 +25,7 @@ function Set-ImperionSensitivityLabelToBronze {
     .PARAMETER Connection
         Optional open Npgsql connection to reuse. Opened from config + disposed when omitted.
     .PARAMETER Table
-        Target bronze table. Defaults to sensitivity_labels (front-end schema issue #259).
+        Target bronze table. Defaults to m365_sensitivity_labels (front-end schema issue #575).
     .OUTPUTS
         The upsert tally { scanned; inserted; updated; unchanged }.
     .EXAMPLE
@@ -38,14 +38,13 @@ function Set-ImperionSensitivityLabelToBronze {
     param(
         [Parameter(ValueFromPipeline)][AllowNull()] $Row,
         $Connection,
-        [string] $Table = 'sensitivity_labels'
+        [string] $Table = 'm365_sensitivity_labels'
     )
 
     begin {
-        # Exact sensitivity_labels column set (front-end schema issue #259), then the envelope.
+        # Exact m365_sensitivity_labels column set (applied front-end #575), then the envelope.
         $tableColumns = @(
-            'label_name', 'display_name', 'description', 'is_active', 'is_appendable',
-            'sensitivity', 'tooltip', 'applies_to', 'parent_label_id', 'parent_label_name',
+            'label_id', 'name', 'priority', 'is_active',
             'tenant_id', 'source', 'external_id', 'collected_at', 'raw_payload', 'content_hash'
         )
         $collected = [System.Collections.Generic.List[object]]::new()
