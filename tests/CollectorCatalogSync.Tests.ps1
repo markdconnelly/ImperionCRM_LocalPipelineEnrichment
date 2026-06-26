@@ -29,6 +29,7 @@ Describe 'Collector catalog *Sync cmdlets are exported (epic #286)' {
         'Invoke-ImperionAzureResourceInventorySync', 'Invoke-ImperionSentinelSync', 'Invoke-ImperionDnsZoneSync'
         'Invoke-ImperionDnsResolveSync', 'Invoke-ImperionKqmOpportunitySync', 'Invoke-ImperionSecurityIncidentSync'
         'Invoke-ImperionMetaSocialSync', 'Invoke-ImperionMetaInsightSync'
+        'Invoke-ImperionThreadsSync'
     )
 
     It '<_> is an exported advanced function' -ForEach $catalog {
