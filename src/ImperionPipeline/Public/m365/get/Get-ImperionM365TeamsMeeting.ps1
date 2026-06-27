@@ -1,36 +1,32 @@
 function Get-ImperionM365TeamsMeeting {
     <#
     .SYNOPSIS
-        Collect Imperion<->client Teams meetings for one or more users and flatten them to bronze rows.
+        Collect online (Teams) meetings for one or more users and flatten them to bronze rows.
     .DESCRIPTION
         Get-layer collector (CLAUDE.md §6, the verbose m365 communication path). For each user it
-        pages calendar /events that are online meetings in the window, applies the cross-org noise
-        filter (Test-ImperionCrossOrgComm over organizer + attendee addresses) so ONLY
-        Imperion<->client meetings are kept, and flattens survivors to the standard flat-table
-        envelope (target: silver meeting, platform teams; source m365_teams). Returns rows; does
-        not write. Requires Initialize-ImperionContext.
+        pages calendar /events that are online meetings in the window and flattens EVERY survivor to
+        the standard flat-table envelope (target: silver meeting, platform teams; source m365_teams).
+        Returns rows; does not write. Requires Initialize-ImperionContext.
+
+        CAPTURE MODEL (ADR-0126 / FE #1366, this repo's #380): meetings are pulled from Imperion's
+        OWN tenant and the client-scoping filter is applied LATER, at the silver layer, against
+        `account_domain` + onboarded contacts — front-end #1369. This collector therefore does NOT
+        filter at collection: the old collection-time `Test-ImperionCrossOrgComm` client-domain gate
+        was the bug behind the 0-row prod state (#380) — with no client domains configured it
+        dropped every meeting. Over-collect at bronze; narrow at silver (CLAUDE.md §5 bronze rule).
     .PARAMETER User
         User UPNs/ids whose meetings to collect.
-    .PARAMETER Mode
-        ImperionTenant (default) or ClientTenant — selects the filter direction.
-    .PARAMETER ClientDomain
-        Known client domains (ImperionTenant mode), from the silver account/tenant map.
-    .PARAMETER ImperionDomain
-        The Imperion domain. Default 'imperionllc.com'.
     .PARAMETER TenantId
-        Tenant to authenticate against; defaults to the partner tenant. Customer tenants use GDAP.
+        Tenant to authenticate against; defaults to the partner tenant.
     .PARAMETER SinceDays
         Look-back window on the meeting start. Default 30.
     .EXAMPLE
-        Get-ImperionM365TeamsMeeting -User 'ada@imperionllc.com' -Mode ImperionTenant -ClientDomain 'acme.com'
+        Get-ImperionM365TeamsMeeting -User 'ada@imperionllc.com'
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
         [Parameter(Mandatory)][string[]] $User,
-        [ValidateSet('ImperionTenant', 'ClientTenant')][string] $Mode = 'ImperionTenant',
-        [string[]] $ClientDomain = @(),
-        [string] $ImperionDomain = 'imperionllc.com',
         [string] $TenantId,
         [int] $SinceDays = 30
     )
@@ -47,17 +43,9 @@ function Get-ImperionM365TeamsMeeting {
         $events = Invoke-ImperionGraphRequest -Uri $uri -AccessToken $token
 
         foreach ($ev in $events) {
-            $participants = [System.Collections.Generic.List[string]]::new()
-            $organizer = Get-ImperionPropertyPath -InputObject $ev -Path 'organizer.emailAddress.address'
-            if ($organizer) { $participants.Add($organizer) }
-            @(Get-ImperionMember $ev 'attendees') | Where-Object { $_ } |
-                ForEach-Object { Get-ImperionPropertyPath -InputObject $_ -Path 'emailAddress.address' } |
-                Where-Object { $_ } | ForEach-Object { $participants.Add($_) }
-
-            if (Test-ImperionCrossOrgComm -Participant $participants.ToArray() -Mode $Mode -ClientDomain $ClientDomain -ImperionDomain $ImperionDomain) {
-                $ev | Add-Member -NotePropertyName '_imperionUser' -NotePropertyValue $u -Force
-                $kept.Add($ev)
-            }
+            # ADR-0126: keep every home-tenant online meeting; the client filter is a silver concern (FE #1369).
+            $ev | Add-Member -NotePropertyName '_imperionUser' -NotePropertyValue $u -Force
+            $kept.Add($ev)
         }
     }
 

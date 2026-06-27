@@ -1,18 +1,24 @@
 function Get-ImperionScopedInteractionTeams {
     <#
     .SYNOPSIS
-        Collect SCOPED Teams chat messages (allowlisted principal ↔ client only) → m365_teams bronze rows.
+        Collect message-grain Teams chat messages from the allowlisted Imperion principals → m365_teams bronze rows.
     .DESCRIPTION
-        Get-layer collector (CLAUDE.md §6) for the SCOPED interaction capture (issue #199 / epic
-        #194 child E, ADR-0022) — the Teams half, paired with Get-ImperionScopedInteractionMail.
-        For each CONFIG-DRIVEN allowlisted principal (Derek Rankin / Mark Connelly, read from
+        Get-layer collector (CLAUDE.md §6) for the home-tenant communications capture (issue #199 /
+        epic #194 child E, ADR-0022; revived per front-end ADR-0126 / FE #1366, this repo's #380) —
+        the Teams half, paired with Get-ImperionScopedInteractionMail. For each CONFIG-DRIVEN
+        allowlisted principal (Derek Rankin / Mark Connelly, read from
         `%ProgramData%\Imperion\interaction-allowlist.json`, never hardcoded) it lists that
-        principal's 1:1/group chats (members expanded), keeps ONLY chats where the scope predicate
-        holds — an allowlisted principal AND a known CLIENT counterpart (resolved against silver
-        `contact`/`account`) are both members — then pulls each in-scope chat's MESSAGES and
-        flattens them message-grain. Internal-only and non-client chats are filtered AT COLLECTION,
-        before bronze (the enrichment/lawful-basis guardrail, CLAUDE.md §8). Returns rows; does not
-        write. Requires Initialize-ImperionContext.
+        principal's 1:1/group chats (members expanded), pulls EVERY chat's MESSAGES, and flattens
+        them message-grain. Returns rows; does not write. Requires Initialize-ImperionContext.
+
+        CAPTURE MODEL (ADR-0126): communications are pulled from Imperion's OWN tenant and the
+        client-scoping filter is applied LATER, at the silver layer, against `account_domain` +
+        onboarded contacts — front-end #1369. This collector therefore does NOT filter at
+        collection: that was the bug behind the 0-row prod state (#380) — the collection-time
+        `Test-ImperionScopedInteraction` client gate dropped every chat whenever the silver client
+        set was empty (`account_domain` is unpopulated in prod). Over-collect at bronze; narrow at
+        silver (CLAUDE.md §5 bronze rule). The allowlist now selects WHICH PRINCIPALS' chats to
+        pull, not which chats to keep.
 
         TARGET: bronze `m365_teams` (front-end-owned schema, ADR-0005 / front-end migration 0120
         `bronze_batch_b` — already merged + prod-applied + verified; lossless envelope, PK
@@ -20,10 +26,10 @@ function Get-ImperionScopedInteractionTeams {
         id. Flat columns carry the message header + a preview; the full Graph message survives
         lossless in raw_payload.
 
-        SCOPE GATES (all fail soft — log + clean exit, never crash the schedule):
-          1. Allowlist config present and non-empty (Resolve-ImperionInteractionAllowlist). Absent →
-             dormant; logs and returns. The set changes WITHOUT a code release.
-          2. Per-chat: Test-ImperionScopedInteraction over the chat members' addresses.
+        GATE (fails soft — log + clean exit, never crash the schedule):
+          * Allowlist config present and non-empty (Resolve-ImperionInteractionAllowlist). Absent →
+            no principals to enumerate → dormant; logs and returns. The set changes WITHOUT a code
+            release.
 
         AUTH + PROTECTED API: the module's cert-SP app-only Graph token (Get-ImperionGraphToken).
         `/users/{id}/chats` and chat messages are Microsoft PROTECTED APIs — application-permission
@@ -34,19 +40,21 @@ function Get-ImperionScopedInteractionTeams {
         CONFIRM BEFORE LIVE USE: the chats `$expand=members` member email path, the chat-messages
         resource path, and the message field names are modeled from the documented API; each flat
         column leads with the documented name, misses land NULL, raw_payload keeps everything. NO
-        client data or principal identity is logged (counts only, CLAUDE.md §8).
+        message content or participant identity is logged (counts only, CLAUDE.md §8).
     .PARAMETER TenantId
         Tenant to authenticate against and stamp on rows; defaults to the partner/company tenant.
     .PARAMETER AllowlistPath
         Optional explicit path to the allowlist json (test / on-demand).
     .PARAMETER Connection
-        Optional open Npgsql connection used ONLY to read the silver client-contact set. Opened
-        from config + disposed when omitted. The collector never writes here.
+        Accepted for call-shape compatibility with the task pipeline; unused (client scoping moved
+        to the silver layer, FE #1369). The collector never reads or writes the DB.
     .EXAMPLE
         Get-ImperionScopedInteractionTeams | Set-ImperionScopedInteractionTeamsToBronze
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'Connection',
+        Justification = 'Kept for call-shape stability with the task pipeline; client scoping moved to silver (FE #1369).')]
     param(
         [string] $TenantId,
         [string] $AllowlistPath,
@@ -56,20 +64,12 @@ function Get-ImperionScopedInteractionTeams {
     $cfg = Get-ImperionConfig
     if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
 
-    # Gate 1 — the config-driven allowlist.
+    # Gate — the config-driven allowlist names whose chats to pull. No principals = nothing to do.
     $allowedPrincipal = Resolve-ImperionInteractionAllowlist -Path $AllowlistPath
     if (-not $allowedPrincipal -or @($allowedPrincipal).Count -eq 0) {
         Write-ImperionLog -Source 'm365' -Message 'Scoped interaction Teams: no allowlist configured (dormant).'
         return
     }
-
-    $ownsConnection = $false
-    $activeConnection = $Connection
-    if (-not $activeConnection) { $activeConnection = New-ImperionDbConnection; $ownsConnection = $true }
-    try {
-        $clientSet = Resolve-ImperionClientContactSet -Connection $activeConnection
-    }
-    finally { if ($ownsConnection) { $activeConnection.Dispose() } }
 
     $token = Get-ImperionGraphToken -TenantId $TenantId
 
@@ -82,10 +82,7 @@ function Get-ImperionScopedInteractionTeams {
             $memberEmails = @(Get-ImperionMember $chat 'members') | Where-Object { $_ } |
                 ForEach-Object { Get-ImperionPropertyPath -InputObject $_ -Path 'email' } | Where-Object { $_ }
 
-            if (-not (Test-ImperionScopedInteraction -Participant @($memberEmails) -AllowedPrincipal $allowedPrincipal -ClientEmail $clientSet.Emails -ClientDomain $clientSet.Domains)) {
-                continue
-            }
-
+            # ADR-0126: keep every home-tenant chat; the client filter is a silver concern (FE #1369).
             $chatId = Get-ImperionMember $chat 'id'
             $participantList = (@($memberEmails) | Where-Object { $_ }) | Join-ImperionValues
             $messagesUri = 'https://graph.microsoft.com/v1.0/chats/{0}/messages' -f [uri]::EscapeDataString([string]$chatId)

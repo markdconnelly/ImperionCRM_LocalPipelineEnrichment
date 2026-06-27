@@ -97,17 +97,23 @@ gated on `qbo-access-token` / `qbo-realm-id` (the standing QBO app-reg blocker).
 | **Amazon Business** | `Invoke-ImperionAmazonBusinessRequest` (Bearer; `nextToken` paging) | Order (+ shipment/tracking + spend) | `amazon_business_orders` (migration 0120; straight to Postgres) | daily | ADR-0021 / #198 |
 | **CDW** | `Invoke-ImperionCdwRequest` (Bearer; `?page=N`) | Order (+ PO + shipment/tracking + spend) | `cdw_orders` (migration 0120; straight to Postgres) | daily | ADR-0021 / #198 |
 
-## Scoped interaction (ADR-0022 — message-grain, scoped at collection)
+## Home-tenant interaction capture (ADR-0022 — message-grain; ADR-0126 capture model)
 
-Only allowlisted-principal (`%ProgramData%\Imperion\interaction-allowlist.json`) ↔ client
-(silver `contact`/`account`) messages land; internal-only and non-client are dropped (lawful
-basis). Read-only Graph via the cert SP; subjects/addresses **never logged** (counts only).
-DORMANT until the allowlist + consent.
+Pulls message-grain mail/chats from the allowlisted Imperion mailboxes/principals
+(`%ProgramData%\Imperion\interaction-allowlist.json` — now a MAILBOX/principal list). **Per
+front-end ADR-0126 / FE #1366 (#380): communications are pulled from Imperion's OWN tenant and
+the client-scoping filter is applied LATER, at the silver layer (FE #1369) — these collectors
+do NOT filter at collection.** This was the fix for the 0-row prod state: the old collection-time
+client filter dropped everything while the silver client set (`account_domain`) was empty.
+Read-only Graph via the cert SP; subjects/addresses **never logged** (counts only). DORMANT until
+the allowlist + consent (mail = Mail.Read; Teams additionally needs Microsoft protected-API
+approval).
 
 | Source | Get | Bronze target | Cadence | ADR / issue |
 | --- | --- | --- | --- | --- |
-| **Scoped mail** | `Get-ImperionScopedInteractionMail` → `Set-ImperionScopedInteractionMailToBronze` | `m365_email` (migration 0120, source `m365_email`) | hourly | ADR-0022 / #199 |
-| **Scoped Teams** | `Get-ImperionScopedInteractionTeams` → `Set-ImperionScopedInteractionTeamsToBronze` | `m365_teams` (migration 0120, source `m365_teams`) | hourly | ADR-0022 / #199 |
+| **Interaction mail** | `Get-ImperionScopedInteractionMail` → `Set-ImperionScopedInteractionMailToBronze` | `m365_email` (migration 0120, source `m365_email`) | hourly | ADR-0022 / #199 / #380 |
+| **Interaction Teams** | `Get-ImperionScopedInteractionTeams` → `Set-ImperionScopedInteractionTeamsToBronze` | `m365_teams` (migration 0120, source `m365_teams`) | hourly | ADR-0022 / #199 / #380 |
+| **Teams meetings** | `Get-ImperionM365TeamsMeeting` → `Set-ImperionM365TeamsMeetingToBronze` | `m365_teams_meetings` (migration 0065, source `m365_teams`) | every 4h | #199 / #380 |
 
 ## Bronze→silver merge (LP-owned — ADR-0026, "merge co-locates with ingestion")
 
