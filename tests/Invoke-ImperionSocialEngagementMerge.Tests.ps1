@@ -34,24 +34,35 @@ Describe 'Invoke-ImperionSocialEngagementMerge' {
             }
         }
 
-        It 'runs both comment steps and returns the tally' {
+        It 'runs both comment steps + the mention step and returns the tally' {
             InModuleScope ImperionPipeline {
                 $tally = Invoke-ImperionSocialEngagementMerge -Confirm:$false
-                $script:capturedMergeSql.Count | Should -Be 2
+                $script:capturedMergeSql.Count | Should -Be 3
                 $tally.facebook_comments_to_engagement | Should -Be 1
                 $tally.instagram_comments_to_engagement | Should -Be 1
+                $tally.meta_mentions_to_engagement | Should -Be 1
                 Should -Invoke Write-ImperionLog -Times 1 -ParameterFilter { $Level -eq 'Metric' -and $Message -match 'Social engagement merge complete' }
             }
         }
 
-        It 'every insert targets social_engagement, kind comment, and is ON CONFLICT (channel, external_id) DO NOTHING' {
+        It 'every insert targets social_engagement and is ON CONFLICT (channel, external_id) DO NOTHING' {
             InModuleScope ImperionPipeline {
                 Invoke-ImperionSocialEngagementMerge -Confirm:$false | Out-Null
                 foreach ($sql in $script:capturedMergeSql) {
                     $sql | Should -Match 'INSERT INTO social_engagement'
-                    $sql | Should -Match "'comment'::social_engagement_kind"
                     $sql | Should -Match 'ON CONFLICT \(channel, external_id\) DO NOTHING'
                 }
+            }
+        }
+
+        It 'the two comment steps land kind comment; the mention step lands kind mention' {
+            InModuleScope ImperionPipeline {
+                Invoke-ImperionSocialEngagementMerge -Confirm:$false | Out-Null
+                $comments = @($script:capturedMergeSql | Where-Object { $_ -match 'FROM (facebook|instagram)_comments b' })
+                $comments.Count | Should -Be 2
+                foreach ($sql in $comments) { $sql | Should -Match "'comment'::social_engagement_kind" }
+                $mention = @($script:capturedMergeSql | Where-Object { $_ -match 'FROM meta_mentions b' })[0]
+                $mention | Should -Match "'mention'::social_engagement_kind"
             }
         }
 
@@ -62,6 +73,20 @@ Describe 'Invoke-ImperionSocialEngagementMerge' {
                 $ig = @($script:capturedMergeSql | Where-Object { $_ -match 'FROM instagram_comments b' })[0]
                 $fb | Should -Match "'facebook'::social_channel"
                 $ig | Should -Match "'instagram'::social_channel"
+            }
+        }
+
+        It 'the mention step maps meta_mentions per contract (platform→channel, mention_id→external_id, permalink→source_url)' {
+            InModuleScope ImperionPipeline {
+                Invoke-ImperionSocialEngagementMerge -Confirm:$false | Out-Null
+                $mention = @($script:capturedMergeSql | Where-Object { $_ -match 'FROM meta_mentions b' })[0]
+                $mention | Should -Match 'b\.platform::social_channel'
+                $mention | Should -Match 'b\.mention_id'
+                # mention carries source_url (the permalink); on_social_post_channel_id stays NULL/default
+                $insertList = ($mention -split 'SELECT')[0]
+                $insertList | Should -Match 'source_url'
+                $insertList | Should -Not -Match 'on_social_post_channel_id'
+                $mention | Should -Match 'b\.author_id, b\.author_username, b\.author_name, b\.permalink'
             }
         }
 
@@ -84,13 +109,23 @@ Describe 'Invoke-ImperionSocialEngagementMerge' {
             }
         }
 
-        It 'casts the bronze created_time with a regex guard (collected_at fallback)' {
+        It 'the comment steps cast bronze created_time with a regex guard (collected_at fallback)' {
             InModuleScope ImperionPipeline {
                 Invoke-ImperionSocialEngagementMerge -Confirm:$false | Out-Null
-                foreach ($sql in $script:capturedMergeSql) {
+                $comments = @($script:capturedMergeSql | Where-Object { $_ -match 'FROM (facebook|instagram)_comments b' })
+                foreach ($sql in $comments) {
                     $sql | Should -Match ([regex]::Escape("CASE WHEN b.created_time ~ '^\d{4}-\d{2}-\d{2}' THEN b.created_time::timestamptz"))
                     $sql | Should -Match 'ELSE b\.collected_at::timestamptz END'
                 }
+            }
+        }
+
+        It 'the mention step guards created_time (timestamptz column, no collected_at fallback)' {
+            InModuleScope ImperionPipeline {
+                Invoke-ImperionSocialEngagementMerge -Confirm:$false | Out-Null
+                $mention = @($script:capturedMergeSql | Where-Object { $_ -match 'FROM meta_mentions b' })[0]
+                $mention | Should -Match ([regex]::Escape("CASE WHEN b.created_time::text ~ '^\d{4}-\d{2}-\d{2}' THEN b.created_time::timestamptz"))
+                $mention | Should -Match 'ELSE NULL END'
             }
         }
 

@@ -119,38 +119,62 @@ Page and merged to the lead pipeline as capture-inbox leads (front-end ADR-0124 
 Slice H lands two NEW silver surfaces from the Meta source — the inbound **Social Engagement**
 store and normalized **Social Metric** time-series — plus the **post** and **ad** metric
 collectors that feed them. Poll-first (no webhooks v1, ADR-0124 #8); merge co-locates with
-ingestion (ADR-0026). No new bronze table — both reuse the 0075 tables.
+ingestion (ADR-0026). The comment + metric halves reuse the 0075 bronze tables; **brand
+mentions** add ONE new bronze table, `meta_mentions` (front-end #1365).
 
-### Social Engagement (comments → silver `social_engagement`, migration 0210)
+### Social Engagement (comments + mentions → silver `social_engagement`, migration 0210)
 
 `Invoke-ImperionSocialEngagementSync` collects FB post comments + IG media comments into the
-existing `facebook_comments` / `instagram_comments` bronze, then `Invoke-ImperionSocialEngagementMerge`
-merges them to silver **`social_engagement`** (ADR-0124 #2 inbound split — the store that keeps
-public chatter OFF the contact-centric Interaction timeline). Two idempotent steps, each
+existing `facebook_comments` / `instagram_comments` bronze **and brand mentions into the new
+`meta_mentions` bronze**, then `Invoke-ImperionSocialEngagementMerge` merges all three to silver
+**`social_engagement`** (ADR-0124 #2 inbound split — the store that keeps public chatter OFF the
+contact-centric Interaction timeline). Three idempotent steps, each
 `ON CONFLICT (channel, external_id) DO NOTHING`:
 
 | Bronze | → silver `social_engagement` | channel | kind |
 | --- | --- | --- | --- |
 | `facebook_comments` | one row per comment | `facebook` | `comment` |
 | `instagram_comments` | one row per comment | `instagram` | `comment` |
+| `meta_mentions` | one row per brand mention | `facebook` / `instagram` (= `platform`) | `mention` |
 
 The merge lands ONLY the ingestion-owned columns: `channel`, `external_id`, `kind`, `body`,
 `posted_at`, the `author_*` fields (third-party PII — OKF lawful-basis note, ADR-0025), and
 `source_url`. It leaves `contact_id` / `intent` / `assigned_agent_key` NULL and `status` at its
 `'new'` default — **slice G** (contact-link on match) and triage set those. INSERT-only.
 
-**Brand MENTIONS are DEFERRED.** Meta has no brand-mention bronze table yet; the `kind` enum
-(`comment`|`mention`) and the merge are mention-ready, but landing mentions needs a new bronze
-table + collector (a front-end schema change — filed as an ImperionCRM issue, NOT authored here).
+#### Brand mentions (FB `/tagged` + IG `/tags` → bronze `meta_mentions`) — LP #391 / front-end #1365
+
+The MENTIONS half of the inbound split, now that the `meta_mentions` bronze table exists
+(front-end migration; this repo authors no migration, system CLAUDE.md §1).
+`Get-ImperionMetaMention` polls two edges, **fail-soft per-network** (one network's error never
+aborts the other, §1):
+
+| Edge | Meaning | `platform` | `mention_kind` |
+| --- | --- | --- | --- |
+| `GET /{page-id}/tagged` | posts our Page is tagged in | `facebook` | `tagged_post` |
+| `GET /{ig-user-id}/tags` | media our IG account is tagged in (IG user resolved from the linked Page) | `instagram` | `tagged_media` |
+
+`Set-ImperionMetaMentionToBronze` upserts into `meta_mentions` **`ON CONFLICT (platform,
+mention_id)`** (idempotent replace-from-source, no `content_hash` → `-NoChangeDetect`). The
+table is NOT the standard bronze envelope: its columns are `platform`, `mention_id`,
+`mention_kind`, `permalink`, `message`, `author_id`, `author_username`, `author_name`,
+`created_time`, `raw` (jsonb), plus DB-default `id` / `ingested_at`. The merge step maps
+`platform`→`channel`, `mention_id`→`external_id`, `message`→`body`, `created_time`→`posted_at`,
+`author_id/username/name`→`author_external_id/handle/display_name`, and `permalink`→`source_url`
+(the mention lives on someone else's content, so `on_social_post_channel_id` stays NULL).
+
+Both comment and mention collection run in ONE `Invoke-ImperionSocialEngagementSync` pass — the
+existing `Imperion-SocialEngagementSync` scheduled task, **no new task** (dormant until Mark's
+host `Register-ImperionTask`).
 
 > **GRANT GAP (verify before prod).** LP connects as the Postgres role
-> **`imperion-localpipeline`** (config `Db.Username`). Migration 0210 grants `social_engagement`
-> RW to **`mgid-imperioncrmpipeline`**, NOT to `imperion-localpipeline`. So the prod
-> `social_engagement` write FAILS CLOSED until the front-end adds the LP grant. A front-end
-> issue requests `GRANT SELECT, INSERT, UPDATE ON social_engagement TO "imperion-localpipeline"`
-> (schema/grants are front-end-owned, system CLAUDE.md §1 — no migration is authored in this
-> repo). The collector is built and idempotent; it converges on the next run once the grant
-> lands + applies. `social_metric` already grants LP write (0075), so the metric half is unaffected.
+> **`imperion-localpipeline`** (config `Db.Username`). Two grants are front-end-owned prereqs
+> (schema/grants are front-end-owned, system CLAUDE.md §1 — no migration authored here):
+> (1) `social_engagement` RW — migration 0210 granted it to `mgid-imperioncrmpipeline`, NOT to
+> `imperion-localpipeline`; the LP grant lands in **front-end migration 0212** (PR #1385, merged,
+> awaits Mark prod-apply). (2) `meta_mentions` RW to `imperion-localpipeline` — in the front-end
+> agent's migration alongside the table (front-end #1365). Until both apply, the prod writes FAIL
+> CLOSED and the next run converges. `social_metric` already grants LP write (0075), unaffected.
 
 ### Social Metric (post + ad insights → silver `social_metric`, NORMALIZED names — resolves #135)
 
