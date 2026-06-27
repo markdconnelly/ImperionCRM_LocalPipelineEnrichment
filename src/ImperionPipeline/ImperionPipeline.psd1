@@ -152,6 +152,7 @@
         'Get-ImperionAutotaskContract',
         'Get-ImperionAutotaskTicket',
         'Get-ImperionAutotaskTimeEntry',
+        'Get-ImperionAutotaskOpportunityField',
         'Get-ImperionM365User',
         'Get-ImperionM365Device',
         'Get-ImperionIntuneManagedApp',
