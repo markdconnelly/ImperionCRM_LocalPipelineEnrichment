@@ -1,16 +1,16 @@
 function Invoke-ImperionSocialEngagementSync {
     <#
     .SYNOPSIS
-        Collect FB/IG post comments into bronze, then merge them to the silver social_engagement store.
+        Collect FB/IG post comments + brand mentions into bronze, then merge them to silver social_engagement.
     .DESCRIPTION
         Thin orchestrator (CLAUDE.md §4, ADR-0007: cmdlet-first, no loose entry scripts) for slice
         H of the front-end Social plane (#357; epic #1338 / ADR-0124 decision 2). Promotes
         scheduled-tasks/meta/engagement.task.ps1. Hops to the Page token once (New Pages
         Experience, #133), collects post + media comments into the 0075 comment bronze tables,
-        then runs Invoke-ImperionSocialEngagementMerge (comments → silver social_engagement; the
-        merge co-locates with ingestion, ADR-0026). v1 lands COMMENTS only — brand mentions are
-        deferred until a Meta mention bronze table exists (front-end issue, see docs/integrations/
-        meta.md). Incremental window from IMPERION_META_SINCE_DAYS (default 7; 0 = full).
+        collects brand mentions (FB /tagged + IG /tags → meta_mentions bronze, LP #391 / front-end
+        #1365), then runs Invoke-ImperionSocialEngagementMerge (comments + mentions → silver
+        social_engagement; the merge co-locates with ingestion, ADR-0026). Mention collection is
+        fail-soft per-network. Incremental window from IMPERION_META_SINCE_DAYS (default 7; 0 = full).
 
         GATED: until IMPERION_META_PAGE_ID + the token are provisioned (and 0075 applied) the
         task logs the gap and exits cleanly; the next run converges (idempotent upsert + ON
@@ -43,6 +43,13 @@ function Invoke-ImperionSocialEngagementSync {
 
         $media = @(Get-ImperionInstagramMedia -PageId $pageId -Token $pageToken)
         $media | Get-ImperionInstagramComment -Token $pageToken | Set-ImperionInstagramCommentToBronze
+
+        # Brand MENTIONS (LP #391 / front-end #1365): FB /{page-id}/tagged + IG /{ig-user-id}/tags
+        # → meta_mentions bronze. Fail-soft per-network inside the collector; the same Since
+        # window applies. The merge below folds them into social_engagement (kind 'mention').
+        $mentionParameters = @{ PageId = $pageId; Token = $pageToken }
+        if ($since) { $mentionParameters.Since = $since }
+        Get-ImperionMetaMention @mentionParameters | Set-ImperionMetaMentionToBronze
 
         Invoke-ImperionSocialEngagementMerge
     }
