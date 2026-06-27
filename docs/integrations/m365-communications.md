@@ -46,6 +46,43 @@ permissions (Calendars.Read) — not protected-API gated.
 - `m365/teams-meeting` every 4h; look-back `IMPERION_M365_MEETING_SINCE_DAYS`
   (default 30).
 
+## Silver merge — `client_communication` (ADR-0126, LP #395)
+`Invoke-ImperionClientCommunicationMerge` folds the three comms bronze tables into the
+silver **`client_communication`** ledger (front-end migration 0211, epic
+ImperionCRM#1366) — the unified, **client-scoped** comms history (email + teams_chat +
+teams_meeting; the `social_dm` channel is the sibling sink, LP #383). Merge co-locates
+with ingestion (ADR-0026); idempotent, set-based, run AFTER the collectors.
+
+**The filter rule (the entity's defining contract).** For each bronze row the merge
+gathers all participant addresses (mail: from+to+cc; chat: members; meeting:
+organizer+attendees), splits the Imperion side from the non-Imperion side by domain
+(`-ImperionDomain`, default `imperionllc.com`), and resolves the client side to ONE DB
+account by, in precedence order:
+1. exact onboarded-contact email match (`contact.email`) → stamps `account_id` +
+   `contact_id` when **exactly one** distinct contact resolves;
+2. else `account_domain.domain` match → stamps `account_id` (contact_id NULL) when
+   **exactly one** distinct account resolves.
+
+A row resolving to no single account is **dropped** (the gate) — internal-only threads and
+ambiguous/unknown counterparties never land. So the bronze cross-org filter
+(`Test-ImperionCrossOrgComm`) is the coarse pass; THIS merge is the precise per-account
+attribution (FE #1369's silver concern).
+
+**PII-minimal (ADR-0126).** subject/topic only — **no message bodies** (the bronze doesn't
+collect them); `snippet` stays NULL for the M365 channels. `direction` = inbound
+(client→employee) / outbound (employee→client), derived from the sender (mail) / organizer
+(meeting); a chat carries no per-row sender so it lands `inbound` by convention.
+Idempotent upsert on `UNIQUE (channel, source_system, external_id)` with `content_hash`
+change detection (replace-from-source, ADR-0026). `data_class = client_pii`.
+
+**Grants:** migration 0211 grants `client_communication` SELECT,INSERT,UPDATE to
+`imperion-localpipeline` — no grant gap (unlike `social_engagement`/#357). GATED: 0211 is
+prod-applied (the #1366 wave); the merge writes whatever bronze exists and the upsert
+fails loudly until 0211 is present. **Registered by `Register-ImperionTask` as
+`\Imperion\Imperion-ClientCommunicationMerge` @ hourly (AFTER the mail/chat collectors)**
+— operator: re-run `Register-ImperionTask` once, then `Start-ScheduledTask -TaskName
+'Imperion-ClientCommunicationMerge' -TaskPath '\Imperion\'` to run on demand.
+
 ## Provenance & consent
 Rows are stamped source/collected_at per the envelope; communications data feeds the
 timeline/dossier only — having a thread is **never** consent to contact (front-end
