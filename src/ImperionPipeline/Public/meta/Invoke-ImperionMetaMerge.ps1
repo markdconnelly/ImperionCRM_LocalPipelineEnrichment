@@ -1,7 +1,7 @@
 function Invoke-ImperionMetaMerge {
     <#
     .SYNOPSIS
-        Merge the meta bronze tables into silver: interaction, lead capture (DM senders), and social_metric.
+        Merge the meta bronze tables into silver: interaction, lead capture (DM senders), social_metric, and client_communication (social_dm for DMs with an onboarded client).
     .DESCRIPTION
         The bronze→silver merge for the Meta source (issue #126; IG DMs LocalPipeline #361),
         owned by this repo on the posture-merge precedent (ADR-0010 / ADR-0013; grants from
@@ -27,6 +27,16 @@ function Invoke-ImperionMetaMerge {
           6. meta_insights → social_metric (platform facebook for entity_kind page,
              else instagram; guarded numeric/timestamptz casts; ON CONFLICT DO NOTHING
              on the 0075 unique key).
+          7-8. facebook_messages / instagram_messages → client_communication
+             (channel social_dm; source_system meta_messenger / instagram_dm; #383,
+             front-end #1370 / docs/database/social-dm-foldin.md). The SECOND, FILTERED
+             projection of the DM bronze (alongside step 4's unfiltered interaction):
+             retained ONLY when the non-Imperion counterparty resolves to a LINKED client
+             contact via contact_social_identity (INNER JOIN LATERAL = the filter gate; no
+             account_domain path — handles carry no email domain). PII-minimal: subject
+             NULL, snippet = truncated message preview, NEVER the body (ADR-0126). direction
+             by sender (inbound = client→Imperion). Idempotent upsert on the 0211 key
+             (channel, source_system, external_id) with content_hash change detection.
 
         Bronze text timestamps are cast with regex guards (the posture-merge pattern) so
         junk lands as the collected_at fallback, never throws. INSERT-only — never
@@ -332,6 +342,93 @@ SELECT CASE WHEN b.entity_kind = 'page' THEN 'facebook' ELSE 'instagram' END,
  WHERE b.entity_kind IS NOT NULL AND b.entity_external_id IS NOT NULL AND b.metric IS NOT NULL
    AND b.period IS NOT NULL  -- NULLs are distinct under the unique key: a NULL period would defeat ON CONFLICT and duplicate on re-run
 ON CONFLICT (platform, entity_kind, entity_external_id, metric, period, captured_at) DO NOTHING
+"@
+
+        # ── 7-8. DMs with an onboarded client → client_communication (social_dm) ──────
+        # The SECOND, filtered projection of the DM bronze (#383, front-end #1370 /
+        # docs/database/social-dm-foldin.md; silver client_communication 0211, ADR-0126).
+        # A DM is retained ONLY when its non-Imperion counterparty resolves to a LINKED
+        # client contact via contact_social_identity (the table steps 5b/5e populate) —
+        # the INNER JOIN LATERAL is the filter gate, so prospect/public DMs (no linked
+        # contact) stay interaction/lead_capture-only and never enter the client-comms
+        # ledger. No account_domain path (handles carry no email domain). PII-minimal:
+        # subject NULL, snippet = truncated message preview, NEVER the full body
+        # (ADR-0126 privacy posture; the full text stays in interaction / bronze).
+        # direction by sender (inbound = client→Imperion). Idempotent upsert on the 0211
+        # key (channel, source_system, external_id) with content_hash change detection.
+
+        # 7. facebook_messages → client_communication (channel social_dm, source meta_messenger)
+        $tally['fb_dm_to_client_communication'] = Invoke-ImperionDbNonQuery -Connection $Connection -Sql @"
+INSERT INTO client_communication
+  (account_id, contact_id, channel, direction, client_participants, imperion_participants,
+   subject, snippet, occurred_at, source_system, external_id, thread_ref, content_hash, data_class)
+SELECT link.account_id, link.contact_id, 'social_dm'::client_communication_channel,
+       CASE WHEN b.from_id = b.page_id THEN 'outbound'::client_communication_direction
+            ELSE 'inbound'::client_communication_direction END,
+       ARRAY[ coalesce(NULLIF(CASE WHEN b.from_id = b.page_id THEN b.to_name ELSE b.from_name END, ''),
+                       CASE WHEN b.from_id = b.page_id THEN b.to_id ELSE b.from_id END) ],
+       ARRAY[ b.page_id ],
+       NULL, left(b.message, 280),
+       CASE WHEN b.created_time ~ '^\d{4}-\d{2}-\d{2}' THEN b.created_time::timestamptz
+            ELSE b.collected_at::timestamptz END,
+       'meta_messenger', b.external_id, b.conversation_id, b.content_hash, 'client_pii'
+  FROM facebook_messages b
+  JOIN LATERAL (
+        SELECT c.account_id, c.id AS contact_id
+          FROM contact_social_identity csi
+          JOIN contact c ON c.id = csi.contact_id
+         WHERE csi.platform = 'facebook' AND c.account_id IS NOT NULL
+           AND csi.external_id = CASE WHEN b.from_id = b.page_id THEN b.to_id ELSE b.from_id END
+         LIMIT 1) link ON true
+ WHERE b.external_id <> '' AND b.page_id IS NOT NULL   -- defense-in-depth vs envelope rows (#133)
+ON CONFLICT (channel, source_system, external_id) DO UPDATE SET
+    account_id            = EXCLUDED.account_id,
+    contact_id            = EXCLUDED.contact_id,
+    direction             = EXCLUDED.direction,
+    client_participants   = EXCLUDED.client_participants,
+    imperion_participants = EXCLUDED.imperion_participants,
+    snippet               = EXCLUDED.snippet,
+    occurred_at           = EXCLUDED.occurred_at,
+    thread_ref            = EXCLUDED.thread_ref,
+    content_hash          = EXCLUDED.content_hash
+  WHERE client_communication.content_hash IS DISTINCT FROM EXCLUDED.content_hash
+"@
+
+        # 8. instagram_messages → client_communication (channel social_dm, source instagram_dm)
+        $tally['ig_dm_to_client_communication'] = Invoke-ImperionDbNonQuery -Connection $Connection -Sql @"
+INSERT INTO client_communication
+  (account_id, contact_id, channel, direction, client_participants, imperion_participants,
+   subject, snippet, occurred_at, source_system, external_id, thread_ref, content_hash, data_class)
+SELECT link.account_id, link.contact_id, 'social_dm'::client_communication_channel,
+       CASE WHEN b.from_id = b.ig_user_id THEN 'outbound'::client_communication_direction
+            ELSE 'inbound'::client_communication_direction END,
+       ARRAY[ coalesce(NULLIF(CASE WHEN b.from_id = b.ig_user_id THEN b.to_username ELSE b.from_username END, ''),
+                       CASE WHEN b.from_id = b.ig_user_id THEN b.to_id ELSE b.from_id END) ],
+       ARRAY[ b.ig_user_id ],
+       NULL, left(b.message, 280),
+       CASE WHEN b.created_time ~ '^\d{4}-\d{2}-\d{2}' THEN b.created_time::timestamptz
+            ELSE b.collected_at::timestamptz END,
+       'instagram_dm', b.external_id, b.conversation_id, b.content_hash, 'client_pii'
+  FROM instagram_messages b
+  JOIN LATERAL (
+        SELECT c.account_id, c.id AS contact_id
+          FROM contact_social_identity csi
+          JOIN contact c ON c.id = csi.contact_id
+         WHERE csi.platform = 'instagram' AND c.account_id IS NOT NULL
+           AND csi.external_id = CASE WHEN b.from_id = b.ig_user_id THEN b.to_id ELSE b.from_id END
+         LIMIT 1) link ON true
+ WHERE b.external_id <> '' AND b.ig_user_id IS NOT NULL   -- defense-in-depth vs envelope rows (#133)
+ON CONFLICT (channel, source_system, external_id) DO UPDATE SET
+    account_id            = EXCLUDED.account_id,
+    contact_id            = EXCLUDED.contact_id,
+    direction             = EXCLUDED.direction,
+    client_participants   = EXCLUDED.client_participants,
+    imperion_participants = EXCLUDED.imperion_participants,
+    snippet               = EXCLUDED.snippet,
+    occurred_at           = EXCLUDED.occurred_at,
+    thread_ref            = EXCLUDED.thread_ref,
+    content_hash          = EXCLUDED.content_hash
+  WHERE client_communication.content_hash IS DISTINCT FROM EXCLUDED.content_hash
 "@
 
         $metrics = [ordered]@{ seconds = [math]::Round(((Get-Date) - $started).TotalSeconds, 1) }

@@ -77,6 +77,19 @@ messages"); a minimal `contact` + `contact_social_identity` (platform `facebook`
 `payload_bronze->>'from_id'`.
 6. `meta_insights` → `social_metric` (platform `facebook` for `entity_kind='page'`,
 else `instagram`; guarded numeric/timestamptz casts).
+7–8. **DMs with an onboarded client → `client_communication` (`social_dm`)** — the SECOND,
+FILTERED projection of the same DM bronze (#383, front-end #1370 /
+`docs/database/social-dm-foldin.md`; silver `client_communication` 0211, ADR-0126),
+alongside step 4's unfiltered `interaction` timeline. `facebook_messages` →
+`source_system=meta_messenger`, `instagram_messages` → `source_system=instagram_dm`. A DM
+is retained **iff** its non-Imperion counterparty resolves to a **linked client contact**
+via `contact_social_identity` (an INNER JOIN LATERAL — the filter gate; **no `account_domain`
+path**, handles have no email domain). Stamps `account_id` (+ `contact_id`). PII-minimal:
+`subject` NULL, `snippet` = truncated message preview (**never the full body**, ADR-0126
+privacy), `data_class=client_pii`; `direction` by sender (inbound = client→Imperion).
+Idempotent **upsert** on `(channel, source_system, external_id)` with `content_hash` change
+detection — so unlike steps 1–6 this step DOES `UPDATE` (a content-changed re-merge refreshes
+the row). Unlinked-handle DMs stay `interaction` / `lead_capture_event` only (step 5).
 
 ## Lead Ads (separate track — `leads_retrieval`, LP #362 / front-end migration 0207)
 

@@ -34,16 +34,44 @@ Describe 'Invoke-ImperionMetaMerge' {
             }
         }
 
-        It 'runs all thirteen steps and returns the tally' {
+        It 'runs all fifteen steps and returns the tally' {
             InModuleScope ImperionPipeline {
                 $tally = Invoke-ImperionMetaMerge -Confirm:$false
-                # 6 interaction inserts + FB lead(hook/contacts/captures) + IG lead(hook/contacts/captures) + social_metric
-                $script:capturedMergeSql.Count | Should -Be 13
+                # 6 interaction inserts + FB lead(hook/contacts/captures) + IG lead(hook/contacts/captures)
+                # + social_metric + 2 social_dm → client_communication (#383)
+                $script:capturedMergeSql.Count | Should -Be 15
                 $tally.facebook_posts_to_interaction | Should -Be 1
                 $tally.instagram_messages_to_interaction | Should -Be 1
                 $tally.ig_lead_captures_created | Should -Be 1
                 $tally.social_metrics_merged | Should -Be 1
+                $tally.fb_dm_to_client_communication | Should -Be 1
+                $tally.ig_dm_to_client_communication | Should -Be 1
                 Should -Invoke Write-ImperionLog -Times 1 -ParameterFilter { $Level -eq 'Metric' -and $Message -match 'Meta merge complete' }
+            }
+        }
+
+        It 'folds DMs into client_communication (social_dm) only when a linked client contact resolves' {
+            InModuleScope ImperionPipeline {
+                Invoke-ImperionMetaMerge -Confirm:$false | Out-Null
+                $dmInserts = @($script:capturedMergeSql | Where-Object { $_ -match 'INSERT INTO client_communication' })
+                $dmInserts.Count | Should -Be 2
+                foreach ($sql in $dmInserts) {
+                    # the filter gate: an INNER JOIN LATERAL to contact_social_identity → contact (account-linked)
+                    $sql | Should -Match "(?s)JOIN LATERAL \(\s*SELECT c\.account_id, c\.id AS contact_id\s+FROM contact_social_identity csi\s+JOIN contact c ON c\.id = csi\.contact_id"
+                    $sql | Should -Match "c\.account_id IS NOT NULL"
+                    $sql | Should -Match "'social_dm'::client_communication_channel"
+                    # PII-minimal: subject NULL, snippet truncated preview (never the full body)
+                    $sql | Should -Match 'left\(b\.message, 280\)'
+                    $sql | Should -Match "'client_pii'"
+                    # idempotent on the 0211 key with content_hash change detection
+                    $sql | Should -Match 'ON CONFLICT \(channel, source_system, external_id\) DO UPDATE'
+                    $sql | Should -Match 'content_hash IS DISTINCT FROM EXCLUDED\.content_hash'
+                }
+                # provenance labels + the platform-specific identity match
+                @($dmInserts | Where-Object { $_ -match "'meta_messenger'" }).Count | Should -Be 1
+                @($dmInserts | Where-Object { $_ -match "'instagram_dm'"   }).Count | Should -Be 1
+                @($dmInserts | Where-Object { $_ -match "csi\.platform = 'facebook'"  }).Count | Should -Be 1
+                @($dmInserts | Where-Object { $_ -match "csi\.platform = 'instagram'" }).Count | Should -Be 1
             }
         }
 
