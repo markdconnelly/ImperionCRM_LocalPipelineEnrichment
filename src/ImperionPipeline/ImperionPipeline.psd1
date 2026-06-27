@@ -311,6 +311,7 @@
         'Invoke-ImperionSocialMetricMerge',
         'Invoke-ImperionThreadsMerge',
         'Invoke-ImperionM365DirectoryMerge',
+        'Invoke-ImperionClientCommunicationMerge',
         'Invoke-ImperionPax8Merge',
         'Invoke-ImperionITGlueExportToBronze',
         # Gold knowledge + vectorization (ADR-0009; front-end migration 0045)
