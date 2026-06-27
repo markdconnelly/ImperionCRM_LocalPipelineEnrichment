@@ -9,12 +9,43 @@ function Invoke-ImperionPolicySync {
         XDR endpoint-security policies; flattens and upserts each to its observed bronze table
         with change detection; then compares each observed policy to its golden state and logs
         drift. Defender vs. Intune-security split is by endpoint-security template family
-        (flagged as an assumption — docs/integrations/security-posture-policies.md). Requires
+        (flagged as an assumption — docs/integrations/security-posture-policies.md).
+
+        Per-client security posture (ADR-0126): fans out over EVERY mapped client tenant via
+        Invoke-ImperionM365EstateSweep — the same registry-driven (account_tenant join an active
+        m365 connection), per-tenant fail-isolated sweep the directory collectors already use
+        (#358/#266) — instead of the home tenant only. A tenant with no consent/credential is
+        skipped (Warn) and never blocks the rest. Idempotent (change-detected upsert). Requires
         Initialize-ImperionContext.
     .PARAMETER TenantId
-        Tenant to poll; defaults to the partner tenant (GDAP for customer tenants).
+        Pins the sweep to one tenant (the tenant-outer driver, #359); omit for the registry-driven
+        estate fan-out (#358). Customer tenants are reached via the per-client onboarding app (§3).
     .EXAMPLE
         Invoke-ImperionPolicySync
+    #>
+    [CmdletBinding()]
+    param([string] $TenantId)
+
+    # Fan out over the mapped client tenants (ADR-0126); -TenantId pins one (#359). The original
+    # single-tenant body runs verbatim per tenant inside the fail-isolated sweep (#358/#266).
+    $sweep = @{}
+    if ($PSBoundParameters.ContainsKey('TenantId')) { $sweep.TenantId = $TenantId }
+    Invoke-ImperionM365EstateSweep @sweep -Source 'm365' -Label 'M365 security-posture policies' -PerTenant {
+        param($TenantId)
+        Invoke-ImperionPolicySyncForTenant -TenantId $TenantId
+    }
+}
+
+function Invoke-ImperionPolicySyncForTenant {
+    <#
+    .SYNOPSIS
+        Pull + drift-check one tenant's security-posture policies (the single-tenant body).
+    .DESCRIPTION
+        The single-tenant body behind Invoke-ImperionPolicySync — split out so the public cmdlet can
+        fan it out per mapped client tenant via Invoke-ImperionM365EstateSweep (ADR-0126). A $null
+        -TenantId falls back to the partner tenant (dormant-safe). Requires Initialize-ImperionContext.
+    .PARAMETER TenantId
+        Tenant to poll; $null/empty falls back to the partner tenant.
     #>
     [CmdletBinding()]
     param([string] $TenantId)

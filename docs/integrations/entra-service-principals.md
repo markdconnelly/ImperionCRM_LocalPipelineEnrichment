@@ -11,11 +11,16 @@ in Postgres bronze.
 - **Graph permission required:** `Application.Read.All` *or* `Directory.Read.All`
   (application permission, read-only). This is part of the onboarding app's
   read-only-by-default grant (pipeline ADR-0018).
-- **Tenant scope:** Imperion's own tenant by default. To inventory **client** tenants,
-  acquire a client-credentials Graph token as the consented onboarding app **in each
-  client tenant** (CLAUDE.md §3) and loop — one IT Glue organization per client tenant.
-  *(The per-client-app multi-tenant loop is the documented extension; the first cut
-  targets Imperion's own tenant.)*
+- **Tenant scope (per-client security posture, ADR-0126 / #379):**
+  `Invoke-ImperionServicePrincipalSync` fans out across **every mapped client tenant** via
+  `Invoke-ImperionM365EstateSweep` — the registry-driven (`account_tenant ⨝` an active `m365`
+  `connection`, `Get-ImperionConsentedTenant`), per-tenant fail-isolated sweep the directory
+  collectors use (#358/#266). Each tenant's Graph is read with a client-credentials token as the
+  consented onboarding app **in that tenant** (CLAUDE.md §3); a tenant with no consent/credential
+  is skipped (Warn), never blocking the rest. `IMPERION_M365_TENANT_IDS` pins a subset, `-TenantId`
+  pins one; an empty registry is dormant-safe (partner tenant once). *(IT Glue documentation is
+  per-`-OrganizationId` — pass the org id when documenting a specific tenant; the bronze upsert
+  runs for all.)*
 
 ## Source endpoint
 `GET https://graph.microsoft.com/v1.0/servicePrincipals` (paged via `@odata.nextLink`).

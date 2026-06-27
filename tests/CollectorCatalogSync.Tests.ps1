@@ -59,13 +59,30 @@ Describe 'Collector *Sync cmdlets compose their collection layer' {
         }
     }
 
-    It 'a gated wrapper logs + exits cleanly when its collector throws (fail-closed)' {
+    It 'the incident wrapper fails closed per-tenant via the estate sweep (#379)' {
         InModuleScope ImperionPipeline {
+            # Empty env + empty registry => one dormant-safe partner run; the collector throws, the
+            # sweep isolates it (Warn skip) and exits cleanly (per-tenant isolation, #266/#379).
+            $env:IMPERION_M365_TENANT_IDS = ''
+            Mock Get-ImperionConsentedTenant { @() }
             Mock Get-ImperionSecurityIncident { throw 'no consent' }
             Mock Set-ImperionSecurityIncidentToBronze {}
             Mock Write-ImperionLog {}
             { Invoke-ImperionSecurityIncidentSync } | Should -Not -Throw
-            Should -Invoke Write-ImperionLog -Times 1
+            Should -Invoke Write-ImperionLog -ParameterFilter { $Level -eq 'Warn' } -Times 1
+        }
+    }
+
+    It 'the incident wrapper fans out over the consented-tenant registry (#379)' {
+        InModuleScope ImperionPipeline {
+            $env:IMPERION_M365_TENANT_IDS = ''
+            Mock Get-ImperionConsentedTenant { @('tenant-a', 'tenant-b') }
+            $script:seenIncidentTenants = [System.Collections.Generic.List[object]]::new()
+            Mock Get-ImperionSecurityIncident { $script:seenIncidentTenants.Add($TenantId); , @() }
+            Mock Set-ImperionSecurityIncidentToBronze {}
+            Mock Write-ImperionLog {}
+            Invoke-ImperionSecurityIncidentSync
+            $script:seenIncidentTenants | Should -Be @('tenant-a', 'tenant-b')
         }
     }
 }

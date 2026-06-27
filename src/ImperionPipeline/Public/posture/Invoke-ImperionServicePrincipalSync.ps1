@@ -3,9 +3,16 @@ function Invoke-ImperionServicePrincipalSync {
     .SYNOPSIS
         Inventory Entra service principals, optionally document them in IT Glue, and land them in Postgres bronze.
     .DESCRIPTION
-        Canonical flatten -> IT Glue -> Postgres pattern (ADR-0006). Requires Initialize-ImperionContext.
+        Canonical flatten -> IT Glue -> Postgres pattern (ADR-0006). Per-client security posture
+        (ADR-0126): fans out over EVERY mapped client tenant via Invoke-ImperionM365EstateSweep —
+        the same registry-driven (account_tenant join an active m365 connection), per-tenant
+        fail-isolated sweep the directory collectors already use (#358/#266) — instead of the home
+        tenant only. A tenant with no consent/credential is skipped (Warn) and never blocks the
+        rest. Idempotent (change-detected upsert) — re-runs converge. Requires
+        Initialize-ImperionContext.
     .PARAMETER TenantId
-        Tenant to inventory; defaults to the partner tenant. Customer tenants use GDAP.
+        Pins the sweep to one tenant (the tenant-outer driver, #359); omit for the registry-driven
+        estate fan-out (#358). Customer tenants are reached via the per-client onboarding app (§3).
     .PARAMETER OrganizationId
         IT Glue organization id to relate assets to. Omit (or -SkipITGlue) to skip the hub write.
     .PARAMETER SkipITGlue
@@ -14,6 +21,38 @@ function Invoke-ImperionServicePrincipalSync {
         Create the 'Azure Service Principal' flexible asset type if absent (one-time setup).
     .EXAMPLE
         Invoke-ImperionServicePrincipalSync -OrganizationId 42
+    #>
+    [CmdletBinding(SupportsShouldProcess)]
+    param(
+        [string] $TenantId,
+        [int] $OrganizationId,
+        [switch] $SkipITGlue,
+        [switch] $CreateTypeIfMissing
+    )
+
+    # Fan out over the mapped client tenants (ADR-0126); -TenantId pins one (#359). The original
+    # single-tenant body runs verbatim per tenant inside the fail-isolated sweep (#358/#266); a
+    # $null tenant (empty registry, dormant-safe) falls back to the partner tenant as before.
+    $sweep = @{}
+    if ($PSBoundParameters.ContainsKey('TenantId')) { $sweep.TenantId = $TenantId }
+    Invoke-ImperionM365EstateSweep @sweep -Source 'm365' -Label 'Entra service principals' -PerTenant {
+        param($TenantId)
+        Invoke-ImperionServicePrincipalSyncForTenant -TenantId $TenantId `
+            -OrganizationId $OrganizationId -SkipITGlue:$SkipITGlue -CreateTypeIfMissing:$CreateTypeIfMissing
+    }
+}
+
+function Invoke-ImperionServicePrincipalSyncForTenant {
+    <#
+    .SYNOPSIS
+        Inventory one tenant's Entra service principals → (optional IT Glue) → Postgres bronze.
+    .DESCRIPTION
+        The single-tenant body behind Invoke-ImperionServicePrincipalSync — split out so the public
+        cmdlet can fan it out per mapped client tenant via Invoke-ImperionM365EstateSweep (ADR-0126).
+        Identical flatten -> IT Glue -> Postgres pattern (ADR-0006); a $null -TenantId falls back to
+        the partner tenant (dormant-safe). Requires Initialize-ImperionContext.
+    .PARAMETER TenantId
+        Tenant to inventory; $null/empty falls back to the partner tenant.
     #>
     [CmdletBinding(SupportsShouldProcess)]
     param(
