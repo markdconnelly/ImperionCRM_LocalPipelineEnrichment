@@ -7,8 +7,13 @@ Cmdlets: `Invoke-ImperionPolicySync`, `Get-ImperionPolicyDrift`, `Set-ImperionPo
 ## Auth (read-only, pipeline ADR-0018)
 Cert app-only Graph token. Permissions: `Policy.Read.All` (Conditional Access),
 `DeviceManagementConfiguration.Read.All` (Intune security / device config / endpoint
-security), `DeviceManagementServiceConfig.Read.All` (Autopilot). Imperion's own tenant
-default; client tenants via the per-client onboarding app (§3).
+security), `DeviceManagementServiceConfig.Read.All` (Autopilot). Per-client security posture (ADR-0126):
+`Invoke-ImperionPolicySync` fans out across **every mapped client tenant** via
+`Invoke-ImperionM365EstateSweep` — the registry-driven (`account_tenant ⨝` an active `m365`
+`connection`), per-tenant fail-isolated sweep the directory collectors use (#358/#266; #379).
+`IMPERION_M365_TENANT_IDS` pins a subset, `-TenantId` pins one; an empty registry is dormant-safe
+(partner tenant once). Each client tenant is reached via the per-client onboarding app (§3); a
+tenant with no consent/credential is skipped (Warn), never blocking the rest.
 
 ## Policy types, endpoints, tables
 | Type | Graph endpoint | Observed table | Golden table |

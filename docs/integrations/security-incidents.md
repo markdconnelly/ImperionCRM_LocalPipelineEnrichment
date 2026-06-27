@@ -54,8 +54,12 @@ tables are a recent-fidelity overlay. The link is `m365_incidents.autotask_ticke
 admin-consented **onboarding app**, NOT GDAP (#196 phrases it "GDAP read-only"; that maps to the
 onboarding-app model, ADR-0019 §Context). Application permissions
 **SecurityIncident.Read.All + SecurityAlert.Read.All** (read-only; already the Defender
-collector's grant — no net-new grant). Single-tenant against the Imperion company tenant by
-default; fan-out via `IMPERION_M365_TENANT_IDS`. **Per-tenant isolation is absolute** — every row
+collector's grant — no net-new grant). Per-client security posture (ADR-0126): `Invoke-ImperionSecurityIncidentSync`
+fans out across **every mapped client tenant** via `Invoke-ImperionM365EstateSweep` — the same
+registry-driven (`account_tenant ⨝` an active `m365` `connection`, `Get-ImperionConsentedTenant`),
+per-tenant fail-isolated sweep the directory collectors use (#358/#266). `IMPERION_M365_TENANT_IDS`
+pins a subset and `-TenantId` pins one; an empty registry is dormant-safe (partner tenant once).
+**Per-tenant isolation is absolute** — every row
 is stamped with its owning tenant; an unconsented tenant is never reached (fail closed). **No
 secret values** are ever in code/logs/tests/commits — names only (CLAUDE.md §2).
 
