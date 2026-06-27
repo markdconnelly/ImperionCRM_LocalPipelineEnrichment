@@ -1,17 +1,26 @@
-# Integration — Scoped interaction capture (allowlisted principal ↔ client only)
+# Integration — Home-tenant interaction capture (mail / Teams chat / Teams meetings)
 
-**Purpose.** Land the account-history interaction loop (mail + Teams chat) in bronze
-`m365_email` / `m365_teams` — but **tightly scoped** so only communications that are
-genuinely part of a client's history, for the people we have a basis to capture, ever enter
-the store (issue #199 / epic #194 child E, ADR-0022). This is the **message-grain** successor
-to the broad cross-org collectors (`Get-ImperionM365Mail` → `m365_mail_messages`, migration
-0065); both coexist.
+**Purpose.** Land the account-history interaction loop (mail + Teams chat + Teams meetings) in
+bronze `m365_email` / `m365_teams` / `m365_teams_meetings` (issue #199 / epic #194 child E,
+ADR-0022). These are the **message-grain** counterparts to the broad cross-org collectors
+(`Get-ImperionM365Mail` → `m365_mail_messages`, migration 0065); both coexist.
+
+> **Capture model (front-end ADR-0126 / FE #1366, this repo's #380).** Client communications
+> are pulled from **Imperion's OWN tenant** (client tenants do NOT hold Mail.Read / Chat.Read /
+> Calendars.Read) and are filtered to DB clients **LATER, at the silver layer** (front-end
+> #1369), against `account_domain` + onboarded contacts. **These collectors therefore do NOT
+> filter at collection.** This is the fix for the 0-row prod state (#380): the previous
+> collection-time client filter dropped every message/chat/meeting whenever the silver client
+> set (`account_domain`) was empty — which it is in prod — so a fully-consented collector still
+> landed nothing. We over-collect at bronze and narrow at silver (CLAUDE.md §5 bronze rule).
+> The allowlist below now selects WHICH MAILBOXES / PRINCIPALS to pull, not which items to keep.
 
 ## Pipeline (CLAUDE.md §6 — straight to Postgres, IT Glue skipped)
-| Entity | Get | Post | Bronze table (frontend migration 0120) | Source |
+| Entity | Get | Post | Bronze table (frontend migration) | Source |
 | --- | --- | --- | --- | --- |
-| Mail | `Get-ImperionScopedInteractionMail` | `Set-ImperionScopedInteractionMailToBronze` | `m365_email` | `m365_email` |
-| Teams chat | `Get-ImperionScopedInteractionTeams` | `Set-ImperionScopedInteractionTeamsToBronze` | `m365_teams` | `m365_teams` |
+| Mail | `Get-ImperionScopedInteractionMail` | `Set-ImperionScopedInteractionMailToBronze` | `m365_email` (0120) | `m365_email` |
+| Teams chat | `Get-ImperionScopedInteractionTeams` | `Set-ImperionScopedInteractionTeamsToBronze` | `m365_teams` (0120) | `m365_teams` |
+| Teams meetings | `Get-ImperionM365TeamsMeeting` | `Set-ImperionM365TeamsMeetingToBronze` | `m365_teams_meetings` (0065) | `m365_teams` |
 
 Standard lossless envelope, PK `(tenant_id, source, external_id)` (external_id = the Graph
 message id), change-detected upsert via the issue-#105 `Invoke-ImperionBronzePost` scaffold
@@ -21,22 +30,22 @@ from_address, to_recipients, direction, sent_at, has_attachments, mailbox_owner.
 message/conversation id, preview, from_user, participants, direction, message_type, sent_at,
 has_attachments, captured_user.
 
-## The scope rule (filter AT COLLECTION, before bronze)
-A communication is captured **iff** over its participant addresses BOTH hold
-(`Test-ImperionScopedInteraction`, a pure unit-tested predicate):
-1. an **allowlisted principal** is a participant (the config-driven two-person set); AND
-2. a **client counterpart** is a participant — exact address ∈ silver `contact.email`, OR its
-   domain ∈ the known client domains (`Resolve-ImperionClientContactSet`, reading `contact`
-   JOIN `account`).
+## Scoping — at SILVER, not at collection (ADR-0126)
+There is **no collection-time client filter**. Every message/chat/meeting from the allowlisted
+mailboxes/principals lands in bronze. The client-scoping decision (keep only direct
+client↔employee history; drop internal/non-client traffic) is owned by the **silver client-comms
+filter in the front end (FE #1369)**, run against `account_domain` + onboarded contacts.
 
-Dropped by construction: internal-only threads; threads with a non-client external party
-(e.g. a vendor) and no client counterpart; any thread not involving an allowlisted principal
-— even client mail of a non-allowlisted employee. This respects the enrichment/lawful-basis
-guardrail (CLAUDE.md §8; front-end consent gate): having a thread is **never** consent to
-contact.
+Historical note: the previous `Test-ImperionScopedInteraction` /
+`Resolve-ImperionClientContactSet` collection-time predicate (kept only allowlisted-principal ↔
+known-client items) is retired from the collector path by #380; it is no longer wired in (the
+helper functions and their unit tests remain in the repo for potential reuse by the silver
+filter, but no collector calls them). The lawful-basis guardrail (CLAUDE.md §8) still holds:
+the data is captured for the company's own account-history second brain; having a thread is
+**never** consent to contact, and the silver filter narrows it to real clients.
 
 ## The allowlist is CONFIG, not code
-The principals whose client communications are captured live in a machine config json —
+The mailboxes/principals whose communications are captured live in a machine config json —
 **not hardcoded**, so the set changes WITHOUT a code release:
 
 - Path (default): `%ProgramData%\Imperion\interaction-allowlist.json`
@@ -76,6 +85,9 @@ on consent + config only.
 - `m365/scoped-interaction-mail` hourly; look-back `-SinceDays` (default 7).
 - `m365/scoped-interaction-teams` hourly (chat list API has no server-side date filter; the
   change-detected upsert keeps re-runs cheap).
+- `m365/teams-meeting` every 4h; gated only on `IMPERION_M365_USERS` (which calendars to pull —
+  the `IMPERION_M365_CLIENT_DOMAINS` filter was removed by #380); look-back
+  `IMPERION_M365_MEETING_SINCE_DAYS` (default 30).
 
 ## CONFIRM-BEFORE-LIVE
 The Graph `/messages` + `/chats/{id}/messages` field names, the `receivedDateTime` filter, the

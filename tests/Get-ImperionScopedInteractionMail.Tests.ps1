@@ -1,6 +1,7 @@
 #Requires -Modules Pester
-# Hermetic tests for Get-ImperionScopedInteractionMail: allowlist/client-set/Graph mocked; the real
-# scope predicate runs end-to-end.
+# Hermetic tests for Get-ImperionScopedInteractionMail: allowlist/Graph mocked. Per ADR-0126 / #380
+# the collector pulls EVERY home-tenant message from the allowlisted mailboxes (no collection-time
+# client filter; client scoping moved to silver, FE #1369). The allowlist only selects mailboxes.
 
 BeforeAll {
     $module = Join-Path (Split-Path -Parent $PSScriptRoot) 'src\ImperionPipeline\ImperionPipeline.psd1'
@@ -38,11 +39,10 @@ Describe 'Get-ImperionScopedInteractionMail' {
             Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner' } }
             Mock Get-ImperionGraphToken { 'graph-token' }
             Mock Write-ImperionLog { }
-            Mock Resolve-ImperionClientContactSet { New-ClientSet -Domains @('acme.com') }
         }
     }
 
-    It 'keeps ONLY allowlisted-principal-to-client mail and flattens it to m365_email columns' {
+    It 'pulls EVERY message from the allowlisted mailbox and flattens to m365_email columns (no collection-time client filter)' {
         InModuleScope ImperionPipeline {
             Mock Resolve-ImperionInteractionAllowlist { , @('derek@imperionllc.com') }
             Mock Invoke-ImperionGraphRequest {
@@ -52,15 +52,17 @@ Describe 'Get-ImperionScopedInteractionMail' {
                 , @($client, $internal, $vendor)
             }
             $rows = @(Get-ImperionScopedInteractionMail -Connection ([pscustomobject]@{}))
-            $rows.Count           | Should -Be 1
-            $rows[0].external_id  | Should -Be 'm1'
-            $rows[0].message_id   | Should -Be 'm1'
-            $rows[0].subject      | Should -Be 'Client thread'
-            $rows[0].from_address | Should -Be 'derek@imperionllc.com'
-            $rows[0].to_recipients | Should -Be 'sam@acme.com'
-            $rows[0].direction | Should -Be 'outbound'
-            $rows[0].mailbox_owner | Should -Be 'derek@imperionllc.com'
-            $rows[0].source       | Should -Be 'm365_email'
+            # ADR-0126: all three land at bronze; the client filter is a silver concern (FE #1369).
+            $rows.Count           | Should -Be 3
+            ($rows.external_id | Sort-Object) | Should -Be @('m1', 'm2', 'm3')
+            $clientRow = $rows | Where-Object { $_.external_id -eq 'm1' }
+            $clientRow.message_id    | Should -Be 'm1'
+            $clientRow.subject       | Should -Be 'Client thread'
+            $clientRow.from_address  | Should -Be 'derek@imperionllc.com'
+            $clientRow.to_recipients | Should -Be 'sam@acme.com'
+            $clientRow.direction     | Should -Be 'outbound'
+            $clientRow.mailbox_owner | Should -Be 'derek@imperionllc.com'
+            $clientRow.source        | Should -Be 'm365_email'
         }
     }
 
@@ -84,12 +86,15 @@ Describe 'Get-ImperionScopedInteractionMail' {
         }
     }
 
-    It 'does not throw on a message missing from/recipients' {
+    It 'does not throw on a message missing from/recipients and still captures it (inbound by default)' {
         InModuleScope ImperionPipeline {
             Mock Resolve-ImperionInteractionAllowlist { , @('derek@imperionllc.com') }
             Mock Invoke-ImperionGraphRequest { , @([pscustomobject]@{ id = 'x'; subject = 'No recipients'; receivedDateTime = '2026-06-05T10:00:00Z' }) }
             { Get-ImperionScopedInteractionMail -Connection ([pscustomobject]@{}) } | Should -Not -Throw
-            @(Get-ImperionScopedInteractionMail -Connection ([pscustomobject]@{})).Count | Should -Be 0
+            $rows = @(Get-ImperionScopedInteractionMail -Connection ([pscustomobject]@{}))
+            $rows.Count          | Should -Be 1
+            $rows[0].external_id | Should -Be 'x'
+            $rows[0].direction   | Should -Be 'inbound'
         }
     }
 }

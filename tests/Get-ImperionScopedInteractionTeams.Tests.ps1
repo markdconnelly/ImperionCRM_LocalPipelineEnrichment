@@ -1,6 +1,7 @@
 #Requires -Modules Pester
-# Hermetic tests for Get-ImperionScopedInteractionTeams: allowlist/client-set/Graph mocked; the real
-# scope predicate runs end-to-end. Graph is called twice per in-scope chat (list chats, then messages).
+# Hermetic tests for Get-ImperionScopedInteractionTeams: allowlist/Graph mocked. Per ADR-0126 / #380
+# the collector pulls messages from EVERY chat of the allowlisted principal (no collection-time
+# client filter; client scoping moved to silver, FE #1369). Graph is called once per chat for messages.
 
 BeforeAll {
     $module = Join-Path (Split-Path -Parent $PSScriptRoot) 'src\ImperionPipeline\ImperionPipeline.psd1'
@@ -41,14 +42,13 @@ Describe 'Get-ImperionScopedInteractionTeams' {
             Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner' } }
             Mock Get-ImperionGraphToken { 'graph-token' }
             Mock Write-ImperionLog { }
-            Mock Resolve-ImperionClientContactSet { New-ClientSet -Domains @('acme.com') }
         }
     }
 
-    It 'pulls messages ONLY from in-scope chats and flattens to m365_teams columns' {
+    It 'pulls messages from EVERY chat of the allowlisted principal and flattens to m365_teams columns' {
         InModuleScope ImperionPipeline {
             Mock Resolve-ImperionInteractionAllowlist { , @('derek@imperionllc.com') }
-            # First Graph call = the chats list; subsequent calls = messages for an in-scope chat.
+            # First Graph call = the chats list; subsequent calls = messages for each chat.
             Mock Invoke-ImperionGraphRequest {
                 if ($Uri -match '/chats\?\$expand=members$') {
                     , @(
@@ -62,18 +62,24 @@ Describe 'Get-ImperionScopedInteractionTeams' {
                         (New-ChatMsg -Id 'msg2' -FromAddr 'sam@acme.com' -Body 'reply')
                     )
                 }
+                elseif ($Uri -match '/chats/chat-internal/messages$') {
+                    , @((New-ChatMsg -Id 'msg3' -FromAddr 'mark@imperionllc.com' -Body 'internal note'))
+                }
                 else { , @() }
             }
             $rows = @(Get-ImperionScopedInteractionTeams -Connection ([pscustomobject]@{}))
-            $rows.Count | Should -Be 2
+            # ADR-0126: messages from both chats land at bronze; the client filter is a silver concern (FE #1369).
+            $rows.Count | Should -Be 3
+            ($rows.external_id | Sort-Object) | Should -Be @('msg1', 'msg2', 'msg3')
             ($rows | Where-Object { $_.external_id -eq 'msg1' }).direction | Should -Be 'outbound'
             ($rows | Where-Object { $_.external_id -eq 'msg2' }).direction | Should -Be 'inbound'
-            $rows[0].source          | Should -Be 'm365_teams'
-            $rows[0].conversation_id | Should -Be 'chat-client'
-            $rows[0].participants    | Should -Match 'sam@acme.com'
-            $rows[0].captured_user   | Should -Be 'derek@imperionllc.com'
-            # The internal chat's messages are never fetched.
-            Should -Invoke Invoke-ImperionGraphRequest -ParameterFilter { $Uri -match '/chats/chat-internal/messages' } -Times 0
+            $clientRow = $rows | Where-Object { $_.external_id -eq 'msg1' }
+            $clientRow.source          | Should -Be 'm365_teams'
+            $clientRow.conversation_id | Should -Be 'chat-client'
+            $clientRow.participants    | Should -Match 'sam@acme.com'
+            $clientRow.captured_user   | Should -Be 'derek@imperionllc.com'
+            # Both chats' messages are fetched now (no in-scope gate).
+            Should -Invoke Invoke-ImperionGraphRequest -ParameterFilter { $Uri -match '/chats/chat-internal/messages' } -Times 1
         }
     }
 

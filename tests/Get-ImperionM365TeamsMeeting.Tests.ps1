@@ -1,6 +1,7 @@
 #Requires -Modules Pester
-# Hermetic tests for Get-ImperionM365TeamsMeeting: Graph mocked; filter mocked for the
-# collector-isolation test (Test-ImperionCrossOrgComm has its own tests).
+# Hermetic tests for Get-ImperionM365TeamsMeeting: Graph mocked. Per ADR-0126 / #380 the collector
+# pulls EVERY online meeting from the user's calendar (no collection-time client filter; client
+# scoping moved to silver, FE #1369).
 
 BeforeAll {
     $module = Join-Path (Split-Path -Parent $PSScriptRoot) 'src\ImperionPipeline\ImperionPipeline.psd1'
@@ -31,7 +32,7 @@ Describe 'Get-ImperionM365TeamsMeeting' {
         }
     }
 
-    It 'keeps only the meetings the cross-org filter accepts and flattens them' {
+    It 'captures EVERY online meeting from the user calendar and flattens them (no collection-time client filter)' {
         InModuleScope ImperionPipeline {
             Mock Invoke-ImperionGraphRequest {
                 , @(
@@ -39,37 +40,25 @@ Describe 'Get-ImperionM365TeamsMeeting' {
                     (New-Event -Id 'e2' -Subject 'Internal sync' -Organizer 'ada@imperionllc.com' -Attendees @('bob@imperionllc.com'))
                 )
             }
-            Mock Test-ImperionCrossOrgComm { [bool](@($Participant) -match 'acme\.com') }
 
-            $rows = @(Get-ImperionM365TeamsMeeting -User 'ada@imperionllc.com' -Mode ImperionTenant -ClientDomain @('acme.com'))
-            $rows.Count             | Should -Be 1
-            $rows[0].external_id    | Should -Be 'e1'
-            $rows[0].subject        | Should -Be 'Acme review'
-            $rows[0].organizer_address | Should -Be 'ada@imperionllc.com'
-            $rows[0].attendee_addresses | Should -Match 'sam@acme.com'
-            $rows[0].start_date_time | Should -Match '2026-06-04'
-            $rows[0].source         | Should -Be 'm365_teams'
+            $rows = @(Get-ImperionM365TeamsMeeting -User 'ada@imperionllc.com')
+            # ADR-0126: both meetings land at bronze; the client filter is a silver concern (FE #1369).
+            $rows.Count                 | Should -Be 2
+            ($rows.external_id | Sort-Object) | Should -Be @('e1', 'e2')
+            $clientRow = $rows | Where-Object { $_.external_id -eq 'e1' }
+            $clientRow.subject          | Should -Be 'Acme review'
+            $clientRow.organizer_address | Should -Be 'ada@imperionllc.com'
+            $clientRow.attendee_addresses | Should -Match 'sam@acme.com'
+            $clientRow.start_date_time   | Should -Match '2026-06-04'
+            $clientRow.source            | Should -Be 'm365_teams'
         }
     }
 
-    It 'keeps a client-tenant meeting that includes @imperionllc.com (real filter, ClientTenant)' {
+    It 'does not throw on a meeting with no attendees and still captures it' {
         InModuleScope ImperionPipeline {
-            Mock Invoke-ImperionGraphRequest {
-                , @(
-                    (New-Event -Id 'm1' -Subject 'With MSP' -Organizer 'sam@acme.com' -Attendees @('ada@imperionllc.com')),
-                    (New-Event -Id 'm2' -Subject 'Acme only' -Organizer 'sam@acme.com' -Attendees @('joe@acme.com'))
-                )
-            }
-            $rows = @(Get-ImperionM365TeamsMeeting -User 'sam@acme.com' -Mode ClientTenant -TenantId 'customer-1')
-            $rows.Count          | Should -Be 1
-            $rows[0].external_id | Should -Be 'm1'
-        }
-    }
-
-    It 'does not throw on a meeting with no attendees' {
-        InModuleScope ImperionPipeline {
-            Mock Invoke-ImperionGraphRequest { , @([pscustomobject]@{ id = 'x'; subject = 'Solo' }) }
-            { Get-ImperionM365TeamsMeeting -User 'ada@imperionllc.com' -Mode ClientTenant } | Should -Not -Throw
+            Mock Invoke-ImperionGraphRequest { , @([pscustomobject]@{ id = 'x'; subject = 'Solo'; isOnlineMeeting = $true }) }
+            { Get-ImperionM365TeamsMeeting -User 'ada@imperionllc.com' } | Should -Not -Throw
+            @(Get-ImperionM365TeamsMeeting -User 'ada@imperionllc.com').Count | Should -Be 1
         }
     }
 }
