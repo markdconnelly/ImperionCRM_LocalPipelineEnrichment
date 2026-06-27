@@ -30,8 +30,11 @@ function Invoke-ImperionPax8Merge {
             `WHERE entity_xref.match_method <> 'manual'`, so a fuzzy name re-derivation never
             clobbers a manual link.
 
-        Idempotent: upsert on the registry's UNIQUE (entity_type, source_system, source_key) via
-        ON CONFLICT, so the merge converges and never duplicates — safe to run every cadence
+        Idempotent: upsert on the registry's PARTIAL live-row unique index
+        uq_entity_xref_source_live (entity_type, source_system, source_key) WHERE valid_to IS NULL
+        AND system_to IS NULL via ON CONFLICT (the predicate is repeated in the conflict target —
+        entity_xref is SCD-2 and the bare columns have no full unique index, so omitting it raises
+        42P10). The merge converges and never duplicates — safe to run every cadence
         immediately after the Pax8 collectors. Each company upserts independently inside its own
         try/catch, so one bad row never blocks the rest (the cloud_asset/posture precedent). The
         local-pipeline role holds SELECT/INSERT/UPDATE on entity_xref (0160) and SELECT on account
@@ -89,8 +92,11 @@ SELECT p.pax8_company_id,
             return [pscustomobject]@{ companies = 0; resolved = 0; unresolved = 0; failed = 0 }
         }
 
-        # Keyed upsert on the registry's UNIQUE (entity_type, source_system, source_key). The
-        # DO UPDATE is guarded so a fuzzy name re-derivation never overwrites a manual link.
+        # Keyed upsert on the registry's PARTIAL live-row unique index
+        # uq_entity_xref_source_live (entity_type, source_system, source_key) WHERE valid_to IS
+        # NULL AND system_to IS NULL — entity_xref is SCD-2, so the ON CONFLICT target MUST repeat
+        # that predicate or Postgres raises 42P10 (no full unique index matches the bare columns).
+        # The DO UPDATE is guarded so a fuzzy name re-derivation never overwrites a manual link.
         $upsertSql = @"
 INSERT INTO entity_xref (
     entity_type, internal_entity_id, source_system, source_key, match_confidence, match_method
@@ -98,7 +104,7 @@ INSERT INTO entity_xref (
 VALUES (
     'account', @internal_entity_id::uuid, 'pax8', @source_key, 0.800, 'fuzzy'
 )
-ON CONFLICT (entity_type, source_system, source_key) DO UPDATE SET
+ON CONFLICT (entity_type, source_system, source_key) WHERE valid_to IS NULL AND system_to IS NULL DO UPDATE SET
     internal_entity_id = EXCLUDED.internal_entity_id,
     match_confidence   = EXCLUDED.match_confidence,
     match_method       = EXCLUDED.match_method,

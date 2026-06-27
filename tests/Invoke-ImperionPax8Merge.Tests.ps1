@@ -88,7 +88,9 @@ Describe 'Invoke-ImperionPax8Merge' {
                 $entitySql | Should -Not -BeNullOrEmpty
                 $entitySql | Should -Match "'account'"
                 $entitySql | Should -Match "'pax8'"
-                $entitySql | Should -Match 'ON CONFLICT \(entity_type, source_system, source_key\) DO UPDATE SET'
+                # entity_xref is SCD-2: the conflict target MUST repeat the partial live-row index
+                # predicate (uq_entity_xref_source_live) or Postgres raises 42P10 (#403).
+                $entitySql | Should -Match 'ON CONFLICT \(entity_type, source_system, source_key\) WHERE valid_to IS NULL AND system_to IS NULL DO UPDATE SET'
                 # the human-curated mapping wins: DO UPDATE is guarded
                 $entitySql | Should -Match "WHERE entity_xref.match_method <> 'manual'"
             }
