@@ -157,6 +157,14 @@ function Register-ImperionTask {
         # then runs Invoke-ImperionThreadsMerge itself (ADR-0026). Dormant until the connector is
         # seeded + the 6 App Review scopes clear + 0208 is applied (fail-closed log + exit).
         @{ Name = 'Imperion-Threads';                Cmdlet = 'Invoke-ImperionThreadsSync';               At = '04:12' }
+        # Social plane slice H (#357, ADR-0124 #2/#9). Each *Sync self-collects its bronze then runs
+        # its own merge (ADR-0026): SocialEngagement = FB/IG post comments + brand mentions (LP #391)
+        # -> silver social_engagement; SocialMetric = post + (optional) ad insights -> silver
+        # social_metric, metric names normalized at silver (#135). Both fail closed (log + exit) until
+        # conn-company-meta + IMPERION_META_PAGE_ID are provisioned and 0075/0210/0212/0213 applied;
+        # idempotent, so the next run converges. Run after the Meta collectors, before vectorize (04:30).
+        @{ Name = 'Imperion-SocialEngagementSync';   Cmdlet = 'Invoke-ImperionSocialEngagementSync';      At = '04:18' }
+        @{ Name = 'Imperion-SocialMetricSync';       Cmdlet = 'Invoke-ImperionSocialMetricSync';          At = '04:20' }
         # Housekeeping: 180-day security retention prune (after collectors) + weekly OKF drift (dry-run)
         @{ Name = 'Imperion-SecurityRetentionSweep'; Cmdlet = 'Invoke-ImperionSecurityRetentionSweep';    At = '04:10' }
         @{ Name = 'Imperion-SemanticDrift';          Cmdlet = 'Invoke-ImperionSemanticDriftSync';         At = '04:15' }
