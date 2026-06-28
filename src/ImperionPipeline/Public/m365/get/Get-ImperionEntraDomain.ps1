@@ -35,7 +35,7 @@ function Get-ImperionEntraDomain {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
 
     $token = Get-ImperionGraphToken -TenantId $TenantId
     $domains = Invoke-ImperionGraphRequest -Uri 'https://graph.microsoft.com/v1.0/domains' -AccessToken $token

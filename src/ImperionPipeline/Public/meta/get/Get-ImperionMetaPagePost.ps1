@@ -43,7 +43,7 @@ function Get-ImperionMetaPagePost {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
     $Token = Resolve-ImperionMetaToken -Token $Token
 
     $fields = 'message,story,status_type,permalink_url,from,created_time,updated_time,is_published,' +

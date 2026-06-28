@@ -41,7 +41,7 @@ function Remove-ImperionStorageBlob {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
     if (-not $AccountName -and ($cfg -is [System.Collections.IDictionary]) -and $cfg.Contains('Storage')) {
         $AccountName = $cfg['Storage'].AccountName
     }

@@ -219,7 +219,10 @@ infra/bootstrap tokens only (PG/KV/Storage) and holds **no Graph/ARM data reach*
   account ambiguity is resolved — the dead config-SP cert `m365` row is purged; the two remaining
   `m365` rows are both `auth_method='secret'`, active (live registry, 2026-06-25).
 - **One cloud grant assumed:** Global Reader on each onboarding app's tenant root management group
-  (the ARM read). **#329** neutralizes the `PartnerTenantId` config key (home-agnostic naming).
+  (the ARM read). **#329 DONE** — the config key `PartnerTenantId` is renamed to `LocalTenantId`
+  (company/home-agnostic naming); the loader reads `LocalTenantId` but falls back to the legacy
+  `PartnerTenantId` key for one release. **Mark-gated host step:** rename the key in the live
+  `%ProgramData%\Imperion\pipeline.config.psd1`; the fallback is removed next release.
 - **Known 403 gaps (Mark/consent):** auth-methods report needs `AuditLog.Read.All` (#340); mail +
   Teams collectors need `IMPERION_M365_MAILBOXES` / `IMPERION_M365_USERS` host config (#341).
 

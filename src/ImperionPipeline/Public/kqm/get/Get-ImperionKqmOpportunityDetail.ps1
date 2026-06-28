@@ -62,7 +62,7 @@ function Get-ImperionKqmOpportunityDetail {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
 
     $wonQuotes = @($WonQuoteId | Where-Object { $null -ne $_ -and "$_" -ne '' } | ForEach-Object { "$_" })
     $empty = [pscustomobject]@{ Sections = @(); Lines = @(); SalesOrders = @(); SalesOrderLines = @() }

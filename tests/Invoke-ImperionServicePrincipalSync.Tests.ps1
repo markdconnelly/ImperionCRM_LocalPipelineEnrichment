@@ -18,7 +18,7 @@ Describe 'Invoke-ImperionServicePrincipalSync' {
 
     It 'does not throw on a service principal that omits optional collections' {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 't1' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 't1' } }
             Mock Get-ImperionSecretNames { @{ ITGlueWriteKey = 'itglue-write-api-key' } }
             Mock Get-ImperionGraphToken { 'token' }
             Mock New-ImperionDbConnection { [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { } }
@@ -38,7 +38,7 @@ Describe 'Invoke-ImperionServicePrincipalSync' {
 
     It 'computes the nearest credential expiry when keyCredentials are present' {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 't1' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 't1' } }
             Mock Get-ImperionSecretNames { @{ ITGlueWriteKey = 'itglue-write-api-key' } }
             Mock Get-ImperionGraphToken { 'token' }
             Mock New-ImperionDbConnection { [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { } }
@@ -59,7 +59,7 @@ Describe 'Invoke-ImperionServicePrincipalSync' {
     It 'fans out over every consented client tenant (ADR-0126, #379)' {
         InModuleScope ImperionPipeline {
             Mock Get-ImperionConsentedTenant { @('tenant-a', 'tenant-b') }
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 't1' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 't1' } }
             Mock Get-ImperionSecretNames { @{ ITGlueWriteKey = 'itglue-write-api-key' } }
             Mock New-ImperionDbConnection { [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { } }
             Mock Write-ImperionLog { }

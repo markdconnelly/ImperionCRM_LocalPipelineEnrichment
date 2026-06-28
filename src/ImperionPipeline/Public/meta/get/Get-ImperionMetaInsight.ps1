@@ -70,7 +70,7 @@ function Get-ImperionMetaInsight {
     }
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
     $Token = Resolve-ImperionMetaToken -Token $Token
 
     # One metric per request so a deprecated metric (#100) costs ONE warning, not the run.

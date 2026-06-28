@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'Get-ImperionAzureSubscription' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner' } }
             Mock Get-ImperionArmToken { 'arm-token' }
         }
     }

@@ -11,7 +11,7 @@ BeforeAll {
 Describe 'Get-ImperionSensitivityLabel' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner' } }
             Mock Get-ImperionGraphToken { 'graph-token' }
             Mock Write-ImperionLog {}
             # User directory probe → one member.

@@ -13,7 +13,7 @@ Describe 'Invoke-ImperionPolicySync' {
             # single-tenant assertions below behave as before; the fan-out is exercised separately.
             $env:IMPERION_M365_TENANT_IDS = ''
             Mock Get-ImperionConsentedTenant { @() }
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 't1' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 't1' } }
             Mock Get-ImperionGraphToken { 'token' }
             Mock New-ImperionDbConnection { [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { } }
             Mock Write-ImperionLog { }

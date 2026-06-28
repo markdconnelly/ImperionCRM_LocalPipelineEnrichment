@@ -55,7 +55,7 @@ function Get-ImperionInstagramMessage {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
     if (-not $PageToken) { $PageToken = Get-ImperionMetaPageToken -PageId $PageId -Token $Token }
 
     # Resolve the IG business-account once (the inbox owner). An unlinked Page is a

@@ -24,7 +24,7 @@ Describe 'Get-ImperionArmToken' {
         It 'resolves the home tenant from the registry (provider m365), never the config app' {
             InModuleScope ImperionPipeline -Parameters @{ partner = $PARTNER; account = $ACCOUNT; arm = $ARM } {
                 param($partner, $account, $arm)
-                Mock Get-ImperionConfig { @{ ClientId = 'config-app'; PartnerTenantId = $partner } }
+                Mock Get-ImperionConfig { @{ ClientId = 'config-app'; LocalTenantId = $partner } }
                 Mock Get-ImperionNodeCredentialArg { throw 'a data read must not use the node bootstrap credential' }
                 $fakeConn = [pscustomobject]@{}
                 $fakeConn | Add-Member -MemberType ScriptMethod -Name Dispose -Value {} -Force
@@ -48,7 +48,7 @@ Describe 'Get-ImperionArmToken' {
         It 'defaults to the partner tenant when no -TenantId is given (still via the registry)' {
             InModuleScope ImperionPipeline -Parameters @{ partner = $PARTNER; account = $ACCOUNT } {
                 param($partner, $account)
-                Mock Get-ImperionConfig { @{ ClientId = 'config-app'; PartnerTenantId = $partner } }
+                Mock Get-ImperionConfig { @{ ClientId = 'config-app'; LocalTenantId = $partner } }
                 $fakeConn = [pscustomobject]@{}
                 $fakeConn | Add-Member -MemberType ScriptMethod -Name Dispose -Value {} -Force
                 Mock New-ImperionDbConnection { $fakeConn }
@@ -69,7 +69,7 @@ Describe 'Get-ImperionArmToken' {
         It 'authenticates as the client own app resolved with provider m365 (ARM reuses the m365 app)' {
             InModuleScope ImperionPipeline -Parameters @{ partner = $PARTNER; client = $CLIENT; account = $ACCOUNT } {
                 param($partner, $client, $account)
-                Mock Get-ImperionConfig { @{ ClientId = 'config-app'; PartnerTenantId = $partner } }
+                Mock Get-ImperionConfig { @{ ClientId = 'config-app'; LocalTenantId = $partner } }
                 Mock Get-ImperionNodeCredentialArg { throw 'a data read must not use the node bootstrap credential' }
                 $fakeConn = [pscustomobject]@{}
                 $fakeConn | Add-Member -MemberType ScriptMethod -Name Dispose -Value {} -Force
@@ -97,7 +97,7 @@ Describe 'Get-ImperionArmToken' {
         It 'throws when the client tenant is not mapped to an account' {
             InModuleScope ImperionPipeline -Parameters @{ partner = $PARTNER; client = $CLIENT } {
                 param($partner, $client)
-                Mock Get-ImperionConfig { @{ ClientId = 'home-app'; PartnerTenantId = $partner } }
+                Mock Get-ImperionConfig { @{ ClientId = 'home-app'; LocalTenantId = $partner } }
                 $fakeConn = [pscustomobject]@{}
                 $fakeConn | Add-Member -MemberType ScriptMethod -Name Dispose -Value {} -Force
                 Mock New-ImperionDbConnection { $fakeConn }
@@ -112,7 +112,7 @@ Describe 'Get-ImperionArmToken' {
         It 'propagates the resolver fail-closed throw when no consented credential exists' {
             InModuleScope ImperionPipeline -Parameters @{ partner = $PARTNER; client = $CLIENT; account = $ACCOUNT } {
                 param($partner, $client, $account)
-                Mock Get-ImperionConfig { @{ ClientId = 'home-app'; PartnerTenantId = $partner } }
+                Mock Get-ImperionConfig { @{ ClientId = 'home-app'; LocalTenantId = $partner } }
                 $fakeConn = [pscustomobject]@{}
                 $fakeConn | Add-Member -MemberType ScriptMethod -Name Dispose -Value {} -Force
                 Mock New-ImperionDbConnection { $fakeConn }

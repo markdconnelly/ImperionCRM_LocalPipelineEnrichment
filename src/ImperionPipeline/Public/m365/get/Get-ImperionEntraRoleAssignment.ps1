@@ -43,7 +43,7 @@ function Get-ImperionEntraRoleAssignment {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
 
     $token = Get-ImperionGraphToken -TenantId $TenantId
     # Graph allows only ONE $expand on /roleAssignments (#322 — two returns HTTP 400

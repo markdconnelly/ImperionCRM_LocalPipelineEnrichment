@@ -27,7 +27,7 @@ function Invoke-ImperionKaseyaImport {
 
     $cfg = Get-ImperionConfig
     $names = Get-ImperionSecretNames
-    $tenantId = $cfg.PartnerTenantId
+    $tenantId = $cfg.LocalTenantId
     $started = Get-Date
 
     # Resolve Autotask auth + zone once (only when an Autotask entity is requested). Reuses the

@@ -62,7 +62,7 @@ function Get-ImperionScopedInteractionTeams {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
 
     # Gate — the config-driven allowlist names whose chats to pull. No principals = nothing to do.
     $allowedPrincipal = Resolve-ImperionInteractionAllowlist -Path $AllowlistPath

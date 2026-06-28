@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'Get-ImperionMetaPagePost' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner-tenant' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner-tenant' } }
             Mock Write-ImperionLog { }
         }
     }
@@ -76,7 +76,7 @@ Describe 'Get-ImperionMetaPagePost' {
 Describe 'Get-ImperionMetaPostComment' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner-tenant' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner-tenant' } }
             Mock Write-ImperionLog { }
         }
     }

@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'Get-ImperionMyItProcessRecommendation' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner' } }
             Mock Resolve-ImperionMyItProcessApiKey { 'resolved-key' }
         }
     }

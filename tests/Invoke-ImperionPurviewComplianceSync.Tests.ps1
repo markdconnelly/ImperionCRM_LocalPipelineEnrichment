@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'Invoke-ImperionPurviewComplianceSync' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 't1' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 't1' } }
             Mock Get-ImperionGraphToken { 'token' }
             Mock New-ImperionDbConnection { [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { } }
             Mock Write-ImperionLog { }

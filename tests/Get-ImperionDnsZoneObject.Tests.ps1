@@ -10,7 +10,7 @@ BeforeAll {
 Describe 'Get-ImperionDnsZoneObject' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner' } }
             Mock Get-ImperionArmToken { 'arm-token' }
             Mock Write-ImperionLog {}
             # writable permissions by default (grants the recordset write)

@@ -55,7 +55,7 @@ function Get-ImperionThreadsInsight {
 
     begin {
         $cfg = Get-ImperionConfig
-        if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+        if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
         $Token = Resolve-ImperionThreadsToken -Token $Token -FailClosed
         if (-not $ThreadsUserId) { $ThreadsUserId = $env:IMPERION_THREADS_USER_ID }
 

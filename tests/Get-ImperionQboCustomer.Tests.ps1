@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'Get-ImperionQboCustomer' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner-tenant' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner-tenant' } }
             Mock Get-ImperionSecretNames { @{ QboAccessToken = 'qbo-access-token'; QboRealmId = 'qbo-realm-id' } }
             Mock Get-ImperionSecretValue { if ($Name -eq 'qbo-access-token') { 'tok-123' } else { 'realm-999' } }
             Mock Write-ImperionLog { }

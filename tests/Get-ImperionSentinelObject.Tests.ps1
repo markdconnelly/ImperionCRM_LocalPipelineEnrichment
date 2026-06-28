@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'Get-ImperionSentinelObject' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner' } }
             Mock Get-ImperionArmToken { 'arm-token' }
             Mock Write-ImperionLog {}
             Mock Invoke-ImperionArmRequest {

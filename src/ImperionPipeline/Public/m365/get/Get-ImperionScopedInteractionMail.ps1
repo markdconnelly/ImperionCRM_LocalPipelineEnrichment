@@ -67,7 +67,7 @@ function Get-ImperionScopedInteractionMail {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
 
     # Gate — the config-driven allowlist names which mailboxes to pull. No mailboxes = nothing to do.
     $allowedPrincipal = Resolve-ImperionInteractionAllowlist -Path $AllowlistPath

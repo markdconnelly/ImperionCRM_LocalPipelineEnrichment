@@ -42,6 +42,22 @@ function Initialize-ImperionContext {
     $script:ImperionConfig = Import-PowerShellDataFile -Path $ConfigPath
     $script:ImperionSecretNames = if (Test-Path $SecretNamesPath) { Import-PowerShellDataFile -Path $SecretNamesPath } else { @{} }
 
+    # Host-safe backward compatibility (#329): the config key was renamed
+    # `PartnerTenantId` -> `LocalTenantId` (company/home-agnostic — every tenant resolves
+    # uniformly from the registry, so the MSP-"partner" framing was misleading, ADR-0030).
+    # The live unattended node's `%ProgramData%\Imperion\pipeline.config.psd1` may still be
+    # keyed the old way until Mark updates it (a Mark-gated host-config deploy step), so read
+    # the new key but FALL BACK to the legacy key for one release. Mutate the in-memory config
+    # only; never touch the on-disk file. Remove the fallback next release once the host config
+    # is confirmed updated. .Contains is the StrictMode-safe IDictionary key probe.
+    $loadedConfig = $script:ImperionConfig
+    if (($loadedConfig -is [System.Collections.IDictionary]) `
+            -and -not ($loadedConfig.Contains('LocalTenantId') -and $loadedConfig.LocalTenantId) `
+            -and $loadedConfig.Contains('PartnerTenantId') -and $loadedConfig.PartnerTenantId) {
+        $loadedConfig.LocalTenantId = $loadedConfig.PartnerTenantId
+        Write-ImperionLog -Level Warn -Source 'context' -Message 'Config key ''PartnerTenantId'' is deprecated (#329) — using it as ''LocalTenantId'' for this run. Rename the key in the host config; the fallback is removed next release.'
+    }
+
     if ($script:ImperionConfig.LogDirectory) { $env:IMPERION_LOG_DIR = $script:ImperionConfig.LogDirectory; $script:ImperionLogDirectory = $script:ImperionConfig.LogDirectory }
     if ($script:ImperionConfig.NpgsqlDllPath) { $env:IMPERION_NPGSQL_DLL = $script:ImperionConfig.NpgsqlDllPath; $script:ImperionNpgsqlPath = $script:ImperionConfig.NpgsqlDllPath }
 
@@ -59,5 +75,5 @@ function Initialize-ImperionContext {
         $cmsPath = if (($config -is [System.Collections.IDictionary]) -and $config.Contains('CmsPasswordPath')) { $config.CmsPasswordPath } else { $null }
         Connect-ImperionSecretStore -Authentication $authMode -CmsPasswordPath $cmsPath -VaultName $config.SecretVault
     }
-    Write-ImperionLog -Source 'context' -Message "Context initialized (tenant $($script:ImperionConfig.PartnerTenantId))."
+    Write-ImperionLog -Source 'context' -Message "Context initialized (tenant $($script:ImperionConfig.LocalTenantId))."
 }

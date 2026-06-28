@@ -41,7 +41,7 @@ function Get-ImperionPax8Company {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
     $cred = Resolve-ImperionPax8Credential
 
     $companies = Invoke-ImperionPax8Request @cred -Path '/v1/companies' -BaseUri $BaseUri

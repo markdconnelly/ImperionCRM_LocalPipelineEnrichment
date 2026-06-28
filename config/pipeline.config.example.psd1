@@ -2,7 +2,10 @@
     # Certificate-backed Entra app (ADR-0002). Copy to pipeline.config.psd1 and fill in.
     CertThumbprint  = 'REPLACE_WITH_CERT_THUMBPRINT'
     ClientId        = 'REPLACE_WITH_ENTRA_APP_CLIENT_ID'
-    PartnerTenantId = 'REPLACE_WITH_PARTNER_CSP_TENANT_ID'
+    # The tenant this node runs in (the default TenantId for infra/bootstrap tokens;
+    # per-tenant data reads resolve their own tenant from the registry, ADR-0030).
+    # Renamed from PartnerTenantId (#329); the loader still reads the old key for one release.
+    LocalTenantId   = 'REPLACE_WITH_LOCAL_TENANT_ID'
 
     # Local SecretStore unlock (ADR-0002).
     #   'Password' = CMS-unlock model (random vault password encrypted to a Document Encryption cert).

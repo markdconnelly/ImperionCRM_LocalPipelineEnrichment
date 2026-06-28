@@ -19,7 +19,7 @@ function Get-ImperionM365Device {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
 
     $token = Get-ImperionGraphToken -TenantId $TenantId
     $devices = Invoke-ImperionGraphRequest -Uri 'https://graph.microsoft.com/v1.0/deviceManagement/managedDevices' -AccessToken $token

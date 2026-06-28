@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'Get-ImperionDattoRmmDevice' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner' } }
             Mock Resolve-ImperionDattoRmmApiKey { 'resolved-key' }
         }
     }

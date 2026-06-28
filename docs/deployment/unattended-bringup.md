@@ -92,7 +92,7 @@ domain-joined host). A password change requires re-running `Register-ImperionTas
    @{
        CertThumbprint  = 'F860A0D53376DBFD10DD9C2E53C118366832EFCC'
        ClientId        = '46f1077b-c93f-42da-abd4-192da13781ac'
-       PartnerTenantId = '49307c12-1bb7-42e4-9c7c-43d2850bd8c6'
+       LocalTenantId   = '49307c12-1bb7-42e4-9c7c-43d2850bd8c6'   # renamed from PartnerTenantId (#329); loader still reads the old key for one release
        SecretStoreAuthentication = 'None'   # DPAPI unlock (ADR-0002 amendment) — the Entra cert lacks the Document Encryption EKU CMS needs
        CmsPasswordPath = 'C:\ProgramData\Imperion\vault.cms'   # ignored when SecretStoreAuthentication='None'
        SecretVault     = 'ImperionStore'

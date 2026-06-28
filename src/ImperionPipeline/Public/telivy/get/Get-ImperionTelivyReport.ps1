@@ -28,7 +28,7 @@ function Get-ImperionTelivyReport {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
 
     $apiKey = Resolve-ImperionTelivyApiKey
     $records = Invoke-ImperionTelivyRequest -ApiKey $apiKey -Uri ('{0}/reports?page[size]=100' -f $BaseUri.TrimEnd('/'))

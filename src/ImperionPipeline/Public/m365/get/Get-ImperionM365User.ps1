@@ -18,7 +18,7 @@ function Get-ImperionM365User {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
 
     $token = Get-ImperionGraphToken -TenantId $TenantId
     $select = 'id,displayName,userPrincipalName,mail,jobTitle,department,companyName,accountEnabled,officeLocation,mobilePhone,businessPhones,userType,createdDateTime'

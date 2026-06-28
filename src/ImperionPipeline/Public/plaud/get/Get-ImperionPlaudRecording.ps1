@@ -38,7 +38,7 @@ function Get-ImperionPlaudRecording {
 
     $cfg = Get-ImperionConfig
     $names = Get-ImperionSecretNames
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
 
     # The stored secret may be the raw access token or a JSON blob holding one.
     $storedToken = Get-ImperionSecretValue -Name $names.PlaudOAuthToken

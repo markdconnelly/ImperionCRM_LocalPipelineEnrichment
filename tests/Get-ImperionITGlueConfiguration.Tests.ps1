@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'Get-ImperionITGlueConfiguration' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner'; ITGlue = @{ BaseUri = 'https://api.itglue.com' } } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner'; ITGlue = @{ BaseUri = 'https://api.itglue.com' } } }
             Mock Resolve-ImperionITGlueApiKey { 'key-value' }
         }
     }

@@ -40,7 +40,7 @@ function Get-ImperionInstagramComment {
 
     begin {
         $cfg = Get-ImperionConfig
-        if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+        if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
         $Token = Resolve-ImperionMetaToken -Token $Token
 
         $map = [ordered]@{

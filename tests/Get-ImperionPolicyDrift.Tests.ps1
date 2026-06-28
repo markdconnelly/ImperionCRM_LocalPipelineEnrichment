@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'Get-ImperionPolicyDrift' {
     It 'classifies one policy type and stamps policy_type on each row' {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 't1' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 't1' } }
             Mock Invoke-ImperionDbQuery {
                 @(
                     [pscustomobject]@{ policy_id = 'p1'; policy_name = 'CA1'; current_hash = 'h'; golden_hash = 'h'; status = 'compliant' },
@@ -26,7 +26,7 @@ Describe 'Get-ImperionPolicyDrift' {
 
     It 'evaluates all five policy types when none is specified' {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 't1' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 't1' } }
             Mock Invoke-ImperionDbQuery { @() }
             Get-ImperionPolicyDrift -Connection ([pscustomobject]@{}) | Out-Null
             Should -Invoke Invoke-ImperionDbQuery -Times 5
@@ -35,7 +35,7 @@ Describe 'Get-ImperionPolicyDrift' {
 
     It 'passes the tenant id as a parameter (no inline interpolation)' {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner' } }
             Mock Invoke-ImperionDbQuery { @() }
             Get-ImperionPolicyDrift -PolicyType 'autopilot' -Connection ([pscustomobject]@{}) | Out-Null
             Should -Invoke Invoke-ImperionDbQuery -Times 1 -ParameterFilter { $Parameters.t -eq 'partner' }

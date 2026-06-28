@@ -82,7 +82,7 @@ Describe 'Company credential resolvers follow the registry to Key Vault, skip th
 Describe 'Collectors route through the standardized resolver (#291)' {
     It 'Get-ImperionITGlueOrganization resolves via Resolve-ImperionITGlueApiKey' {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 't1'; ITGlue = @{ BaseUri = 'https://itg' } } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 't1'; ITGlue = @{ BaseUri = 'https://itg' } } }
             Mock Resolve-ImperionITGlueApiKey { 'K' }
             Mock Invoke-ImperionITGlueRequest { , @() }
             Get-ImperionITGlueOrganization | Out-Null
@@ -92,7 +92,7 @@ Describe 'Collectors route through the standardized resolver (#291)' {
 
     It 'Get-ImperionTelivyReport resolves via Resolve-ImperionTelivyApiKey' {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 't1' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 't1' } }
             Mock Resolve-ImperionTelivyApiKey { 'K' }
             Mock Invoke-ImperionTelivyRequest { , @() }
             Get-ImperionTelivyReport -BaseUri 'https://telivy' | Out-Null

@@ -34,7 +34,7 @@ function Get-ImperionM365TeamsChat {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
     $token = Get-ImperionGraphToken -TenantId $TenantId
 
     $kept = [System.Collections.Generic.List[object]]::new()

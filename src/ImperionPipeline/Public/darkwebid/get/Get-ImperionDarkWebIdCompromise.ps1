@@ -42,7 +42,7 @@ function Get-ImperionDarkWebIdCompromise {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
 
     $path = if ($Domain) { '/compromises?domain={0}&page[size]=100' -f [uri]::EscapeDataString($Domain) } else { '/compromises?page[size]=100' }
     $records = Invoke-ImperionDarkWebIdRequest -Username $Username -Password $Password -Uri ('{0}{1}' -f $BaseUri.TrimEnd('/'), $path)

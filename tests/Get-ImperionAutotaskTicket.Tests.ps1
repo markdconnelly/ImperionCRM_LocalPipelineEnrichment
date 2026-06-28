@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'Get-ImperionAutotaskTicket' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 't1' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 't1' } }
             Mock Get-ImperionAutotaskContext { [pscustomobject]@{ Headers = @{}; ApiBase = 'https://ws/V1.0' } }
         }
     }

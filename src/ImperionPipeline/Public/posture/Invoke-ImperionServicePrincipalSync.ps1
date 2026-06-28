@@ -64,7 +64,7 @@ function Invoke-ImperionServicePrincipalSyncForTenant {
 
     $cfg = Get-ImperionConfig
     $names = Get-ImperionSecretNames
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
     $source = 'm365'
     $started = Get-Date
 

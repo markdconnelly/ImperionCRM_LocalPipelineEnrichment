@@ -61,7 +61,7 @@ function Get-ImperionRegisteredTenantToken {
         [Parameter(Mandatory)][string] $Provider,
         $Connection
     )
-    if (-not $TenantId) { $TenantId = (Get-ImperionConfig).PartnerTenantId }
+    if (-not $TenantId) { $TenantId = (Get-ImperionConfig).LocalTenantId }
 
     $ownConnection = -not $Connection
     if ($ownConnection) { $Connection = New-ImperionDbConnection }
@@ -111,7 +111,7 @@ function Get-ImperionArmToken {
 function Get-ImperionKeyVaultToken {
     param([string] $TenantId)
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
     $cred = Get-ImperionNodeCredentialArg
     Get-ImperionAccessToken -Resource 'https://vault.azure.net/.default' -TenantId $TenantId -ClientId $cfg.ClientId @cred
 }
@@ -121,7 +121,7 @@ function Get-ImperionStorageToken {
     # Azure Storage data-plane token (the agreed Storage WRITE grant, CLAUDE.md §2) — used by the
     # receipt 90-day lifecycle to delete a verified-in-Autotask blob (ADR-0015).
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
     $cred = Get-ImperionNodeCredentialArg
     Get-ImperionAccessToken -Resource 'https://storage.azure.com/.default' -TenantId $TenantId -ClientId $cfg.ClientId @cred
 }
@@ -134,6 +134,6 @@ function New-ImperionDbConnection {
     # Mint a short-lived Postgres token (ADR-0003) and open a connection from config.
     $cfg = Get-ImperionConfig
     $cred = Get-ImperionNodeCredentialArg
-    $token = Get-ImperionAccessToken -Resource 'https://ossrdbms-aad.database.windows.net/.default' -TenantId $cfg.PartnerTenantId -ClientId $cfg.ClientId @cred
+    $token = Get-ImperionAccessToken -Resource 'https://ossrdbms-aad.database.windows.net/.default' -TenantId $cfg.LocalTenantId -ClientId $cfg.ClientId @cred
     Open-ImperionDbConnection -DbHost $cfg.Db.Host -Database $cfg.Db.Database -Username $cfg.Db.Username -AccessToken $token -Port $cfg.Db.Port
 }

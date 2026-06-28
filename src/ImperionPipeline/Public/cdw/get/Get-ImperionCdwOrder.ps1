@@ -45,7 +45,7 @@ function Get-ImperionCdwOrder {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
     $ApiKey = Resolve-ImperionCdwApiKey -ApiKey $ApiKey
 
     $uri = '{0}/orders/v1/orders' -f $BaseUri.TrimEnd('/')

@@ -11,7 +11,7 @@ BeforeAll {
 Describe 'Get-ImperionKnowledgeConversationSegment' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'tenant-1' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'tenant-1' } }
             Mock Write-ImperionLog {}
             Mock Invoke-ImperionDbQuery {
                 @(

@@ -39,7 +39,7 @@ BeforeAll {
 Describe 'Get-ImperionScopedInteractionTeams' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner' } }
             Mock Get-ImperionGraphToken { 'graph-token' }
             Mock Write-ImperionLog { }
         }

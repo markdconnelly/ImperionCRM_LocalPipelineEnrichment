@@ -34,7 +34,7 @@ function Get-ImperionM365Group {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
 
     # $select the exact migration-0079 source properties — the advanced ones
     # (membershipRule*, isAssignableToRole) are omitted from the default projection.

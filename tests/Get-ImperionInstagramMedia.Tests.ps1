@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'Get-ImperionInstagramMedia' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner-tenant' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner-tenant' } }
             Mock Write-ImperionLog { }
         }
     }
@@ -69,7 +69,7 @@ Describe 'Get-ImperionInstagramMedia' {
 Describe 'Get-ImperionInstagramComment' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner-tenant' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner-tenant' } }
             Mock Write-ImperionLog { }
         }
     }

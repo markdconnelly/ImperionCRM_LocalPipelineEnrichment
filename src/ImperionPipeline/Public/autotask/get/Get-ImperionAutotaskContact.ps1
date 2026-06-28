@@ -21,7 +21,7 @@ function Get-ImperionAutotaskContact {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
 
     $ctx = Get-ImperionAutotaskContext
     $filter = if ($SinceDays -gt 0) {

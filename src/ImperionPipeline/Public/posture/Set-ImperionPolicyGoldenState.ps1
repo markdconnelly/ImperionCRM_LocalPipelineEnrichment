@@ -36,7 +36,7 @@ function Set-ImperionPolicyGoldenState {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
     $p = Get-ImperionPolicyCatalog | Where-Object Key -eq $PolicyType
     $target = if ($All) { "all $($p.Observed) policies" } else { "$PolicyType/$PolicyId" }
 

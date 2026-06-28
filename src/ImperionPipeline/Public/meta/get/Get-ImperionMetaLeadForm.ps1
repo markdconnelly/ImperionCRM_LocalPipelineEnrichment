@@ -40,7 +40,7 @@ function Get-ImperionMetaLeadForm {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
     $Token = Resolve-ImperionMetaToken -Token $Token
 
     $fields = 'name,status,locale,questions,context_card,follow_up_action_url,leads_count,created_time'

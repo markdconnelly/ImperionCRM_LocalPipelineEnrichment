@@ -43,7 +43,7 @@ function Get-ImperionDnsZoneObject {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
 
     $token = Get-ImperionArmToken -TenantId $TenantId
     $zones = Invoke-ImperionArmRequest -AccessToken $token `
