@@ -19,7 +19,7 @@ function Get-ImperionITGlueOrganization {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
 
     $apiKey = Resolve-ImperionITGlueApiKey
     $records = Invoke-ImperionITGlueRequest -Path 'organizations' -ApiKey $apiKey -Query 'sort=-updated-at&page[size]=1000' -BaseUri $cfg.ITGlue.BaseUri

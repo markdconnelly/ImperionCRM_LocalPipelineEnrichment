@@ -36,7 +36,7 @@ packaging — CLAUDE.md §2/§10 step 2): import the cert into `LocalMachine\My`
 (it is currently in `CurrentUser\My`), install Npgsql + MSAL.PS machine-wide, create the
 SecretStore + CMS unlock, fill `%ProgramData%\Imperion\pipeline.config.psd1`
 (`Db.Username='imperion-localpipeline'`, `ClientId='46f1077b-…'`, `CertThumbprint='F860A0D5…'`,
-`PartnerTenantId='49307c12-…'`), and load the source API keys.
+`LocalTenantId='49307c12-…'`), and load the source API keys.
 
 ## How to apply (for net-new tables added later)
 1. Create a new front-end migration (next number after the latest — the dir is at `0044`).

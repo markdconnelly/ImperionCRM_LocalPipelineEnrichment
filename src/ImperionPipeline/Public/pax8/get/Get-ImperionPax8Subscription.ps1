@@ -36,7 +36,7 @@ function Get-ImperionPax8Subscription {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
     $cred = Resolve-ImperionPax8Credential
 
     $subscriptions = Invoke-ImperionPax8Request @cred -Path '/v1/subscriptions' -BaseUri $BaseUri

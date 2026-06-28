@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'Get-ImperionDattoBcdrBackup' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner' } }
             Mock Resolve-ImperionDattoBcdrApiKey { 'resolved-key' }
         }
     }

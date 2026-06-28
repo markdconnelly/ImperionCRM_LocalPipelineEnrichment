@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'Get-ImperionTelivyReport' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner' } }
             Mock Resolve-ImperionTelivyApiKey { 'telivy-key' }
         }
     }

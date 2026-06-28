@@ -10,7 +10,7 @@ BeforeAll {
 Describe 'Get-ImperionInstagramMessage' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner-tenant' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner-tenant' } }
             Mock Write-ImperionLog { }
         }
     }

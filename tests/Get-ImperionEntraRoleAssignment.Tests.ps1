@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'Get-ImperionEntraRoleAssignment' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner' } }
             Mock Get-ImperionGraphToken { 'graph-token' }
             Mock Write-ImperionLog {}
             # URI-aware: the roleAssignments page expands ONLY roleDefinition (#322); each

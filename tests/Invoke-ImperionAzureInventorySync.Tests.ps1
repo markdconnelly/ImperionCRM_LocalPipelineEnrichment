@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'Invoke-ImperionAzureInventorySync' {
     It 'does not throw and flattens a resource that has no tags or sku' {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 't1' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 't1' } }
             Mock Get-ImperionArmToken { 'arm-token' }
             Mock New-ImperionDbConnection { [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { } }
             Mock Write-ImperionLog { }
@@ -32,7 +32,7 @@ Describe 'Invoke-ImperionAzureInventorySync' {
 
     It 'joins resource tags into the flat cell when present' {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 't1' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 't1' } }
             Mock Get-ImperionArmToken { 'arm-token' }
             Mock New-ImperionDbConnection { [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { } }
             Mock Write-ImperionLog { }

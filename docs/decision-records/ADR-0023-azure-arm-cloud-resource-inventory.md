@@ -28,7 +28,7 @@ Imperion's CMDB (front-end #372, ADR-0078) defines a **cloud-asset CI type**, bu
 ingestion source backs it. The existing Azure inventory (`Invoke-ImperionAzureInventorySync`
 / `Get-ImperionAzureResource` → `azure_resources`, ADR-0008 / migration 0038) enumerates the
 resources of **Imperion's own (partner) tenant** for security posture — it authenticates
-against `PartnerTenantId` and is not tenant-fanned-out, account-scoped, or shaped to feed the
+against `LocalTenantId` and is not tenant-fanned-out, account-scoped, or shaped to feed the
 CMDB. There is therefore **no per-managed-client cloud-resource picture** (each customer's
 subscriptions, resource groups, VMs, storage, app services, SQL, networking, …) that the
 CMDB can register as cloud-asset CIs and relate to the owning account (and, where derivable,

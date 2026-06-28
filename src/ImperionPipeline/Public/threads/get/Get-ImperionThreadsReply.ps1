@@ -43,7 +43,7 @@ function Get-ImperionThreadsReply {
 
     begin {
         $cfg = Get-ImperionConfig
-        if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+        if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
         $Token = Resolve-ImperionThreadsToken -Token $Token -FailClosed
 
         $map = [ordered]@{

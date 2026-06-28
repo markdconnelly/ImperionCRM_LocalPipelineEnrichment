@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'Get-ImperionKqmOpportunityDetail' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner-tenant' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner-tenant' } }
             Mock Get-ImperionSecretNames { @{ KqmApiKey = 'kqm-api-key'; KqmApiKeyVaultSecret = 'KQM-API-Key' } }
             Mock Write-ImperionLog { }
             # Per-endpoint detail collections; only the won-quote (q1) chain should survive.

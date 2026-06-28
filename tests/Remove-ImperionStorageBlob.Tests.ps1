@@ -11,7 +11,7 @@ BeforeAll {
 Describe 'Remove-ImperionStorageBlob' {
     It 'returns $true on a 2xx delete and sends a bearer token + DELETE to the blob URL' {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'tid'; ClientId = 'cid'; CertThumbprint = 'th'; Storage = @{ AccountName = 'acct'; ReceiptContainer = 'receipts' } } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'tid'; ClientId = 'cid'; CertThumbprint = 'th'; Storage = @{ AccountName = 'acct'; ReceiptContainer = 'receipts' } } }
             Mock Get-ImperionStorageToken { 'tok' }
             Mock Invoke-ImperionHttp { [pscustomobject]@{ Body = $null; Status = 202; Headers = @{} } }
 
@@ -26,7 +26,7 @@ Describe 'Remove-ImperionStorageBlob' {
 
     It 'treats a 404 (already deleted) as an idempotent no-op and returns $false' {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'tid'; ClientId = 'cid'; CertThumbprint = 'th'; Storage = @{ AccountName = 'acct'; ReceiptContainer = 'receipts' } } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'tid'; ClientId = 'cid'; CertThumbprint = 'th'; Storage = @{ AccountName = 'acct'; ReceiptContainer = 'receipts' } } }
             Mock Get-ImperionStorageToken { 'tok' }
             Mock Invoke-ImperionHttp { [pscustomobject]@{ Body = $null; Status = 404; Headers = @{} } }
 
@@ -36,7 +36,7 @@ Describe 'Remove-ImperionStorageBlob' {
 
     It 'throws on an unexpected status' {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'tid'; ClientId = 'cid'; CertThumbprint = 'th'; Storage = @{ AccountName = 'acct'; ReceiptContainer = 'receipts' } } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'tid'; ClientId = 'cid'; CertThumbprint = 'th'; Storage = @{ AccountName = 'acct'; ReceiptContainer = 'receipts' } } }
             Mock Get-ImperionStorageToken { 'tok' }
             Mock Invoke-ImperionHttp { [pscustomobject]@{ Body = $null; Status = 500; Headers = @{} } }
 
@@ -46,7 +46,7 @@ Describe 'Remove-ImperionStorageBlob' {
 
     It 'strips a leading container prefix so the URL never doubles the container segment' {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'tid'; ClientId = 'cid'; CertThumbprint = 'th'; Storage = @{ AccountName = 'acct'; ReceiptContainer = 'receipts' } } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'tid'; ClientId = 'cid'; CertThumbprint = 'th'; Storage = @{ AccountName = 'acct'; ReceiptContainer = 'receipts' } } }
             Mock Get-ImperionStorageToken { 'tok' }
             Mock Invoke-ImperionHttp { [pscustomobject]@{ Body = $null; Status = 202; Headers = @{} } }
 
@@ -59,7 +59,7 @@ Describe 'Remove-ImperionStorageBlob' {
 
     It 'WhatIf returns without minting a token or issuing the DELETE' {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'tid'; ClientId = 'cid'; CertThumbprint = 'th'; Storage = @{ AccountName = 'acct'; ReceiptContainer = 'receipts' } } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'tid'; ClientId = 'cid'; CertThumbprint = 'th'; Storage = @{ AccountName = 'acct'; ReceiptContainer = 'receipts' } } }
             Mock Get-ImperionStorageToken { 'tok' }
             Mock Invoke-ImperionHttp { [pscustomobject]@{ Body = $null; Status = 202; Headers = @{} } }
 

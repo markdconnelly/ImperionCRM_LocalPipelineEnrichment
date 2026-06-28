@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'Get-ImperionKnowledgePosture' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'tenant-1' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'tenant-1' } }
             Mock Write-ImperionLog {}
             # Route the tenant enumeration and the latest-secure-score queries.
             Mock Invoke-ImperionDbQuery {

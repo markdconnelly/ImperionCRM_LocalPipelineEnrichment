@@ -88,7 +88,7 @@ function Invoke-ImperionKnowledgeCompose {
 
     if (-not $LogLabel) { $LogLabel = "${EntityType}s" }
     if (-not $CountName) { $CountName = $LogLabel }
-    if (-not $PerRowTenant -and -not $TenantId) { $TenantId = (Get-ImperionConfig).PartnerTenantId }
+    if (-not $PerRowTenant -and -not $TenantId) { $TenantId = (Get-ImperionConfig).LocalTenantId }
 
     $ownsConnection = $false
     $activeConnection = $Connection

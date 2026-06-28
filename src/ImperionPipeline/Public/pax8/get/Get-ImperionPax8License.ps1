@@ -38,7 +38,7 @@ function Get-ImperionPax8License {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
     $cred = Resolve-ImperionPax8Credential
 
     $licenses = Invoke-ImperionPax8Request @cred -Path '/v1/licenses' -BaseUri $BaseUri

@@ -10,7 +10,7 @@ BeforeAll {
 Describe 'Get-ImperionThreadsPost' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner-tenant' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner-tenant' } }
             Mock Resolve-ImperionThreadsToken { 't' }
             Mock Write-ImperionLog { }
         }
@@ -71,7 +71,7 @@ Describe 'Get-ImperionThreadsPost' {
 Describe 'Get-ImperionThreadsReply' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner-tenant' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner-tenant' } }
             Mock Resolve-ImperionThreadsToken { 't' }
             Mock Write-ImperionLog { }
         }
@@ -113,7 +113,7 @@ Describe 'Get-ImperionThreadsReply' {
 Describe 'Get-ImperionThreadsMention' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner-tenant' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner-tenant' } }
             Mock Resolve-ImperionThreadsToken { 't' }
             Mock Write-ImperionLog { }
         }
@@ -146,7 +146,7 @@ Describe 'Get-ImperionThreadsMention' {
 Describe 'Get-ImperionThreadsInsight' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner-tenant' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner-tenant' } }
             Mock Resolve-ImperionThreadsToken { 't' }
             Mock Write-ImperionLog { }
         }

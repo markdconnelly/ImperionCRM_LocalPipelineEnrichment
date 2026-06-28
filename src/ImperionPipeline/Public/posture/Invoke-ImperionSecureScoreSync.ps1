@@ -17,7 +17,7 @@ function Invoke-ImperionSecureScoreSync {
     param([string] $TenantId)
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
     $started = Get-Date
     $graphToken = Get-ImperionGraphToken -TenantId $TenantId
     $conn = New-ImperionDbConnection

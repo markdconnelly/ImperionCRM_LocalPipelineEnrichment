@@ -91,7 +91,7 @@ through it.
   (#250, `Provider='m365'`) and `Get-ImperionArmToken` (#258, `Provider='azure'`) are thin
   wrappers over — rather than repeating a resolve-then-splat in each of ~20 collectors (the
   shallow-adapter pattern the architecture review warns against). For a managed client tenant
-  (`TenantId ≠ PartnerTenantId`) the seam looks up the owning account (`account_tenant`), calls
+  (`TenantId ≠ LocalTenantId`) the seam looks up the owning account (`account_tenant`), calls
   the resolver `-FailClosed`, and mints with the client's own app id + cert/secret; the
   partner/home tenant keeps the home enterprise-app credential (DB-free path, no recursion
   through `New-ImperionDbConnection`). Every Graph/ARM collector becomes per-tenant-credential-

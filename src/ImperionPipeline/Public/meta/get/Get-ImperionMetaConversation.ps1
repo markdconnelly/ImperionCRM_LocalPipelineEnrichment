@@ -43,7 +43,7 @@ function Get-ImperionMetaConversation {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
     if (-not $PageToken) { $PageToken = Get-ImperionMetaPageToken -PageId $PageId -Token $Token }
 
     $fields = 'participants,updated_time,messages.limit(100){message,from,to,created_time}'

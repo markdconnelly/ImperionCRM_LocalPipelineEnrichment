@@ -40,7 +40,7 @@ function Get-ImperionCustomSecurityAttribute {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
 
     $token = Get-ImperionGraphToken -TenantId $TenantId
     # $expand=allowedValues carries the predefined value list in one page; it survives lossless

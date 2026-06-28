@@ -58,7 +58,7 @@ try {
 
     # 2. Cert SP mints a Postgres token.
     $token = Get-ImperionAccessToken -Resource 'https://ossrdbms-aad.database.windows.net/.default' `
-        -TenantId $cfg.PartnerTenantId -ClientId $cfg.ClientId -CertThumbprint $cfg.CertThumbprint
+        -TenantId $cfg.LocalTenantId -ClientId $cfg.ClientId -CertThumbprint $cfg.CertThumbprint
     Add-Stage 'Get-ImperionAccessToken (ossrdbms)' ([bool]$token) ("token length {0}" -f $token.Length)
 
     # 3. Connect over TLS with the token (firewall + role login).

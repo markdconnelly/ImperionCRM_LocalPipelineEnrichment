@@ -50,7 +50,7 @@ function Get-ImperionMetaLead {
 
     begin {
         $cfg = Get-ImperionConfig
-        if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+        if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
         $Token = Resolve-ImperionMetaToken -Token $Token
 
         # Pull a named answer out of Meta's field_data array: [{ name, values: [..] }, ...].

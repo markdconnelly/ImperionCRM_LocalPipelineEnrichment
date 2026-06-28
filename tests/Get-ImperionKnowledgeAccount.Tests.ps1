@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'Get-ImperionKnowledgeAccount' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'tenant-1' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'tenant-1' } }
             Mock Write-ImperionLog {}
             # Route each of the composer's set-based queries by its FROM clause.
             Mock Invoke-ImperionDbQuery {

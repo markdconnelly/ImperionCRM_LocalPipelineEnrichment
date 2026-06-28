@@ -49,7 +49,7 @@ function Get-ImperionKqmOpportunity {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
     $ApiKey = Resolve-ImperionKqmApiKey -ApiKey $ApiKey
 
     $uri = '{0}/quote' -f $BaseUri.TrimEnd('/')

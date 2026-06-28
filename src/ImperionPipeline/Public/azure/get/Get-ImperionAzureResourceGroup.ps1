@@ -24,7 +24,7 @@ function Get-ImperionAzureResourceGroup {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
 
     $token = Get-ImperionArmToken -TenantId $TenantId
     $groups = Invoke-ImperionArmRequest -Path "/subscriptions/$SubscriptionId/resourcegroups?api-version=$ApiVersion" -AccessToken $token

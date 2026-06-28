@@ -55,7 +55,7 @@ function Get-ImperionQboProfitAndLoss {
 
     $cfg = Get-ImperionConfig
     $names = Get-ImperionSecretNames
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
 
     $today = (Get-Date).ToUniversalTime()
     if (-not $StartDate) { $StartDate = (Get-Date -Year $today.Year -Month $today.Month -Day 1).ToString('yyyy-MM-dd') }

@@ -17,7 +17,7 @@ function Invoke-ImperionAzureInventorySync {
     )
 
     $cfg = Get-ImperionConfig
-    $tenantId = $cfg.PartnerTenantId
+    $tenantId = $cfg.LocalTenantId
     $started = Get-Date
     $armToken = Get-ImperionArmToken
     $conn = New-ImperionDbConnection

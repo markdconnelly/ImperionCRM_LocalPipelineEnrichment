@@ -57,7 +57,7 @@ function Get-ImperionQboExpenseAccount {
 
     $cfg = Get-ImperionConfig
     $names = Get-ImperionSecretNames
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
 
     $accessToken = Get-ImperionSecretValue -Name $names.QboAccessToken
     $realmId = Get-ImperionSecretValue -Name $names.QboRealmId

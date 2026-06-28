@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'Get-ImperionDocuSignEnvelope' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner' } }
             Mock Get-ImperionSecretNames { @{ DocuSignToken = 'docusign-token'; DocuSignAccountId = 'docusign-account-id' } }
             Mock Get-ImperionSecretValue { param($Name) if ($Name -eq 'docusign-account-id') { 'acct-1' } else { 'ds-token' } }
         }

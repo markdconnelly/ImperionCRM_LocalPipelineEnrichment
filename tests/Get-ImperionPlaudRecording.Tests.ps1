@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'Get-ImperionPlaudRecording' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner' } }
             Mock Get-ImperionSecretNames { @{ PlaudOAuthToken = 'plaud-oauth-token' } }
             Mock Get-ImperionSecretValue { 'raw-token' }
             Mock Write-ImperionLog {}

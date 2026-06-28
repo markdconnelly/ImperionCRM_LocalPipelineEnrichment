@@ -41,7 +41,7 @@ function Get-ImperionEntraAppRegistration {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
 
     $token = Get-ImperionGraphToken -TenantId $TenantId
     $applications = Invoke-ImperionGraphRequest -Uri 'https://graph.microsoft.com/v1.0/applications' -AccessToken $token

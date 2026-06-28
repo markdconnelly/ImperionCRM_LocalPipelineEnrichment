@@ -42,7 +42,7 @@ function Invoke-ImperionPurviewComplianceSync {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
     $started = Get-Date
     $graph = Get-ImperionGraphToken -TenantId $TenantId
     $conn = New-ImperionDbConnection

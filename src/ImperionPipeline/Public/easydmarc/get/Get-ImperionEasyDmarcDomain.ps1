@@ -46,7 +46,7 @@ function Get-ImperionEasyDmarcDomain {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
     $ApiKey = Resolve-ImperionEasyDmarcApiKey -ApiKey $ApiKey
 
     $uri = '{0}/domains' -f $BaseUri.TrimEnd('/')

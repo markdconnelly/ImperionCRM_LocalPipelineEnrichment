@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'Get-ImperionAutotaskCompany' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 't1' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 't1' } }
             Mock Get-ImperionSecretNames { @{ AutotaskUserName = 'autotask-username'; AutotaskIntegrationCode = 'autotask-integration-code'; AutotaskSecret = 'autotask-secret' } }
             Mock Get-ImperionSecretValue { 'secret' }
             Mock Get-ImperionAutotaskZone { 'https://ws.autotask.net/atservicesrest/V1.0' }

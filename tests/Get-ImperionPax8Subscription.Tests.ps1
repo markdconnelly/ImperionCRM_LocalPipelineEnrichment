@@ -9,7 +9,7 @@ BeforeAll {
 Describe 'Get-ImperionPax8Subscription' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner' } }
             Mock Resolve-ImperionPax8Credential { @{ ClientId = 'id'; ClientSecret = 'secret' } }
         }
     }

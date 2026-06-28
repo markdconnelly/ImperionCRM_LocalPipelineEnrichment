@@ -36,7 +36,7 @@ function Get-ImperionSentinelObject {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
 
     $armToken = Get-ImperionArmToken -TenantId $TenantId
     $rows = [System.Collections.Generic.List[object]]::new()

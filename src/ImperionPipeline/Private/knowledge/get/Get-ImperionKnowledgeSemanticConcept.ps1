@@ -43,7 +43,7 @@ function Get-ImperionKnowledgeSemanticConcept {
         [string] $TenantId
     )
 
-    if (-not $TenantId) { $TenantId = (Get-ImperionConfig).PartnerTenantId }
+    if (-not $TenantId) { $TenantId = (Get-ImperionConfig).LocalTenantId }
 
     $tablesPath = Join-Path $BundlePath 'tables'
     if (-not (Test-Path $tablesPath)) {

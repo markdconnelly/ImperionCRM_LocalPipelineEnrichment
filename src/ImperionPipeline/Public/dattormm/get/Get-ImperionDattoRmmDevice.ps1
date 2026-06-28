@@ -52,7 +52,7 @@ function Get-ImperionDattoRmmDevice {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
     $ApiKey = Resolve-ImperionDattoRmmApiKey -ApiKey $ApiKey
 
     $devices = Invoke-ImperionDattoRmmRequest -ApiKey $ApiKey -BaseUri $BaseUri `

@@ -10,7 +10,7 @@ BeforeAll {
 Describe 'Get-ImperionMetaLeadForm' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner-tenant' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner-tenant' } }
             Mock Write-ImperionLog { }
         }
     }
@@ -46,7 +46,7 @@ Describe 'Get-ImperionMetaLeadForm' {
 Describe 'Get-ImperionMetaLead' {
     BeforeEach {
         InModuleScope ImperionPipeline {
-            Mock Get-ImperionConfig { @{ PartnerTenantId = 'partner-tenant' } }
+            Mock Get-ImperionConfig { @{ LocalTenantId = 'partner-tenant' } }
             Mock Write-ImperionLog { }
         }
     }

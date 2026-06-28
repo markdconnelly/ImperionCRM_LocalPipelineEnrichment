@@ -46,7 +46,7 @@ function Get-ImperionAmazonBusinessOrder {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
     $Token = Resolve-ImperionAmazonBusinessToken -Token $Token
 
     $uri = '{0}/orders/v1/orders' -f $BaseUri.TrimEnd('/')

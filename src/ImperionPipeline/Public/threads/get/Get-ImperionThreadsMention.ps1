@@ -39,7 +39,7 @@ function Get-ImperionThreadsMention {
     )
 
     $cfg = Get-ImperionConfig
-    if (-not $TenantId) { $TenantId = $cfg.PartnerTenantId }
+    if (-not $TenantId) { $TenantId = $cfg.LocalTenantId }
     $Token = Resolve-ImperionThreadsToken -Token $Token -FailClosed
 
     $fields = 'id,username,text,permalink,timestamp,owner'
