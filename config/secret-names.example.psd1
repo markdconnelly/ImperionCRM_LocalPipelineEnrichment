@@ -143,12 +143,13 @@
     Pax8ClientSecret             = 'pax8-client-secret'
     Pax8ClientSecretVaultSecret  = 'Pax8-Client-Secret'
 
-    # Voyage AI key for the vectorization stage (ADR-0009; pinned voyage-3-large @ 1024,
-    # front-end ADR-0041). Resolution order in Get-ImperionVoyageEmbedding:
-    #   1. SecretStore title below (when the vault is unlocked this run) — mirror of the KV value
-    #   2. Key Vault secret below, read by the cert SP (the ORIGINAL; used in -SkipSecretStore mode)
-    EmbeddingProviderKey            = 'embedding-provider-key'
-    EmbeddingProviderKeyVaultSecret = 'Voyage-Embedding-API-Key'
+    # Voyage AI key for the vectorization stage (pinned voyage-3-large @ 1024, front-end
+    # ADR-0041). Custodied as a PLATFORM-scope AI credential in the `connection` registry
+    # (front-end ADR-0129 §8, supersedes ADR-0009's local-secret order; folds #389): the cert
+    # SP reads it directly from Key Vault at the canonical name below. The mis-named starter
+    # secret (`Voyage-Embedding-API-Key` / SecretStore `embedding-provider-key`) is RETIRED —
+    # there is no SecretStore mirror for this key any more.
+    EmbeddingProviderKeyVaultSecret = 'conn-platform-voyage'
 
     # NOTE: Dark Web ID has NO local SecretStore secret — in the system it is a COMPANY
     # credential (Key Vault `conn-company-darkwebid`, ADR-0040). Provision a local secret name

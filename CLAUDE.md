@@ -166,7 +166,8 @@ Scheduled Task (runs as a dedicated service identity, not Mark's user)
    mirror (see [`docs/security/credential-resolution.md`](docs/security/credential-resolution.md)).
    The cert-backed app SP mints the Key Vault token; the GUI writes each secret to KV and
    records its `keyvault_secret_ref` on the registry row. *(In-flight residue, own PRs: autotask,
-   qbo, voyage, mileiq, docusign still read the SecretStore until cut over.)* The SecretStore
+   qbo, mileiq, docusign still read the SecretStore until cut over; **voyage is cut over** —
+   the embedding key reads Key Vault `conn-platform-voyage`, front-end ADR-0129 §8 / #406.)* The SecretStore
    does **not** hold a Postgres password — DB access is a short-lived Entra token minted by the
    cert SP (§6). Cert-based app auth also means the node app needs **no client secret** in the
    vault — the cert is the credential.
@@ -411,8 +412,10 @@ decision 2026-06-09 — backend ADR-0034 / front-end ADR-0041):
   vector contract, not hard-coded a second time** (`Get-ImperionVectorContract` vendors the
   shared values, ADR-0025 / #231) — two hand-maintained copies is exactly how a vector space
   silently splits, so there is a single source of truth shared with the backend query side;
-  `Get-ImperionVoyageEmbedding` refuses any non-1024 vector. The Voyage key is the SecretStore
-  secret `embedding-provider-key`. The backend
+  `Get-ImperionVoyageEmbedding` refuses any non-1024 vector. The Voyage key is the PLATFORM-scope
+  AI credential read from Key Vault `conn-platform-voyage` (front-end ADR-0129 §8 / #406, folds
+  #389 — the mis-named starter secret `Voyage-Embedding-API-Key` / SecretStore
+  `embedding-provider-key` is retired). The backend
   embeds only *queries* against the same contract. A local model (Ollama/ONNX) is a
   possible **future ADR** via a versioned re-embed — not dormant code.
 - **Pin one model + dimension, system-wide.** Every vector row stores `embedding_model`,

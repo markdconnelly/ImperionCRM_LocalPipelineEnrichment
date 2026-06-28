@@ -73,25 +73,22 @@ Describe 'Get-ImperionVoyageEmbedding' {
         }
     }
 
-    It 'resolves the API key from the SecretStore when the vault is unlocked' {
+    It 'resolves the API key from Key Vault at the configured platform name (ADR-0129 §8)' {
         InModuleScope ImperionPipeline {
-            $script:ImperionSecretStoreVault = 'ImperionStore'
-            Mock Get-ImperionSecretNames { @{ EmbeddingProviderKey = 'embedding-provider-key' } }
-            Mock Get-ImperionSecretValue { 'vault-key' } -ParameterFilter { $Name -eq 'embedding-provider-key' }
+            Mock Get-ImperionSecretNames { @{ EmbeddingProviderKeyVaultSecret = 'conn-platform-voyage' } }
+            Mock Get-ImperionSecretValue { throw 'the SecretStore mirror is retired — should not be touched' }
+            Mock Get-ImperionKeyVaultSecret { 'kv-key' } -ParameterFilter { $Name -eq 'conn-platform-voyage' }
             Get-ImperionVoyageEmbedding -Text @('x') | Out-Null
-            $script:ImperionSecretStoreVault = $null
             Should -Invoke Invoke-ImperionRestWithRetry -Times 1 -ParameterFilter {
-                $Headers.Authorization -eq 'Bearer vault-key'
+                $Headers.Authorization -eq 'Bearer kv-key'
             }
         }
     }
 
-    It 'falls back to the Key Vault secret when the SecretStore is not unlocked (ADR-0009)' {
+    It 'defaults to conn-platform-voyage when the secret-name config omits the key' {
         InModuleScope ImperionPipeline {
-            $script:ImperionSecretStoreVault = $null
-            Mock Get-ImperionSecretNames { @{ EmbeddingProviderKey = 'embedding-provider-key'; EmbeddingProviderKeyVaultSecret = 'Voyage-Embedding-API-Key' } }
-            Mock Get-ImperionSecretValue { throw 'should not touch the SecretStore' }
-            Mock Get-ImperionKeyVaultSecret { 'kv-key' } -ParameterFilter { $Name -eq 'Voyage-Embedding-API-Key' }
+            Mock Get-ImperionSecretNames { @{} }
+            Mock Get-ImperionKeyVaultSecret { 'kv-key' } -ParameterFilter { $Name -eq 'conn-platform-voyage' }
             Get-ImperionVoyageEmbedding -Text @('x') | Out-Null
             Should -Invoke Invoke-ImperionRestWithRetry -Times 1 -ParameterFilter {
                 $Headers.Authorization -eq 'Bearer kv-key'

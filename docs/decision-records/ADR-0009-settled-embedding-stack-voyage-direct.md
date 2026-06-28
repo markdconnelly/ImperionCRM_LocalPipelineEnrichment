@@ -56,12 +56,16 @@ flowchart LR
     KE --> AGENT["Backend agent retrieval<br/>(embeds QUERIES only — backend ADR-0034)"]
 ```
 
-- **The API key** resolves SecretStore-first, **Key Vault fallback** (amended
-  2026-06-09): the Key Vault secret `Voyage-Embedding-API-Key` is the single source of
-  truth, read by the cert SP (`Key Vault Secrets User`); the SecretStore mirror
-  (`embedding-provider-key`) serves fully-offline unattended runs once the service
-  identity is provisioned. `Initialize-ImperionContext -SkipSecretStore` enables the
-  interim KV-only mode.
+- **The API key** is the PLATFORM-scope AI credential, read from **Key Vault
+  `conn-platform-voyage`** by the cert SP (`Key Vault Secrets User`). _**Amended
+  2026-06-27 (front-end ADR-0129 §8, folds #389):**_ the key is now custodied through the
+  `connection` registry's `platform` scope at the canonical name `conn-platform-voyage` —
+  the same authoritative KV link the backend resolves. The original SecretStore-first /
+  `Voyage-Embedding-API-Key` order is **superseded**: the SecretStore mirror
+  (`embedding-provider-key`) and the mis-named starter secret are **retired**, so there is
+  no offline mirror for this key (it is one outbound KV read by the cert SP). The one-time
+  ops reconcile (copy the starter value into `conn-platform-voyage`) is in
+  [`docs/operations/secret-rotation.md`](../operations/secret-rotation.md).
 - **The local-model fallback (Ollama/ONNX) remains a future ADR**, not dormant code: a
   same-dimension swap is a versioned re-embed under a new ADR; a different dimension is
   a front-end migration. Nothing in this design blocks it — there is just no abstraction
