@@ -90,11 +90,12 @@ tasks land).
 - **Re-embed:** a model/chunking change is a **versioned re-embed**, never in-place — the
   vectorizer only ever replaces rows matching its own (embedding_model, chunking_version);
   other versions coexist until verified, then pruned (the SP's scoped `DELETE`).
-- **API key (resolution order, ADR-0009):** the SecretStore mirror `embedding-provider-key`
-  when the vault is unlocked this run, else the **Key Vault original
-  `Voyage-Embedding-API-Key`** read by the cert SP (`Key Vault Secrets User`, granted
-  2026-06-09). Key Vault is the single source of truth; the SecretStore copy exists for
-  fully-offline unattended runs once the service identity is provisioned.
+- **API key (front-end ADR-0129 §8, supersedes ADR-0009's order):** the Voyage key is the
+  PLATFORM-scope AI credential, read from **Key Vault `conn-platform-voyage`** by the cert SP
+  (`Key Vault Secrets User`). There is no SecretStore mirror — the mis-named starter secret
+  (`Voyage-Embedding-API-Key` / `embedding-provider-key`) is retired (folds #389). Key Vault,
+  via the `connection` registry's platform scope, is the single source of truth — the same
+  link the backend resolves for query embeddings.
 - **Cost telemetry (every run):** objects scanned/unchanged/embedded, chunks, billed
   tokens, estimated USD (~$0.18/M tokens, input-only), provider, model, dimension,
   chunking version, duration — emitted as a `Metric` log line by

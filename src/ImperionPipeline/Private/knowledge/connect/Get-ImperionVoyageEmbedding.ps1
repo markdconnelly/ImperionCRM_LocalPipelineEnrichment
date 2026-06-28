@@ -10,11 +10,14 @@ function Get-ImperionVoyageEmbedding {
         pins `output_dimension` to the contract, and REFUSES any response vector that is
         not exactly the pinned dimension so vector spaces can never silently mix.
 
-        Key resolution (ADR-0009): explicit -ApiKey wins; else the SecretStore secret named
-        by `EmbeddingProviderKey` when the vault is unlocked this run; else the Key Vault
-        secret named by `EmbeddingProviderKeyVaultSecret` (default
-        `Voyage-Embedding-API-Key`) read by the cert SP — the path used in interim
-        `-SkipSecretStore` mode and the single source of truth the SecretStore copy mirrors.
+        Key resolution (front-end ADR-0129 §8, supersedes ADR-0009's local-secret order):
+        explicit -ApiKey wins; else the Voyage key is the platform-scope AI credential read
+        from Key Vault by the cert SP at the canonical registry name
+        `EmbeddingProviderKeyVaultSecret` (default `conn-platform-voyage`). The mis-named
+        starter secret (`Voyage-Embedding-API-Key` / SecretStore `embedding-provider-key`)
+        is retired — there is no SecretStore mirror for this key any more (it is custodied
+        through the `connection` registry's `platform` scope, the same authoritative
+        KV link the backend resolves; folds #389).
         Throttling/backoff is handled by Invoke-ImperionRestWithRetry (429/503 +
         Retry-After). Returns per-input vectors in input order plus the billed token
         total for cost telemetry.
@@ -23,7 +26,8 @@ function Get-ImperionVoyageEmbedding {
     .PARAMETER InputType
         'document' (corpus text — the default here) or 'query' (search queries).
     .PARAMETER ApiKey
-        Voyage API key. Defaults to the SecretStore secret named by EmbeddingProviderKey.
+        Voyage API key. Defaults to the Key Vault platform secret named by
+        EmbeddingProviderKeyVaultSecret (`conn-platform-voyage`, ADR-0129 §8).
     .OUTPUTS
         [pscustomobject] @{ Embeddings = [float[][]]; TotalTokens = [int]; Model = [string] }
         — Embeddings[i] corresponds to Text[i].
@@ -41,19 +45,17 @@ function Get-ImperionVoyageEmbedding {
 
     $contract = Get-ImperionVectorContract
     if (-not $ApiKey) {
+        # Platform-scope AI credential (ADR-0129 §8): the Voyage key is custodied in the
+        # `connection` registry's platform scope at the canonical KV name conn-platform-voyage,
+        # read directly by the cert SP. No SecretStore mirror (the mis-named starter secret is
+        # retired).
         $secretNames = Get-ImperionSecretNames
-        # SecretStore first (when this run unlocked it), else the Key Vault original.
-        if ($script:ImperionSecretStoreVault -and $secretNames.EmbeddingProviderKey) {
-            $ApiKey = Get-ImperionSecretValue -Name $secretNames.EmbeddingProviderKey
-        }
-        if (-not $ApiKey) {
-            $keyVaultSecretName =
-                if ($secretNames -is [System.Collections.IDictionary] -and $secretNames.Contains('EmbeddingProviderKeyVaultSecret')) {
-                    $secretNames['EmbeddingProviderKeyVaultSecret']
-                }
-                else { 'Voyage-Embedding-API-Key' }
-            $ApiKey = Get-ImperionKeyVaultSecret -Name $keyVaultSecretName
-        }
+        $keyVaultSecretName =
+            if ($secretNames -is [System.Collections.IDictionary] -and $secretNames.Contains('EmbeddingProviderKeyVaultSecret')) {
+                $secretNames['EmbeddingProviderKeyVaultSecret']
+            }
+            else { 'conn-platform-voyage' }
+        $ApiKey = Get-ImperionKeyVaultSecret -Name $keyVaultSecretName
     }
 
     $headers = @{ Authorization = "Bearer $ApiKey"; Accept = 'application/json' }

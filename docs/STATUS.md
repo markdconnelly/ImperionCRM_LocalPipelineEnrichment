@@ -17,11 +17,13 @@ _Snapshot of where the `ImperionPipeline` module stands. Updated as layers land.
   fill `m365_groups` / `m365_group_members` bronze in prod.
 - **Gold knowledge + vectorization LIVE in prod.** ~205 `knowledge_object` rows are composed
   from silver and **embedded with Voyage `voyage-3-large` @ 1024** by `Invoke-ImperionKnowledgeSync
-  -Vectorize` (the nightly `Imperion-KnowledgeVectorize` task, 04:30). The Voyage key is
-  provisioned (Key Vault `Voyage-Embedding-API-Key`, with the SecretStore mirror
-  `embedding-provider-key`); the chunk-hash-idempotent vectorizer writes `knowledge_embedding`
-  (front-end migration 0045 / ADR-0041). This is the system's sole embedding producer; the
-  backend agent reads the vectors and embeds only queries against the same contract.
+  -Vectorize` (the nightly `Imperion-KnowledgeVectorize` task, 04:30). The Voyage key is the
+  PLATFORM-scope AI credential read from Key Vault `conn-platform-voyage` (front-end ADR-0129 §8,
+  folds #389 — the mis-named starter secret `Voyage-Embedding-API-Key` / SecretStore
+  `embedding-provider-key` is retired); the chunk-hash-idempotent vectorizer writes
+  `knowledge_embedding` (front-end migration 0045 / ADR-0041). This is the system's sole
+  embedding producer; the backend agent reads the vectors and embeds only queries against the
+  same contract.
 - Built in the layered order from `CLAUDE.md §10` / `functions/README.md`:
   **connect → get → post → scheduled-task**. The full spine is built across ~25 source areas
   (CRM/support, security posture, finance/BI, logistics, scoped interaction). What remains is

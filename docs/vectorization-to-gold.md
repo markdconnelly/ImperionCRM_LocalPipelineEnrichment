@@ -126,9 +126,11 @@ to its source conversation + diarized turn through the **`conversation_segment_c
 render an attributed citation (channel / account / speaker / offsets / text). See
 [`database/vector-lifecycle.md`](database/vector-lifecycle.md) for the join detail.
 
-## API key resolution (ADR-0009)
+## API key resolution (front-end ADR-0129 §8, supersedes ADR-0009)
 
-Explicit `-ApiKey` wins; else the SecretStore mirror `embedding-provider-key` (when the vault is
-unlocked this run); else the **Key Vault original `Voyage-Embedding-API-Key`** read by the cert
-SP (`Key Vault Secrets User`). Key Vault is the single source of truth; the SecretStore copy
-exists for fully-offline unattended runs. **Never commit the key** (system posture).
+Explicit `-ApiKey` wins; else the Voyage key — the PLATFORM-scope AI credential — is read from
+**Key Vault `conn-platform-voyage`** by the cert SP (`Key Vault Secrets User`). The mis-named
+starter secret (`Voyage-Embedding-API-Key` / SecretStore `embedding-provider-key`) is retired
+(folds #389); there is no SecretStore mirror. Key Vault, via the `connection` registry's
+platform scope, is the single source of truth — the same link the backend resolves. **Never
+commit the key** (system posture).
