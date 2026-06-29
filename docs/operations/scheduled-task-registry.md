@@ -98,4 +98,11 @@ task command is `pwsh -Command "Import-Module ImperionPipeline; Initialize-Imper
 - Tasks are **idempotent**; overlapping runs are prevented (`-MultipleInstances
   IgnoreNew`).
 - Every run emits structured JSON logs to `logs/` (run id, source, counts, duration, cost).
+- **Failures are logged, not just exit codes (#410).** The task action wraps its cmdlet in a
+  `try/catch` that writes an `Error` line to the JSONL before rethrowing, and
+  `Invoke-ImperionRestWithRetry` logs an `Error` on any non-retryable HTTP status. A scheduled,
+  NonInteractive `pwsh` discards console output, so without this a failed run would leave only a
+  non-zero `LastTaskResult` with no reason recorded. To triage a failed task: read the latest
+  `logs/*.jsonl` for `level=Error` (the secret-bearing URL is redacted; the HTTP body is never
+  logged). `Get-ScheduledTaskInfo -TaskName <name> -TaskPath '\Imperion\'` gives the exit code.
 - Cadence per source is documented in each `integrations/` doc; tune without code changes.

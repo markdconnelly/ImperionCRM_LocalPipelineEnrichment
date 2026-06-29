@@ -48,6 +48,18 @@ Describe 'Register-ImperionTask' {
         }
     }
 
+    It 'wraps the cmdlet so a failure is logged to the structured log before the task exits (#410)' {
+        InModuleScope ImperionPipeline {
+            Register-ImperionTask -TaskIdentity 'CORP\svc-imperion$' -PwshPath 'C:\pwsh\pwsh.exe' -WhatIf
+            Should -Invoke New-ScheduledTaskAction -ParameterFilter {
+                $Argument -match 'try \{' -and
+                $Argument -match "Write-ImperionLog -Level Error -Source 'task'" -and
+                $Argument -match 'failed: ' -and
+                $Argument -match '; throw \}'
+            }
+        }
+    }
+
     It 'runs each task under the supplied gMSA/service identity' {
         InModuleScope ImperionPipeline {
             Register-ImperionTask -TaskIdentity 'CORP\svc-imperion$' -PwshPath 'C:\pwsh\pwsh.exe' -WhatIf
