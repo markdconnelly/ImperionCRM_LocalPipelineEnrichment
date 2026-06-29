@@ -49,12 +49,22 @@ function Get-ImperionVoyageEmbedding {
         # `connection` registry's platform scope at the canonical KV name conn-platform-voyage,
         # read directly by the cert SP. No SecretStore mirror (the mis-named starter secret is
         # retired).
+        $canonicalVoyageSecret = 'conn-platform-voyage'
         $secretNames = Get-ImperionSecretNames
         $keyVaultSecretName =
             if ($secretNames -is [System.Collections.IDictionary] -and $secretNames.Contains('EmbeddingProviderKeyVaultSecret')) {
                 $secretNames['EmbeddingProviderKeyVaultSecret']
             }
-            else { 'conn-platform-voyage' }
+            else { $canonicalVoyageSecret }
+        if ($keyVaultSecretName -ne $canonicalVoyageSecret) {
+            # The Voyage key is pinned to the platform-scope registry name conn-platform-voyage
+            # (ADR-0129 §8). A host secret-names override pointing elsewhere is almost always a
+            # stale pre-cutover config (e.g. the retired starter secret Voyage-Embedding-API-Key)
+            # that silently shadows the GUI-seeded key and 401s. Warn loudly so this never costs
+            # another debugging session (#411). The override is still honored (a test host may set
+            # it deliberately) — this only surfaces the mismatch in the structured log.
+            Write-ImperionLog -Level Warn -Source 'vector' -Message "EmbeddingProviderKeyVaultSecret override '$keyVaultSecretName' differs from the canonical '$canonicalVoyageSecret' (ADR-0129 #8). If embeddings return 401, the host secret-names.psd1 is shadowing the platform key."
+        }
         $ApiKey = Get-ImperionKeyVaultSecret -Name $keyVaultSecretName
     }
 
