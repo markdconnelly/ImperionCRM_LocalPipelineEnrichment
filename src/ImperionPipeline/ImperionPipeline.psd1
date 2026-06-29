@@ -1,6 +1,6 @@
 @{
     RootModule        = 'ImperionPipeline.psm1'
-    ModuleVersion     = '0.15.0' # x-release-please-version
+    ModuleVersion     = '0.15.1' # x-release-please-version
     GUID              = 'b1e7c4a2-6d3f-4f1a-9c2e-7a0d5e8f3b21'
     Author            = 'Mark / Imperion'
     CompanyName       = 'Imperion'

@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.15.1](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.15.0...v0.15.1) (2026-06-29)
+
+
+### Bug Fixes
+
+* **observability:** log task + HTTP failures to the structured JSONL ([#410](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/410)) ([#415](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/415)) ([2c524ff](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/2c524ff44bc66a3afc4e2d2e4eaa16cc76962604))
+* **posture:** drift loop skips a misshapen golden table instead of aborting ([#409](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/409)) ([#412](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/412)) ([12d43ee](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/12d43ee24b4b8f829e304e8fd315e0250365d3d4))
+* **release:** pin psd1 ModuleVersion to release-please + warn on shadowed Voyage key ([#411](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/411)) ([#414](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/414)) ([580bd59](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/580bd59f6adbeb61bce156ecdd0624525ea0559b))
+
 ## [0.15.0](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.14.0...v0.15.0) (2026-06-28)
 
 
