@@ -45,6 +45,11 @@ mint/revoke). Until done, the vectorizer reads a name that does not exist yet an
    validate-before-write; either path lands `conn-platform-voyage`.)
 2. Update the host `config/secret-names.psd1`: `EmbeddingProviderKeyVaultSecret = 'conn-platform-voyage'`
    and **remove** the retired `EmbeddingProviderKey` line (no SecretStore mirror any more).
+   > **If you skip this step the symptom is a Voyage `401 Provided API key is invalid`** — the
+   > vectorizer reads whatever name the override points at (the stale starter secret) and shadows
+   > the platform key. Since #411 `Get-ImperionVoyageEmbedding` emits a `Warn` to the structured
+   > log whenever the resolved name differs from `conn-platform-voyage`, so the mismatch is visible
+   > without a debugging session. (This exact gap cost the 2026-06-29 bring-up several hours.)
 3. Run `Invoke-ImperionKnowledgeSync -Vectorize` once; confirm success + a non-zero token
    count in the logs.
 4. Once verified, **delete** the retired secrets: Key Vault `Voyage-Embedding-API-Key` and the

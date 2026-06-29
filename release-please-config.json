@@ -3,7 +3,13 @@
   "bootstrap-sha": "67b8c67ddf626e1ab38a7a559f26ea6a28115c59",
   "packages": {
     ".": {
-      "release-type": "simple"
+      "release-type": "simple",
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "src/ImperionPipeline/ImperionPipeline.psd1"
+        }
+      ]
     }
   }
 }

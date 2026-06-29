@@ -95,4 +95,26 @@ Describe 'Get-ImperionVoyageEmbedding' {
             }
         }
     }
+
+    It 'warns when a stale secret-name override shadows the canonical platform key (#411)' {
+        InModuleScope ImperionPipeline {
+            Mock Write-ImperionLog {}
+            Mock Get-ImperionSecretNames { @{ EmbeddingProviderKeyVaultSecret = 'Voyage-Embedding-API-Key' } }
+            Mock Get-ImperionKeyVaultSecret { 'kv-key' }
+            Get-ImperionVoyageEmbedding -Text @('x') | Out-Null
+            Should -Invoke Write-ImperionLog -Times 1 -ParameterFilter {
+                $Level -eq 'Warn' -and $Message -like '*conn-platform-voyage*'
+            }
+        }
+    }
+
+    It 'does not warn when the platform key resolves to the canonical name (#411)' {
+        InModuleScope ImperionPipeline {
+            Mock Write-ImperionLog {}
+            Mock Get-ImperionSecretNames { @{ EmbeddingProviderKeyVaultSecret = 'conn-platform-voyage' } }
+            Mock Get-ImperionKeyVaultSecret { 'kv-key' }
+            Get-ImperionVoyageEmbedding -Text @('x') | Out-Null
+            Should -Not -Invoke Write-ImperionLog -ParameterFilter { $Level -eq 'Warn' }
+        }
+    }
 }
