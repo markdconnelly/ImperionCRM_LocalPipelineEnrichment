@@ -41,4 +41,21 @@ Describe 'Get-ImperionPolicyDrift' {
             Should -Invoke Invoke-ImperionDbQuery -Times 1 -ParameterFilter { $Parameters.t -eq 'partner' }
         }
     }
+
+    It 'skips a family whose golden table is misshapen and keeps evaluating the rest (#409)' {
+        InModuleScope ImperionPipeline {
+            Mock Get-ImperionConfig { @{ LocalTenantId = 't1' } }
+            Mock Write-ImperionLog {}
+            # purview_compliance_golden lacks the golden_hash column (#409), so the query throws
+            # 42703 for that family only; every other family returns one row.
+            Mock Invoke-ImperionDbQuery {
+                if ($Sql -like '*purview_compliance_golden*') { throw '42703: column g.golden_hash does not exist' }
+                @( [pscustomobject]@{ policy_id = 'p1'; policy_name = 'n'; current_hash = 'h'; golden_hash = 'h'; status = 'compliant' } )
+            }
+            $result = @(Get-ImperionPolicyDrift -Connection ([pscustomobject]@{}))
+            $result.policy_type | Should -Not -Contain 'purview-compliance'
+            $result.Count | Should -BeGreaterThan 0
+            Should -Invoke Write-ImperionLog -Times 1 -ParameterFilter { $Level -eq 'Warn' -and $Message -like "*purview-compliance*" }
+        }
+    }
 }
