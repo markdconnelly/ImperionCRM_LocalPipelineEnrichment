@@ -47,6 +47,16 @@ Once vectorized/surfaced, drift and ungoverned/missing policies become part of t
 knowledge the front-end agent is aware of — "what changed against approved baseline" is a
 first-class question the agent can answer.
 
+## Resilience — a misshapen golden table never takes down the sync
+`Get-ImperionPolicyDrift` evaluates each catalog family independently and **skips (with a
+`Warn` log) any family whose golden table does not match the drift contract** rather than
+throwing. This matters because the drift call runs inside the posture composer of the nightly
+`Invoke-ImperionKnowledgeSync -Vectorize`: a single misshapen golden table must not abort gold
+composition + embedding. Known case: `purview_compliance_golden` was created with the bronze
+envelope (`content_hash`) instead of `golden_hash` (LP #409; durable schema repair = front-end
+issue #1662). The skip is safe to continue on the same connection — `Invoke-ImperionDbQuery`
+runs each command in autocommit, so a failed query leaves the connection usable.
+
 ## Silver (canonical) — posture_policy + tenant_posture
 
 Since ADR-0010 the classification is no longer only an ad-hoc read: the nightly

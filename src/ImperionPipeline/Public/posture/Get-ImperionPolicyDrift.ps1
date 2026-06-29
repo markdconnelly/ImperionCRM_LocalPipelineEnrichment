@@ -57,7 +57,22 @@ FULL OUTER JOIN "$($p.Golden)" g
     ON g.tenant_id = o.tenant_id AND g.policy_id = o.external_id
 WHERE COALESCE(o.tenant_id, g.tenant_id) = @t
 "@
-            $rows = Invoke-ImperionDbQuery -Connection $Connection -Sql $sql -Parameters @{ t = $TenantId }
+            try {
+                $rows = Invoke-ImperionDbQuery -Connection $Connection -Sql $sql -Parameters @{ t = $TenantId }
+            }
+            catch {
+                # A golden table whose shape does not match the drift contract (e.g.
+                # purview_compliance_golden was created with the bronze envelope's
+                # `content_hash` instead of the contract's `golden_hash`, #409) must NOT abort
+                # the whole posture composer, which would take down the nightly knowledge sync
+                # with it. Skip this policy type with a structured warning and keep evaluating
+                # the rest. Safe to continue on the same connection: Invoke-ImperionDbQuery runs
+                # each command in autocommit (no open transaction), so a failed query leaves the
+                # connection usable. Proper repair is the FE schema fix that gives the golden
+                # table its `golden_hash` column.
+                Write-ImperionLog -Level Warn -Source 'posture' -Message "Policy drift skipped for '$($p.Key)' (golden '$($p.Golden)'): $(($_.Exception.Message) -replace '\s+', ' ')"
+                continue
+            }
             foreach ($r in $rows) {
                 $results.Add([pscustomobject]@{
                     policy_type  = $p.Key
