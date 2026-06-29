@@ -181,7 +181,12 @@ function Register-ImperionTask {
     $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -DontStopOnIdleEnd -ExecutionTimeLimit (New-TimeSpan -Hours 4)
 
     foreach ($t in $tasks) {
-        $command = "Import-Module ImperionPipeline; Initialize-ImperionContext; $($t.Cmdlet)"
+        # Wrap the cmdlet so an uncaught failure lands in the structured JSONL before the task
+        # exits non-zero (#410). A scheduled, NonInteractive pwsh discards console output, so
+        # without this a failed run leaves only LastTaskResult != 0 with no reason recorded.
+        # Context is initialized first, so Write-ImperionLog has its log path; the rethrow
+        # preserves the non-zero exit that surfaces the failure to Task Scheduler.
+        $command = "Import-Module ImperionPipeline; Initialize-ImperionContext; try { $($t.Cmdlet) } catch { Write-ImperionLog -Level Error -Source 'task' -Message ('$($t.Name) failed: ' + (`$_.Exception.Message -replace '\s+', ' ')); throw }"
         $argument = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command `"$command`""
         $action = New-ScheduledTaskAction -Execute $PwshPath -Argument $argument
         $trigger = New-ScheduledTaskTrigger -Daily -At $t.At

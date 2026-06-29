@@ -50,16 +50,19 @@ Describe 'Invoke-ImperionRestWithRetry' {
         }
     }
 
-    It 'throws immediately on a non-retryable 4xx' {
+    It 'throws immediately on a non-retryable 4xx and logs a structured Error (#410)' {
         InModuleScope ImperionPipeline {
+            Mock Write-ImperionLog { }
             Mock Invoke-ImperionHttp { [pscustomobject]@{ Body = [pscustomobject]@{ error = 'nope' }; Status = 404; Headers = @{} } }
             { Invoke-ImperionRestWithRetry -Uri 'https://x/y' } | Should -Throw '*HTTP 404*'
             Should -Invoke Invoke-ImperionHttp -Times 1
+            Should -Invoke Write-ImperionLog -Times 1 -ParameterFilter { $Level -eq 'Error' -and $Message -match 'HTTP 404' }
         }
     }
 
     It 'redacts apikey-style querystring secrets from error text (issue #98 secret-bearing URLs)' {
         InModuleScope ImperionPipeline {
+            Mock Write-ImperionLog { }
             Mock Invoke-ImperionHttp { [pscustomobject]@{ Body = $null; Status = 404; Headers = @{} } }
             $thrown = $null
             try { Invoke-ImperionRestWithRetry -Uri 'https://x/v1/quote?page=1&apikey=SuperSecret123' }

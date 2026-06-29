@@ -40,7 +40,13 @@ function Invoke-ImperionRestWithRetry {
             continue
         }
 
+        # Record non-retryable failures in the structured log before throwing (#410). The throw
+        # alone is invisible to a scheduled, NonInteractive run (console discarded); this is how
+        # an HTTP 401/4xx (e.g. the Voyage embed key) shows up in the JSONL. Log the redacted URI +
+        # status only -- never the response body, which can echo secrets or PII.
+        Write-ImperionLog -Level Error -Source 'http' -Message "HTTP $status calling $Method $safeUri (non-retryable, gave up after $attempt attempt(s))."
         throw "HTTP $status calling $Method $safeUri. Body: $($resp.Body | ConvertTo-Json -Compress -Depth 4)"
     }
+    Write-ImperionLog -Level Error -Source 'http' -Message "Exhausted $MaxAttempts attempts calling $Method $safeUri."
     throw "Exhausted $MaxAttempts attempts calling $Method $safeUri."
 }
