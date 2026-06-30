@@ -78,6 +78,16 @@ from posture to all LP-ingested sources:
   writes the `m365_directory` enrichment fact — a clean, independent source label. It
   degrades to "no candidates" until contacts are linked.
 
+> **Clarification — LP↔cloud parity, not exclusivity (2026-06-29).** "Co-locates with
+> ingestion" is a routing rule keyed on **trigger**, not a capability boundary. The local
+> node and the cloud Pipeline have the **same** bronze→silver merge capability — LP can run
+> any merge the cloud can. The split is purely *which plane is triggered to run it*:
+> scheduled/bulk → LP, live/webhook-driven → cloud. Because every merge is idempotent,
+> replace-from-source on its own source label, a temporary dual-run during cutover simply
+> converges (no gap, no duplication). So read every "owns" / "keeps only" above as "is the
+> triggered owner of", never "is the only plane able to". Do not relitigate the co-location
+> default — this note only fixes the framing.
+
 ## Consequences
 
 ### Security impact
