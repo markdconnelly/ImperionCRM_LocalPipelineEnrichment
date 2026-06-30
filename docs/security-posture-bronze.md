@@ -46,11 +46,30 @@ flowchart TB
     KNOW --> VEC[("knowledge_embedding (agent reads)")]
 ```
 
+## Per-client fan-out (ADR-0126 / #381)
+
+Posture is **per-client, not Imperion-only**. `Invoke-ImperionPolicySync` (and the estate
+posture reads alongside it) fan out over **every mapped client tenant** via
+`Invoke-ImperionM365EstateSweep` — the same registry-driven sweep the directory collectors use
+(`account_tenant` ⨝ an active `m365` `connection`, the #358 estate fan-out, ADR-0030). Each
+tenant is reached read-only through the per-client onboarding app (§3) and is **fail-isolated**:
+a tenant that 403s or lacks consent logs a Warn and is skipped without aborting the rest.
+`-TenantId` pins a single tenant (#359). A GUI-mapped, credentialed tenant therefore joins the
+posture sweep on the next run with no host edit (#379/#381).
+
 ## Policy types & golden states (ADR-0008)
 
 Each policy type keeps an approved **golden state** (the baseline we promote a known-good policy
 to). `Get-ImperionPolicyDrift` compares live bronze vs golden and verdicts each:
 **compliant / drift / ungoverned / missing**.
+
+**Drift-loop robustness (#409/#412):** a golden table whose shape does not match the drift
+contract (e.g. `purview_compliance_golden` created with the bronze `content_hash` instead of the
+contract's `golden_hash`) makes `Get-ImperionPolicyDrift` **skip that one policy type** with a
+structured Warn and keep evaluating the rest — it no longer aborts the whole posture composer
+(which would take the nightly knowledge sync down with it). The query runs in autocommit, so a
+failed type leaves the connection usable; the proper repair is the front-end schema fix that
+gives the golden table its `golden_hash` column.
 
 | Area | What | Observed table(s) | Golden state |
 | --- | --- | --- | --- |
