@@ -13,8 +13,8 @@ _Snapshot of where the `ImperionPipeline` module stands. Updated as layers land.
   directory groups** (`Invoke-ImperionM365DirectoryMerge`, #239) and **Azure ARM `cloud_asset`**
   (`Invoke-ImperionCloudAssetMerge`, #241), both wired into `Register-ImperionTask` (#243). The
   cloud Pipeline keeps only the live/webhook-driven merge and has ceded `cloud_asset` (Pipeline
-  #135); the M365-directory cede (Pipeline #134) is **held** until the LP entra-group collectors
-  fill `m365_groups` / `m365_group_members` bronze in prod. Since 0.13.0 the LP merge set has
+  #135); the M365-directory cede (Pipeline #134) **MERGED** (Pipeline #157, 2026-06-22) — LP is
+  now the sole owner of the M365 directory merge. Since 0.13.0 the LP merge set has
   grown to **UniFi → `device`** (#284), **Pax8 → `license_assignment`** (#280), **Intune →
   `software_ci`** (#355), the **Social plane** (`social_engagement` #392 / `social_metric` #378
   with normalized metric names / Threads #371 / Meta lead ads → `lead_hook` #365), and **M365 +
@@ -148,11 +148,10 @@ exact gate.
 4. **Composer breadth** — each further entity (IT Glue docs corpus, etc.) is one new composer
    + one line in `Invoke-ImperionKnowledgeSync`. Coverage is the goal, tracked in the
    production-readiness plan.
-5. **M365-directory merge cede (Pipeline #134)** — the LP `Invoke-ImperionM365DirectoryMerge`
-   is built + wired, but the cloud copy can only be ceded once the LP entra-group collectors
-   actually fill `m365_groups` / `m365_group_members` bronze in prod (today empty → the merge
-   has zero candidates and writes nothing). Verify the LP merge writes `contact_enrichment`
-   in prod first, *then* cede.
+5. **M365-directory merge cede — DONE.** The cloud copy was ceded via Pipeline #157 (#134,
+   merged 2026-06-22); LP `Invoke-ImperionM365DirectoryMerge` is the sole owner. Remaining LP work
+   is coverage, not cutover (verify `contact_enrichment.directory_groups` keeps filling as the
+   entra-group bronze grows).
 
 ## Toolchain note
 

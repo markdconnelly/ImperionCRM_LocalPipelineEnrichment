@@ -181,11 +181,11 @@ never cede before the LP copy is verified writing in prod.
   deployed, so this ended a live double-merge, not a no-op. `Invoke-ImperionCloudAssetMerge`
   (#241). `cloud_asset` = **101 rows** live on-prem via the LP merge (2026-06-25; was 23 — the
   ARM collector now fans out per consented tenant, ADR-0030).
-- **M365 directory groups → LP.** `Invoke-ImperionM365DirectoryMerge` (#239) cedes the cloud
-  `mergeDirectoryGroups` via Pipeline #134. The entra collectors now run — `m365_groups` = **99**,
-  `entra_role_assignments` = **26** live in bronze (2026-06-25) — so the cede is unblocked;
-  confirm the LP merge is writing `contact_enrichment.directory_groups` in prod before ceding
-  the cloud copy.
+- **M365 directory groups — CEDED + MERGED** (Pipeline #157 / #134, 2026-06-22).
+  `Invoke-ImperionM365DirectoryMerge` (#239) is now the sole owner; the cloud `mergeDirectoryGroups`
+  is removed. The entra collectors fill bronze (`m365_groups` = **99**, `entra_role_assignments` =
+  **26**, 2026-06-25), so `contact_enrichment.directory_groups` enriches from the LP merge. Remaining
+  is coverage (the fact grows as the entra-group bronze does), not cutover.
 
 The cloud Pipeline retains only the live/webhook-driven merge (the `website_*`-fed
 contact/account/device/contract/ticket/opportunity/expense sweep + DocuSign).
@@ -291,7 +291,7 @@ label `okf-not-affected` with a justification.
 - **#175** — enrichment agent to auto-sync the OKF bundle.
 - **#176** — vectorize the OKF bundle into gold (blocked on front-end #536).
 - **#250 / backend #217** — per-client app credential model still settling.
-- **#239 / Pipeline #134** — M365 directory merge cede (HOLD: entra collectors not run).
+- ~~**#239 / Pipeline #134** — M365 directory merge cede~~ **DONE** (Pipeline #157, 2026-06-22).
 - **#73** — LP `unifi_devices` bronze (Mark-gated).
 - **Schema reconciliation** — several §5 sources are **new** to the schema
   (`kqm_proposal`, `docusign_contract`, `autotask_contract`, `autotask_ticket`, the
