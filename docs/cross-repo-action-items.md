@@ -4,10 +4,43 @@ What the **sibling repos** need to do so the data this local pipeline lands actu
 front-end AI agents (the goal in `CLAUDE.md` §1: capture *all* company knowledge → agent-aware).
 Maintained here as the cross-repo checklist (`CLAUDE.md` §9). ADR numbers are **per-repo**.
 
-Status of this repo (the producer): bronze **get + post** layers built and unit-green; schema
-(`0038`–`0043`) live; least-privilege SP role + grants (`0044`) applied and the
-cert→token→Postgres write chain proven. So bronze rows *can* flow today; the items below carry
-them onward to silver/gold/vectors and prevent double-ingestion.
+Status of this repo (the producer): the full bronze→silver→gold→vectors spine is built and
+**gold + vectorization is LIVE in prod** (~205 `knowledge_object` rows embedded nightly); LP now
+owns the bronze→silver **merge** for every source it bulk-ingests (ADR-0026). So the items below
+are largely **superseded** — see the reconciliation first.
+
+---
+
+## Reconciliation (2026-06-29) — most of the original checklist is now closed
+
+The doc below was written when silver/gold merge for LP-ingested sources still lived in the
+cloud Pipeline and was framed as a front-end ask. **ADR-0026 moved that ownership to LP**, and
+the cloud cedes have shipped. Current state:
+
+- **Item 1 (silver/gold for new bronze) — LP-OWNED now, not a front-end ask.** Per ADR-0026 LP
+  runs the merge for the sources it ingests: posture / Meta / DNS (precedent) + M365 directory,
+  `cloud_asset`, UniFi `device`, Pax8 `license_assignment`, `software_ci`, the Social plane
+  (`social_engagement` / `social_metric` / Threads / Meta lead-ads `lead_hook`), and the
+  client-filtered `client_communication` ledger. The front end still owns the *schema + OKF
+  meaning*; gold composers cover account/contact/contract/ticket/device/exposure/assessment/
+  proposal/posture/social/conversation_segment/memory/semantic_concept. See
+  [`collector-inventory.md`](collector-inventory.md).
+- **Item 2 (vector contract pinned + shared) — DONE.** The contract is consumed from the front
+  end's one machine-readable home (`db/contracts/vector-contract.json`, front-end ADR-0102) via
+  `Get-ImperionVectorContract` (ADR-0025); `voyage-3-large` @ 1024 (front-end migration 0045 /
+  ADR-0041). The Voyage key reads Key Vault `conn-platform-voyage` (#407).
+- **Item 4 (scope cloud polling down) — DONE.** The cloud Pipeline's bulk-poll timers are RETIRED
+  (CLAUDE.md §1 / pipeline ADR-0011); it keeps inbound webhooks + the live/webhook-driven merge
+  only. The cedes landed: M365 directory merge (Pipeline #157 / #134, 2026-06-22) and `cloud_asset`
+  merge (Pipeline #135 / #138, 2026-06-19).
+- **Item 6 (backend consumes gold + vectors) — substantially landed.** Gold + vectors are LIVE;
+  the backend embeds only queries against the same pinned contract (backend ADR-0034).
+- **Still open:** Item 3 (every NEW `{source}_{entity}` bronze needs a front-end grant on the LP
+  Postgres role) is a standing per-source checklist, not a one-time task; and Item 5 (`autotask_tickets`
+  shared-write coordination) stays live wherever the cloud webhook and the LP bulk reconcile touch
+  the same table.
+
+The original checklist is retained below for provenance.
 
 ---
 
