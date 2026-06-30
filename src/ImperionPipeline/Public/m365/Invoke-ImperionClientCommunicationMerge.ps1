@@ -42,6 +42,14 @@ function Invoke-ImperionClientCommunicationMerge {
         client-involved conversation as a single timeline touchpoint). Bronze text timestamps
         are cast with regex guards (the posture-merge pattern) so junk falls back, never throws.
 
+        This cmdlet is a thin **Merge Plan builder** (epic #429, ADR-0026): it assembles the
+        declarative Global Plan — the three INSERT…SELECT projection steps — and hands it to
+        Invoke-ImperionMergeByPlan, which owns the shared orchestration (connection lifecycle,
+        ShouldProcess, tally, structured logging). The SQL below is unchanged from the
+        hand-rolled version it replaces, so behaviour is byte-identical. Global scope runs the
+        steps with per-statement autocommit and NO wrapping transaction — each step is an
+        independently idempotent upsert, so a re-run converges.
+
         The social_dm channel (Meta Messenger / IG DMs) is the sibling sink, folded in by
         Invoke-ImperionMetaMerge (LP #383) against contact_social_identity — NOT here.
 
@@ -66,12 +74,6 @@ function Invoke-ImperionClientCommunicationMerge {
         $Connection,
         [string[]] $ImperionDomain = @('imperionllc.com')
     )
-
-    $started = Get-Date
-    if (-not $PSCmdlet.ShouldProcess('m365 comms bronze (m365_mail_messages, m365_teams_chats, m365_teams_meetings)', 'merge to client_communication')) { return }
-
-    $ownConnection = -not $Connection
-    if ($ownConnection) { $Connection = New-ImperionDbConnection }
 
     # The Imperion domains as a lower-cased text[] parameter shared by every step's filter.
     $imperionDomains = [string[]]( @($ImperionDomain) | Where-Object { $_ } | ForEach-Object { $_.Trim().ToLowerInvariant() } )
@@ -118,13 +120,14 @@ ON CONFLICT (channel, source_system, external_id) DO UPDATE SET
   WHERE client_communication.content_hash IS DISTINCT FROM EXCLUDED.content_hash
 "@
 
-    try {
-        $tally = [ordered]@{}
+    # Declarative steps, run in declared order under Global scope (no wrapping transaction).
+    # @imperionDomains rides each step's Parameters; step Name = the per-channel tally key.
+    $steps = [System.Collections.Generic.List[hashtable]]::new()
 
-        # ── 1. m365_mail_messages → client_communication (channel email) ─────────────
-        # Participants = from + to + cc (the collector joins multi-valued cells with '; ').
-        # direction by sender domain. occurred_at = received, sent fallback, collected_at last.
-        $tally['mail_to_client_communication'] = Invoke-ImperionDbNonQuery -Connection $Connection -Parameters @{ imperionDomains = $imperionDomains } -Sql @"
+    # ── 1. m365_mail_messages → client_communication (channel email) ─────────────
+    # Participants = from + to + cc (the collector joins multi-valued cells with '; ').
+    # direction by sender domain. occurred_at = received, sent fallback, collected_at last.
+    $steps.Add(@{ Name = 'mail_to_client_communication'; Parameters = @{ imperionDomains = $imperionDomains }; Sql = @"
 INSERT INTO client_communication
   (account_id, contact_id, channel, direction, client_participants, imperion_participants,
    subject, snippet, occurred_at, source_system, external_id, thread_ref, content_hash, data_class)
@@ -161,13 +164,13 @@ SELECT acc.account_id, acc.contact_id, 'email'::client_communication_channel,
 $resolveTail
  WHERE acc.account_id IS NOT NULL
 $onConflictTail
-"@
+"@ })
 
-        # ── 2. m365_teams_chats → client_communication (channel teams_chat) ──────────
-        # Chat is conversation-grain (members, topic) with no per-row sender → direction
-        # 'inbound' by convention. Participants = member_emails ('; '-joined). thread_ref =
-        # the chat id. occurred_at = created, last_updated fallback, collected_at last.
-        $tally['teams_chat_to_client_communication'] = Invoke-ImperionDbNonQuery -Connection $Connection -Parameters @{ imperionDomains = $imperionDomains } -Sql @"
+    # ── 2. m365_teams_chats → client_communication (channel teams_chat) ──────────
+    # Chat is conversation-grain (members, topic) with no per-row sender → direction
+    # 'inbound' by convention. Participants = member_emails ('; '-joined). thread_ref =
+    # the chat id. occurred_at = created, last_updated fallback, collected_at last.
+    $steps.Add(@{ Name = 'teams_chat_to_client_communication'; Parameters = @{ imperionDomains = $imperionDomains }; Sql = @"
 INSERT INTO client_communication
   (account_id, contact_id, channel, direction, client_participants, imperion_participants,
    subject, snippet, occurred_at, source_system, external_id, thread_ref, content_hash, data_class)
@@ -199,12 +202,12 @@ SELECT acc.account_id, acc.contact_id, 'teams_chat'::client_communication_channe
 $resolveTail
  WHERE acc.account_id IS NOT NULL
 $onConflictTail
-"@
+"@ })
 
-        # ── 3. m365_teams_meetings → client_communication (channel teams_meeting) ────
-        # Participants = organizer + attendees ('; '-joined). direction by organizer domain.
-        # thread_ref = the event id. occurred_at = start, collected_at fallback.
-        $tally['teams_meeting_to_client_communication'] = Invoke-ImperionDbNonQuery -Connection $Connection -Parameters @{ imperionDomains = $imperionDomains } -Sql @"
+    # ── 3. m365_teams_meetings → client_communication (channel teams_meeting) ────
+    # Participants = organizer + attendees ('; '-joined). direction by organizer domain.
+    # thread_ref = the event id. occurred_at = start, collected_at fallback.
+    $steps.Add(@{ Name = 'teams_meeting_to_client_communication'; Parameters = @{ imperionDomains = $imperionDomains }; Sql = @"
 INSERT INTO client_communication
   (account_id, contact_id, channel, direction, client_participants, imperion_participants,
    subject, snippet, occurred_at, source_system, external_id, thread_ref, content_hash, data_class)
@@ -238,13 +241,18 @@ SELECT acc.account_id, acc.contact_id, 'teams_meeting'::client_communication_cha
 $resolveTail
  WHERE acc.account_id IS NOT NULL
 $onConflictTail
-"@
+"@ })
 
-        $metrics = [ordered]@{ seconds = [math]::Round(((Get-Date) - $started).TotalSeconds, 1) }
-        foreach ($key in $tally.Keys) { $metrics[$key] = $tally[$key] }
-        Write-ImperionLog -Level Metric -Source 'm365' -Message 'Client communication merge complete.' -Data ([hashtable]$metrics)
-
-        return [pscustomobject]$tally
+    $plan = @{
+        Source = 'm365'
+        Scope  = 'Global'
+        Steps  = $steps
     }
-    finally { if ($ownConnection) { $Connection.Dispose() } }
+
+    # One operation-level gate so -WhatIf is accepted and short-circuits cleanly before the
+    # scaffold opens a connection; the scaffold re-gates per step for real runs.
+    if (-not $PSCmdlet.ShouldProcess('m365 comms bronze (m365_mail_messages, m365_teams_chats, m365_teams_meetings)', 'merge to client_communication')) { return }
+
+    $result = Invoke-ImperionMergeByPlan -Plan $plan -Connection $Connection
+    return [pscustomobject]$result.tally
 }
