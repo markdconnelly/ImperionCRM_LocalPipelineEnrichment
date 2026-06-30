@@ -39,7 +39,7 @@ Describe 'Invoke-ImperionSocialMetricMerge' {
                 $tally = Invoke-ImperionSocialMetricMerge -Confirm:$false
                 $script:capturedMergeSql.Count | Should -Be 1
                 $tally.social_metrics_merged | Should -Be 1
-                Should -Invoke Write-ImperionLog -Times 1 -ParameterFilter { $Level -eq 'Metric' -and $Message -match 'Social metric merge complete' }
+                Should -Invoke Write-ImperionLog -Times 1 -ParameterFilter { $Level -eq 'Metric' -and $Message -match 'Merge plan complete' }
             }
         }
 
