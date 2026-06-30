@@ -43,7 +43,7 @@ Describe 'Invoke-ImperionClientCommunicationMerge' {
                 $tally.mail_to_client_communication          | Should -Be 1
                 $tally.teams_chat_to_client_communication     | Should -Be 1
                 $tally.teams_meeting_to_client_communication  | Should -Be 1
-                Should -Invoke Write-ImperionLog -Times 1 -ParameterFilter { $Level -eq 'Metric' -and $Message -match 'Client communication merge complete' }
+                Should -Invoke Write-ImperionLog -Times 1 -ParameterFilter { $Level -eq 'Metric' -and $Message -match 'Merge plan complete' }
             }
         }
 
