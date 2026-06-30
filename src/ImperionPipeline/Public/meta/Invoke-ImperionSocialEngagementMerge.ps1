@@ -26,6 +26,12 @@ function Invoke-ImperionSocialEngagementMerge {
         UPDATE/DELETE on silver. Bronze text timestamps are cast with a regex guard (the
         posture-merge pattern) so junk lands NULL, never throws.
 
+        This cmdlet is a thin **Merge Plan builder** (epic #429, ADR-0026): it assembles the
+        declarative Global Plan — the three idempotent INSERT steps — and hands it to
+        Invoke-ImperionMergeByPlan, which owns the shared orchestration (connection lifecycle,
+        ShouldProcess, tally, structured logging). The SQL below is unchanged from the
+        hand-rolled version it replaces, so behaviour is byte-identical.
+
         GRANT NOTE (verify before prod, see the PR): LP connects as the Postgres role
         `imperion-localpipeline` (config Db.Username). Migration 0210 grants social_engagement
         RW to `mgid-imperioncrmpipeline`, NOT to `imperion-localpipeline` — a grant gap this
@@ -45,21 +51,16 @@ function Invoke-ImperionSocialEngagementMerge {
         $Connection
     )
 
-    $started = Get-Date
-    if (-not $PSCmdlet.ShouldProcess('meta engagement bronze (facebook_comments, instagram_comments, meta_mentions)', 'merge to social_engagement')) { return }
+    # Declarative steps, run in order by the scaffold. SQL is moved VERBATIM from the
+    # hand-rolled cmdlet; step Name carries the tally key, order is preserved.
+    $steps = [System.Collections.Generic.List[hashtable]]::new()
 
-    $ownConnection = -not $Connection
-    if ($ownConnection) { $Connection = New-ImperionDbConnection }
-
-    try {
-        $tally = [ordered]@{}
-
-        # ── 1. facebook_comments → social_engagement (channel facebook, kind comment) ──
-        # author_external_id/handle/display_name carry the commenter (third-party PII; the
-        # 0210 OKF lawful-basis note covers it). source_url is left NULL for comments (the
-        # column is the mention's source). posted_at: guarded created_time cast, collected_at
-        # fallback.
-        $tally['facebook_comments_to_engagement'] = Invoke-ImperionDbNonQuery -Connection $Connection -Sql @"
+    # ── 1. facebook_comments → social_engagement (channel facebook, kind comment) ──
+    # author_external_id/handle/display_name carry the commenter (third-party PII; the
+    # 0210 OKF lawful-basis note covers it). source_url is left NULL for comments (the
+    # column is the mention's source). posted_at: guarded created_time cast, collected_at
+    # fallback.
+    $steps.Add(@{ Name = 'facebook_comments_to_engagement'; Sql = @"
 INSERT INTO social_engagement (channel, external_id, kind, body, posted_at,
                                author_external_id, author_handle, author_display_name)
 SELECT 'facebook'::social_channel, b.external_id, 'comment'::social_engagement_kind,
@@ -70,12 +71,12 @@ SELECT 'facebook'::social_channel, b.external_id, 'comment'::social_engagement_k
   FROM facebook_comments b
  WHERE b.external_id <> ''   -- defense-in-depth vs envelope rows (#133)
 ON CONFLICT (channel, external_id) DO NOTHING
-"@
+"@ })
 
-        # ── 2. instagram_comments → social_engagement (channel instagram, kind comment) ─
-        # IG comments expose `username` (handle) but not a display name; from_id is the
-        # commenter's IG id. source_url left NULL (comment, not mention).
-        $tally['instagram_comments_to_engagement'] = Invoke-ImperionDbNonQuery -Connection $Connection -Sql @"
+    # ── 2. instagram_comments → social_engagement (channel instagram, kind comment) ─
+    # IG comments expose `username` (handle) but not a display name; from_id is the
+    # commenter's IG id. source_url left NULL (comment, not mention).
+    $steps.Add(@{ Name = 'instagram_comments_to_engagement'; Sql = @"
 INSERT INTO social_engagement (channel, external_id, kind, body, posted_at,
                                author_external_id, author_handle, author_display_name)
 SELECT 'instagram'::social_channel, b.external_id, 'comment'::social_engagement_kind,
@@ -86,17 +87,17 @@ SELECT 'instagram'::social_channel, b.external_id, 'comment'::social_engagement_
   FROM instagram_comments b
  WHERE b.external_id <> ''   -- defense-in-depth vs envelope rows (#133)
 ON CONFLICT (channel, external_id) DO NOTHING
-"@
+"@ })
 
-        # ── 3. meta_mentions → social_engagement (kind mention; LP #391 / front-end #1365) ──
-        # Brand mentions live on someone else's content, so source_url carries the mention's
-        # permalink and on_social_post_channel_id stays NULL (left to its default — the column
-        # is for comments on OUR posts). platform ('facebook'|'instagram') maps straight onto the
-        # social_channel enum. meta_mentions.created_time is a real timestamptz column (not the
-        # bronze text the comment tables carry), so it casts directly — but the same regex guard
-        # is kept so a junk text value lands NULL instead of throwing. author_id/username/name map
-        # to author_external_id/handle/display_name (third-party PII — OKF lawful-basis, ADR-0025).
-        $tally['meta_mentions_to_engagement'] = Invoke-ImperionDbNonQuery -Connection $Connection -Sql @"
+    # ── 3. meta_mentions → social_engagement (kind mention; LP #391 / front-end #1365) ──
+    # Brand mentions live on someone else's content, so source_url carries the mention's
+    # permalink and on_social_post_channel_id stays NULL (left to its default — the column
+    # is for comments on OUR posts). platform ('facebook'|'instagram') maps straight onto the
+    # social_channel enum. meta_mentions.created_time is a real timestamptz column (not the
+    # bronze text the comment tables carry), so it casts directly — but the same regex guard
+    # is kept so a junk text value lands NULL instead of throwing. author_id/username/name map
+    # to author_external_id/handle/display_name (third-party PII — OKF lawful-basis, ADR-0025).
+    $steps.Add(@{ Name = 'meta_mentions_to_engagement'; Sql = @"
 INSERT INTO social_engagement (channel, external_id, kind, body, posted_at,
                                author_external_id, author_handle, author_display_name, source_url)
 SELECT b.platform::social_channel, b.mention_id, 'mention'::social_engagement_kind,
@@ -107,13 +108,18 @@ SELECT b.platform::social_channel, b.mention_id, 'mention'::social_engagement_ki
   FROM meta_mentions b
  WHERE b.mention_id <> ''   -- defense-in-depth vs envelope rows (#133)
 ON CONFLICT (channel, external_id) DO NOTHING
-"@
+"@ })
 
-        $metrics = [ordered]@{ seconds = [math]::Round(((Get-Date) - $started).TotalSeconds, 1) }
-        foreach ($key in $tally.Keys) { $metrics[$key] = $tally[$key] }
-        Write-ImperionLog -Level Metric -Source 'meta' -Message 'Social engagement merge complete.' -Data ([hashtable]$metrics)
-
-        return [pscustomobject]$tally
+    $plan = @{
+        Source = 'meta'
+        Scope  = 'Global'
+        Steps  = $steps
     }
-    finally { if ($ownConnection) { $Connection.Dispose() } }
+
+    # One operation-level gate so -WhatIf is accepted and short-circuits cleanly before
+    # delegating; the scaffold re-gates per step for real runs.
+    if (-not $PSCmdlet.ShouldProcess('meta engagement bronze (facebook_comments, instagram_comments, meta_mentions)', 'merge to social_engagement')) { return }
+
+    $result = Invoke-ImperionMergeByPlan -Plan $plan -Connection $Connection
+    return [pscustomobject]$result.tally
 }

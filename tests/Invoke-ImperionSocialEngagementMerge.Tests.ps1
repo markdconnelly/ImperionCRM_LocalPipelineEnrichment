@@ -41,7 +41,7 @@ Describe 'Invoke-ImperionSocialEngagementMerge' {
                 $tally.facebook_comments_to_engagement | Should -Be 1
                 $tally.instagram_comments_to_engagement | Should -Be 1
                 $tally.meta_mentions_to_engagement | Should -Be 1
-                Should -Invoke Write-ImperionLog -Times 1 -ParameterFilter { $Level -eq 'Metric' -and $Message -match 'Social engagement merge complete' }
+                Should -Invoke Write-ImperionLog -Times 1 -ParameterFilter { $Level -eq 'Metric' -and $Message -match 'Merge plan complete' }
             }
         }
 
