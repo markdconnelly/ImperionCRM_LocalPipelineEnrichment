@@ -32,6 +32,12 @@ function Invoke-ImperionSocialMetricMerge {
         required (a NULL period is distinct under the unique key and would defeat ON CONFLICT,
         duplicating on re-run). INSERT-only — never UPDATE/DELETE on silver. The
         `imperion-localpipeline` role already holds social_metric INSERT (migration 0075).
+
+        This cmdlet is a thin **Merge Plan builder** (epic #429, ADR-0026): it assembles the
+        declarative Global Plan — the single normalized INSERT … SELECT step — and hands it to
+        Invoke-ImperionMergeByPlan, which owns the shared orchestration (connection lifecycle,
+        ShouldProcess, tally, structured logging). The SQL below is unchanged from the
+        hand-rolled version it replaces, so behaviour is byte-identical.
         Requires Initialize-ImperionContext.
     .PARAMETER Connection
         Optional open Npgsql connection to reuse; otherwise one is opened and disposed.
@@ -46,20 +52,12 @@ function Invoke-ImperionSocialMetricMerge {
         $Connection
     )
 
-    $started = Get-Date
-    if (-not $PSCmdlet.ShouldProcess('meta_insights (organic + post + ad)', 'merge to social_metric (normalized names)')) { return }
+    $canonSql = Get-ImperionSocialMetricCanonSql -Column 'b.metric'
 
-    $ownConnection = -not $Connection
-    if ($ownConnection) { $Connection = New-ImperionDbConnection }
-
-    try {
-        $tally = [ordered]@{}
-        $canonSql = Get-ImperionSocialMetricCanonSql -Column 'b.metric'
-
-        # platform from entity_kind: organic page=facebook, ig_user/media=instagram, FB post=
-        # facebook, paid (ad/campaign/adset/adaccount)=meta_ads. captured_at from the guarded
-        # end_time cast (collected_at fallback). metric NORMALIZED via the shared canon SQL (#135).
-        $tally['social_metrics_merged'] = Invoke-ImperionDbNonQuery -Connection $Connection -Sql @"
+    # platform from entity_kind: organic page=facebook, ig_user/media=instagram, FB post=
+    # facebook, paid (ad/campaign/adset/adaccount)=meta_ads. captured_at from the guarded
+    # end_time cast (collected_at fallback). metric NORMALIZED via the shared canon SQL (#135).
+    $mergeSql = @"
 INSERT INTO social_metric (platform, entity_kind, entity_external_id, metric, period, value, captured_at)
 SELECT CASE
            WHEN b.entity_kind = 'page' THEN 'facebook'
@@ -80,11 +78,19 @@ SELECT CASE
 ON CONFLICT (platform, entity_kind, entity_external_id, metric, period, captured_at) DO NOTHING
 "@
 
-        $metrics = [ordered]@{ seconds = [math]::Round(((Get-Date) - $started).TotalSeconds, 1) }
-        foreach ($key in $tally.Keys) { $metrics[$key] = $tally[$key] }
-        Write-ImperionLog -Level Metric -Source 'meta' -Message 'Social metric merge complete.' -Data ([hashtable]$metrics)
+    $steps = [System.Collections.Generic.List[hashtable]]::new()
+    $steps.Add(@{ Name = 'social_metrics_merged'; Sql = $mergeSql })
 
-        return [pscustomobject]$tally
+    $plan = @{
+        Source = 'meta'
+        Scope  = 'Global'
+        Steps  = $steps
     }
-    finally { if ($ownConnection) { $Connection.Dispose() } }
+
+    # One operation-level gate so -WhatIf is accepted and short-circuits cleanly before
+    # delegating; the scaffold re-gates per step for real runs.
+    if (-not $PSCmdlet.ShouldProcess('meta_insights (organic + post + ad)', 'merge to social_metric (normalized names)')) { return }
+
+    $result = Invoke-ImperionMergeByPlan -Plan $plan -Connection $Connection
+    return [pscustomobject]$result.tally
 }
