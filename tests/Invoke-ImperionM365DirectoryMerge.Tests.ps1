@@ -41,7 +41,7 @@ Describe 'Invoke-ImperionM365DirectoryMerge' {
                 $script:capturedSql.Count | Should -Be 2
                 $tally.stale_cleared | Should -Be 3
                 $tally.contacts_enriched | Should -Be 3
-                Should -Invoke Write-ImperionLog -Times 1 -ParameterFilter { $Level -eq 'Metric' -and $Message -match 'M365 directory merge complete' }
+                Should -Invoke Write-ImperionLog -Times 1 -ParameterFilter { $Level -eq 'Metric' -and $Message -match 'Merge plan complete \(m365\)' }
             }
         }
 

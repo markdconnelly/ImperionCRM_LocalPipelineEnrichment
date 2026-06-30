@@ -38,6 +38,14 @@ function Invoke-ImperionM365DirectoryMerge {
         The latest member `collected_at` (text in bronze, 0079) is the fact's provenance
         timestamp, regex-guarded before the cast (the posture/meta-merge pattern) so junk
         lands `now()` and never throws. Requires Initialize-ImperionContext.
+
+        This cmdlet is a thin **Merge Plan builder** (epic #429, ADR-0026): it assembles
+        the declarative Global Plan — the delete / insert steps — and hands it to
+        Invoke-ImperionMergeByPlan, which owns the shared orchestration (connection
+        lifecycle, ShouldProcess, tally, structured logging). The SQL below is unchanged
+        from the hand-rolled version it replaces, so behaviour is byte-identical; the
+        `m365_directory` source label inside the SQL is the ADR-0026 cede contract with the
+        cloud copy and is left untouched.
     .PARAMETER Connection
         Optional open Npgsql connection to reuse; otherwise one is opened and disposed.
     .EXAMPLE
@@ -51,30 +59,25 @@ function Invoke-ImperionM365DirectoryMerge {
         $Connection
     )
 
-    $started = Get-Date
-    if (-not $PSCmdlet.ShouldProcess('m365 directory bronze (m365_group_members → contact_enrichment)', 'merge to silver')) { return }
+    # Declarative steps, run in order (Global: no wrapping transaction). The SQL is verbatim
+    # from the hand-rolled merge — the scaffold owns the orchestration around it.
+    $steps = [System.Collections.Generic.List[hashtable]]::new()
 
-    $ownConnection = -not $Connection
-    if ($ownConnection) { $Connection = New-ImperionDbConnection }
-
-    try {
-        $tally = [ordered]@{}
-
-        # ── 1. Clear this source's prior facts ───────────────────────────────────
-        # Replace-from-source idempotency (writeContactEnrichment per-source semantics,
-        # done set-based): drop every m365_directory fact, then re-insert the current set.
-        # A contact that dropped all its groups loses its stale fact here and is not
-        # re-inserted below — exactly the cloud merge's "clear when membership is zero".
-        $tally['stale_cleared'] = Invoke-ImperionDbNonQuery -Connection $Connection -Sql @"
+    # ── 1. Clear this source's prior facts ───────────────────────────────────
+    # Replace-from-source idempotency (writeContactEnrichment per-source semantics,
+    # done set-based): drop every m365_directory fact, then re-insert the current set.
+    # A contact that dropped all its groups loses its stale fact here and is not
+    # re-inserted below — exactly the cloud merge's "clear when membership is zero".
+    $steps.Add(@{ Name = 'stale_cleared'; Sql = @"
 DELETE FROM contact_enrichment WHERE source = 'm365_directory'
-"@
+"@ })
 
-        # ── 2. Resolve membership → directory_groups fact, one row per contact ────
-        # Inner JOIN to m365_group_members: only contacts WITH membership get a fact (the
-        # FILTER + HAVING guard the degenerate all-null-group case). value_json is the
-        # { id, name } array; value_text is NULL (this is a structured fact). observed_at
-        # is the latest edge collected_at, regex-guarded (bronze stores it as text, 0079).
-        $tally['contacts_enriched'] = Invoke-ImperionDbNonQuery -Connection $Connection -Sql @"
+    # ── 2. Resolve membership → directory_groups fact, one row per contact ────
+    # Inner JOIN to m365_group_members: only contacts WITH membership get a fact (the
+    # FILTER + HAVING guard the degenerate all-null-group case). value_json is the
+    # { id, name } array; value_text is NULL (this is a structured fact). observed_at
+    # is the latest edge collected_at, regex-guarded (bronze stores it as text, 0079).
+    $steps.Add(@{ Name = 'contacts_enriched'; Sql = @"
 INSERT INTO contact_enrichment
     (contact_id, attribute_key, value_text, value_json, confidence, source, lawful_basis, observed_at, expires_at)
 SELECT c.contact_id,
@@ -102,13 +105,18 @@ SELECT c.contact_id,
    AND c.external_ref IS NOT NULL
  GROUP BY c.contact_id
 HAVING count(gm.group_external_id) FILTER (WHERE gm.group_external_id IS NOT NULL) > 0
-"@
+"@ })
 
-        $metrics = [ordered]@{ seconds = [math]::Round(((Get-Date) - $started).TotalSeconds, 1) }
-        foreach ($key in $tally.Keys) { $metrics[$key] = $tally[$key] }
-        Write-ImperionLog -Level Metric -Source 'm365' -Message 'M365 directory merge complete.' -Data ([hashtable]$metrics)
-
-        return [pscustomobject]$tally
+    $plan = @{
+        Source = 'm365'
+        Scope  = 'Global'
+        Steps  = $steps
     }
-    finally { if ($ownConnection) { $Connection.Dispose() } }
+
+    # One operation-level gate so -WhatIf is accepted and short-circuits cleanly before any
+    # connection is opened or SQL runs; the scaffold re-gates per step for real runs.
+    if (-not $PSCmdlet.ShouldProcess('m365 directory bronze (m365_group_members → contact_enrichment)', 'merge to silver')) { return }
+
+    $result = Invoke-ImperionMergeByPlan -Plan $plan -Connection $Connection
+    return [pscustomobject]$result.tally
 }
