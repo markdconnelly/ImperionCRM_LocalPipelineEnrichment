@@ -27,6 +27,12 @@ function Invoke-ImperionMetaLeadAdsMerge {
         text timestamps are cast with a regex guard (the posture-merge pattern) so junk
         lands as the collected_at fallback, never throws. INSERT-only — never UPDATE/DELETE
         on silver (the 0075/0207 grant posture). Requires Initialize-ImperionContext.
+
+        This cmdlet is a thin **Merge Plan builder** (epic #429, ADR-0026): it assembles
+        the declarative Global Plan — the three set-based steps in order — and hands it to
+        Invoke-ImperionMergeByPlan, which owns the shared orchestration (connection
+        lifecycle, ShouldProcess, tally, structured logging). The SQL below is unchanged
+        from the hand-rolled version it replaces, so behaviour is byte-identical.
     .PARAMETER Connection
         Optional open Npgsql connection to reuse; otherwise one is opened and disposed.
     .EXAMPLE
@@ -40,19 +46,12 @@ function Invoke-ImperionMetaLeadAdsMerge {
         $Connection
     )
 
-    $started = Get-Date
-    if (-not $PSCmdlet.ShouldProcess('meta lead ads bronze (meta_lead_ads)', 'merge to silver')) { return }
+    $steps = [System.Collections.Generic.List[hashtable]]::new()
 
-    $ownConnection = -not $Connection
-    if ($ownConnection) { $Connection = New-ImperionDbConnection }
-
-    try {
-        $tally = [ordered]@{}
-
-        # ── 1. Exactly ONE hook row for the Lead Ads inbox, keyed (kind, name). ───────
-        # config stamps source=meta_lead_ad (the ADR-0124 #6 distinction lives here +
-        # on each capture payload — lead_hook has no source column) and the page id.
-        $tally['lead_hook_ensured'] = Invoke-ImperionDbNonQuery -Connection $Connection -Sql @"
+    # ── 1. Exactly ONE hook row for the Lead Ads inbox, keyed (kind, name). ───────
+    # config stamps source=meta_lead_ad (the ADR-0124 #6 distinction lives here +
+    # on each capture payload — lead_hook has no source column) and the page id.
+    $steps.Add(@{ Name = 'lead_hook_ensured'; Sql = @"
 INSERT INTO lead_hook (name, kind, config)
 SELECT 'Facebook Lead Ads', 'facebook_lead'::lead_hook_kind,
        jsonb_build_object('source', 'meta_lead_ad',
@@ -60,13 +59,13 @@ SELECT 'Facebook Lead Ads', 'facebook_lead'::lead_hook_kind,
                                        WHERE page_id IS NOT NULL LIMIT 1))
  WHERE NOT EXISTS (SELECT 1 FROM lead_hook
                     WHERE kind = 'facebook_lead' AND name = 'Facebook Lead Ads')
-"@
+"@ })
 
-        # ── 2. Minimal contact + facebook identity for submitters not yet known. ─────
-        # Identity external_id = the submitter's email when present (stable across forms),
-        # else 'leadgen:<id>' so every lead still resolves to a contact. DISTINCT ON the
-        # chosen identity key so one contact is minted per distinct submitter, not per lead.
-        $tally['contacts_created'] = Invoke-ImperionDbNonQuery -Connection $Connection -Sql @"
+    # ── 2. Minimal contact + facebook identity for submitters not yet known. ─────
+    # Identity external_id = the submitter's email when present (stable across forms),
+    # else 'leadgen:<id>' so every lead still resolves to a contact. DISTINCT ON the
+    # chosen identity key so one contact is minted per distinct submitter, not per lead.
+    $steps.Add(@{ Name = 'contacts_created'; Sql = @"
 WITH submitter AS (
     SELECT DISTINCT ON (identity_key)
            identity_key, full_name, email
@@ -93,13 +92,13 @@ SELECT nc.id, 'facebook', nc.identity_key,
        jsonb_build_object('source', 'meta_lead_ad', 'identity_key', m.identity_key, 'email', m.email)
   FROM new_contact nc
   JOIN missing m ON m.identity_key = nc.identity_key
-"@
+"@ })
 
-        # ── 3. ONE lead_capture_event per submitted lead — IDEMPOTENT ON THE LEADGEN ID. ─
-        # Keyed on (hook, payload_bronze->>'leadgen_id'); payload carries source=meta_lead_ad,
-        # the leadgen id, attribution ids, and the field-data answers. contact_id resolves via
-        # the same email-or-leadgen identity key used in step 2.
-        $tally['lead_captures_created'] = Invoke-ImperionDbNonQuery -Connection $Connection -Sql @"
+    # ── 3. ONE lead_capture_event per submitted lead — IDEMPOTENT ON THE LEADGEN ID. ─
+    # Keyed on (hook, payload_bronze->>'leadgen_id'); payload carries source=meta_lead_ad,
+    # the leadgen id, attribution ids, and the field-data answers. contact_id resolves via
+    # the same email-or-leadgen identity key used in step 2.
+    $steps.Add(@{ Name = 'lead_captures_created'; Sql = @"
 WITH lead AS (
     SELECT external_id AS leadgen_id, form_id, page_id, ad_id, ad_name,
            adset_id, campaign_id, campaign_name, platform, is_organic,
@@ -134,13 +133,18 @@ SELECT h.id,
  WHERE NOT EXISTS (SELECT 1 FROM lead_capture_event e
                     WHERE e.hook_id = h.id
                       AND e.payload_bronze->>'leadgen_id' = l.leadgen_id)
-"@
+"@ })
 
-        $metrics = [ordered]@{ seconds = [math]::Round(((Get-Date) - $started).TotalSeconds, 1) }
-        foreach ($key in $tally.Keys) { $metrics[$key] = $tally[$key] }
-        Write-ImperionLog -Level Metric -Source 'meta_lead_ad' -Message 'Meta Lead Ads merge complete.' -Data ([hashtable]$metrics)
-
-        return [pscustomobject]$tally
+    $plan = @{
+        Source = 'meta_lead_ad'
+        Scope  = 'Global'
+        Steps  = $steps
     }
-    finally { if ($ownConnection) { $Connection.Dispose() } }
+
+    # One operation-level gate so -WhatIf is accepted and short-circuits cleanly (no
+    # connection, no SQL); the scaffold re-gates per step for real runs.
+    if (-not $PSCmdlet.ShouldProcess('meta lead ads bronze (meta_lead_ads)', 'merge to silver')) { return }
+
+    $result = Invoke-ImperionMergeByPlan -Plan $plan -Connection $Connection
+    return [pscustomobject]$result.tally
 }
