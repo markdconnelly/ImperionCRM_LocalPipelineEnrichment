@@ -4,7 +4,7 @@ _Snapshot of where the `ImperionPipeline` module stands. Updated as layers land.
 
 ## Summary
 
-- Module shipping at release **0.12.0**: **~190 exported cmdlets** (the lever-A surface-shrink,
+- Module shipping at release **0.15.1**: **~190 exported cmdlets** (the lever-A surface-shrink,
   #226, has begun making internal helpers `Private`, narrowing the export list toward the ~30
   real entry points), ~200 hermetic Pester test files, **0 PSScriptAnalyzer findings** across
   `src/` + `build/`. The module imports clean on PowerShell 7.
@@ -13,8 +13,13 @@ _Snapshot of where the `ImperionPipeline` module stands. Updated as layers land.
   directory groups** (`Invoke-ImperionM365DirectoryMerge`, #239) and **Azure ARM `cloud_asset`**
   (`Invoke-ImperionCloudAssetMerge`, #241), both wired into `Register-ImperionTask` (#243). The
   cloud Pipeline keeps only the live/webhook-driven merge and has ceded `cloud_asset` (Pipeline
-  #135); the M365-directory cede (Pipeline #134) is **held** until the LP entra-group collectors
-  fill `m365_groups` / `m365_group_members` bronze in prod.
+  #135); the M365-directory cede (Pipeline #134) **MERGED** (Pipeline #157, 2026-06-22) — LP is
+  now the sole owner of the M365 directory merge. Since 0.13.0 the LP merge set has
+  grown to **UniFi → `device`** (#284), **Pax8 → `license_assignment`** (#280), **Intune →
+  `software_ci`** (#355), the **Social plane** (`social_engagement` #392 / `social_metric` #378
+  with normalized metric names / Threads #371 / Meta lead ads → `lead_hook` #365), and **M365 +
+  Meta comms → `client_communication`** (client-filtered, #396/#397) — full catalog in
+  [`collector-inventory.md`](collector-inventory.md).
 - **Gold knowledge + vectorization LIVE in prod.** ~205 `knowledge_object` rows are composed
   from silver and **embedded with Voyage `voyage-3-large` @ 1024** by `Invoke-ImperionKnowledgeSync
   -Vectorize` (the nightly `Imperion-KnowledgeVectorize` task, 04:30). The Voyage key is the
@@ -143,11 +148,10 @@ exact gate.
 4. **Composer breadth** — each further entity (IT Glue docs corpus, etc.) is one new composer
    + one line in `Invoke-ImperionKnowledgeSync`. Coverage is the goal, tracked in the
    production-readiness plan.
-5. **M365-directory merge cede (Pipeline #134)** — the LP `Invoke-ImperionM365DirectoryMerge`
-   is built + wired, but the cloud copy can only be ceded once the LP entra-group collectors
-   actually fill `m365_groups` / `m365_group_members` bronze in prod (today empty → the merge
-   has zero candidates and writes nothing). Verify the LP merge writes `contact_enrichment`
-   in prod first, *then* cede.
+5. **M365-directory merge cede — DONE.** The cloud copy was ceded via Pipeline #157 (#134,
+   merged 2026-06-22); LP `Invoke-ImperionM365DirectoryMerge` is the sole owner. Remaining LP work
+   is coverage, not cutover (verify `contact_enrichment.directory_groups` keeps filling as the
+   entra-group bronze grows).
 
 ## Toolchain note
 
