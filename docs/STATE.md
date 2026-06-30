@@ -5,7 +5,40 @@ the durable contract lives in `CLAUDE.md`; anything dated, in-flight, or run-spe
 lives here. When a fact here hardens into a rule, move it to `CLAUDE.md`; when it is
 done or superseded, prune it.
 
-Last reviewed: **2026-06-25.**
+Last reviewed: **2026-06-29.**
+
+---
+
+## Shipped since 0.15.0 (2026-06-26 → 29) — releases 0.15.0 → 0.15.1
+
+- **Social plane LIVE in code (front-end ADR-0124).** New collectors + co-located merges, all
+  **GATED** until the Meta Page token / Threads connector are provisioned (each logs the gap and
+  exits clean): **Social Engagement** (FB/IG comments + brand mentions → `social_engagement`, FE
+  0210, #378/#392), **Social Metric** (post + optional ad insights → `social_metric` with metric
+  names normalized to one network-agnostic vocab, resolving front-end #135, #378), **Meta Lead
+  Ads** (`meta_lead_ads` → `lead_hook` idempotent on `leadgen_id`, FE 0207, #365), **Instagram
+  DM** (`instagram_messages` → `interaction` + `lead_hook`, #363), and **Threads** (`threads_*` →
+  `interaction` + `social_metric`, FE 0208, token `conn-company-threads`; **DORMANT until App
+  Review**, #371). Social task registration fixed (#394).
+- **Unified client-comms ledger.** `Invoke-ImperionClientCommunicationMerge` folds Imperion's
+  OWN-tenant M365 mail/chats/meetings into silver `client_communication`, **client-filtered** at
+  silver (drops internal/unattributable; FE 0211, front-end ADR-0126, #396). The Meta merge now
+  also lands FB/IG DMs into `client_communication` (channel `social_dm`, #383/#397).
+- **`software_ci` merge** — `Invoke-ImperionSoftwareCiMerge` (intune_managed_apps → silver
+  `software_ci`, #355).
+- **Per-client security-posture fan-out (#381).** `Invoke-ImperionPolicySync` + the estate
+  posture reads now fan out over every mapped client tenant via `Invoke-ImperionM365EstateSweep`
+  (registry-driven, fail-isolated; ADR-0030/ADR-0126), not Imperion-only.
+- **Voyage key cut over to `conn-platform-voyage` (#407, folds the cred-half of #389).** The
+  embedding key is now the PLATFORM-scope AI credential read from Key Vault (front-end ADR-0129
+  §8); the mis-named starter secret `Voyage-Embedding-API-Key` / SecretStore
+  `embedding-provider-key` is retired. STATUS.md + `vectorization-to-gold.md` reflect it.
+- **`PartnerTenantId` → `LocalTenantId` rename merged (#405/#329).** Host-agnostic config key;
+  the loader falls back to the legacy `PartnerTenantId` for ONE release. **Mark-gated host step:**
+  rename the key in the live `%ProgramData%\Imperion\pipeline.config.psd1`; fallback is removed
+  next release.
+- **Observability + release hygiene.** Task + HTTP failures now log to the structured JSONL
+  (#415); psd1 `ModuleVersion` pinned to release-please + a Warn on a shadowed Voyage key (#414).
 
 ---
 
@@ -52,6 +85,17 @@ A GUI-mapped, credentialed tenant hydrates on the next run with **no host env ed
 
 ## Live-caught regressions
 
+- **Pax8 `entity_xref` ON CONFLICT 42P10 (2026-06-27, #404 — FIXED).** The Pax8 merge's
+  company→account resolve upserts the SCD-2 `entity_xref`, whose unique index is **partial**
+  (`WHERE valid_to IS NULL AND system_to IS NULL`). The `ON CONFLICT` arbiter must **repeat that
+  predicate** or Postgres throws `42P10` (no matching unique index). Fix repeats the partial
+  predicate in the conflict target (the `imperion-entity-xref-temporal-onconflict` class).
+- **Posture drift loop aborted on a misshapen golden (2026-06-29, #412 — FIXED).** A golden table
+  whose shape doesn't match the drift contract (e.g. `purview_compliance_golden` created with the
+  bronze `content_hash` instead of the contract's `golden_hash`, #409) made `Get-ImperionPolicyDrift`
+  throw and take the whole posture composer — and the nightly knowledge sync — down with it. It
+  now **skips that one policy type** with a structured Warn and keeps evaluating the rest (autocommit
+  query, so the connection stays usable). Proper repair = the FE schema fix adding `golden_hash`.
 - **Group-membership 23502 null `member_external_id` (2026-06-25, #366 — FIXED).** The first
   tenant-outer hydration run failed `Invoke-ImperionEntraGroupMemberSync` for **every** tenant
   (`m365_group_members` empty everywhere) — Graph returned at least one id-less member, whose null
