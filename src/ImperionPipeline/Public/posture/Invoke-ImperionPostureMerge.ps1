@@ -16,6 +16,13 @@ function Invoke-ImperionPostureMerge {
              text->numeric casts, classification counts, and open credential
              exposures resolved through account_tenant; unmapped tenants get 0).
 
+        This cmdlet is a thin **Merge Plan builder** (epic #429, ADR-0026): it assembles
+        the declarative PerTenant Plan — tenant-enumeration SQL + the delete / per-family /
+        rollup steps — and hands it to Invoke-ImperionMergeByPlan, which owns the shared
+        orchestration (connection lifecycle, per-tenant transaction + rollback-isolation,
+        @t injection, tally, structured logging). The SQL below is unchanged from the
+        hand-rolled version it replaces, so behaviour is byte-identical.
+
         PARITY CONTRACT: the classification CASE below mirrors Get-ImperionPolicyDrift
         and the cloud pipeline's posture-run.ts VERBATIM. If one changes, change all
         three — the Pester test pins this SQL.
@@ -39,59 +46,39 @@ function Invoke-ImperionPostureMerge {
         $Connection
     )
 
-    $started = Get-Date
-    $ownConnection = -not $Connection
-    if ($ownConnection) { $Connection = New-ImperionDbConnection }
+    # Silver-eligible families only: posture_policy.policy_family carries a front-end-owned
+    # CHECK constraint, so a family not in it (e.g. purview-compliance, ADR-0019 §2 — held out
+    # until the FE widens the constraint) must never reach the silver write. Bronze+golden+drift
+    # still cover every family via Get-ImperionPolicyDrift; this merge is silver only.
+    $catalog = @(Get-ImperionPolicyCatalog | Where-Object { $_.Silver })
 
-    try {
-        # Silver-eligible families only: posture_policy.policy_family carries a front-end-owned
-        # CHECK constraint, so a family not in it (e.g. purview-compliance, ADR-0019 §2 — held out
-        # until the FE widens the constraint) must never reach the silver write. Bronze+golden+drift
-        # still cover every family via Get-ImperionPolicyDrift; this merge is silver only.
-        $catalog = @(Get-ImperionPolicyCatalog | Where-Object { $_.Silver })
+    # Every tenant the posture estate knows about: observed bronze, golden baselines, and
+    # Secure Score snapshots. Unmapped tenants stay in scope. The scaffold runs this only
+    # when -TenantId is not supplied.
+    $tenantUnionParts = [System.Collections.Generic.List[string]]::new()
+    foreach ($p in $catalog) {
+        $tenantUnionParts.Add("SELECT tenant_id FROM `"$($p.Observed)`"")
+        $tenantUnionParts.Add("SELECT tenant_id FROM `"$($p.Golden)`"")
+    }
+    $tenantUnionParts.Add('SELECT tenant_id FROM secure_scores')
+    $tenantSql = "SELECT DISTINCT tenant_id FROM (`n" +
+        ($tenantUnionParts -join "`nUNION ALL ") +
+        "`n) t WHERE tenant_id IS NOT NULL ORDER BY tenant_id"
 
-        if (-not $TenantId) {
-            # Every tenant the posture estate knows about: observed bronze, golden
-            # baselines, and Secure Score snapshots. Unmapped tenants stay in scope.
-            $tenantUnionParts = [System.Collections.Generic.List[string]]::new()
-            foreach ($p in $catalog) {
-                $tenantUnionParts.Add("SELECT tenant_id FROM `"$($p.Observed)`"")
-                $tenantUnionParts.Add("SELECT tenant_id FROM `"$($p.Golden)`"")
-            }
-            $tenantUnionParts.Add('SELECT tenant_id FROM secure_scores')
-            $tenantSql = "SELECT DISTINCT tenant_id FROM (`n" +
-                ($tenantUnionParts -join "`nUNION ALL ") +
-                "`n) t WHERE tenant_id IS NOT NULL ORDER BY tenant_id"
-            $TenantId = @(Invoke-ImperionDbQuery -Connection $Connection -Sql $tenantSql |
-                    Select-Object -ExpandProperty tenant_id)
-        }
+    # Declarative steps, run in order inside each tenant's transaction. @t is injected by
+    # the scaffold; each family insert carries its own @f parameter.
+    $steps = [System.Collections.Generic.List[hashtable]]::new()
 
-        if (@($TenantId).Count -eq 0) {
-            Write-ImperionLog -Source 'posture' -Message 'Posture merge: no tenants found in posture bronze/golden.'
-            return
-        }
+    # posture_policy is CURRENT STATE: replace inside the transaction so readers never
+    # see a partial mix of old and new classifications.
+    $steps.Add(@{ Name = 'delete'; Sql = 'DELETE FROM posture_policy WHERE tenant_id = @t' })
 
-        $tenantsMerged = 0
-        $tenantsFailed = 0
-        $policiesClassified = 0
-
-        foreach ($tenant in $TenantId) {
-            if (-not $PSCmdlet.ShouldProcess($tenant, 'Re-classify posture silver')) { continue }
-
-            $transaction = $Connection.BeginTransaction()
-            try {
-                # posture_policy is CURRENT STATE: replace inside the transaction so
-                # readers never see a partial mix of old and new classifications.
-                Invoke-ImperionDbNonQuery -Connection $Connection `
-                    -Sql 'DELETE FROM posture_policy WHERE tenant_id = @t' `
-                    -Parameters @{ t = $tenant } | Out-Null
-
-                foreach ($p in $catalog) {
-                    # Table names come from the fixed Get-ImperionPolicyCatalog
-                    # allowlist — never from input. The CASE is the parity-pinned
-                    # classification (Get-ImperionPolicyDrift / cloud posture-run.ts).
-                    $family = $p.Key -replace '-', '_'
-                    $insertSql = @"
+    foreach ($p in $catalog) {
+        # Table names come from the fixed Get-ImperionPolicyCatalog allowlist — never from
+        # input. The CASE is the parity-pinned classification (Get-ImperionPolicyDrift /
+        # cloud posture-run.ts). Step name = family so the scaffold tallies per family.
+        $family = $p.Key -replace '-', '_'
+        $insertSql = @"
 INSERT INTO posture_policy
     (tenant_id, policy_family, policy_id, policy_name, classification,
      observed_hash, golden_hash, observed_modified_at, golden_approved_at)
@@ -113,15 +100,14 @@ SELECT @t, @f,
     ON g.tenant_id = o.tenant_id AND g.policy_id = o.external_id
  WHERE COALESCE(o.tenant_id, g.tenant_id) = @t
 "@
-                    $policiesClassified += Invoke-ImperionDbNonQuery -Connection $Connection `
-                        -Sql $insertSql -Parameters @{ t = $tenant; f = $family }
-                }
+        $steps.Add(@{ Name = $family; Sql = $insertSql; Parameters = @{ f = $family } })
+    }
 
-                # Rollup: latest Secure Score snapshot (bronze is all-text — numeric
-                # casts are regex-guarded so junk lands NULL, never throws), the
-                # classification counts just written, and open exposures resolved
-                # through account_tenant (an unmapped tenant rolls up 0).
-                $rollupSql = @"
+    # Rollup: latest Secure Score snapshot (bronze is all-text — numeric casts are
+    # regex-guarded so junk lands NULL, never throws), the classification counts just
+    # written, and open exposures resolved through account_tenant (an unmapped tenant
+    # rolls up 0).
+    $rollupSql = @"
 WITH latest_score AS (
     SELECT current_score, max_score, licensed_user_count, active_user_count
       FROM secure_scores WHERE tenant_id = @t
@@ -166,33 +152,18 @@ ON CONFLICT (tenant_id) DO UPDATE SET
     exposures_open       = EXCLUDED.exposures_open,
     refreshed_at         = now()
 "@
-                Invoke-ImperionDbNonQuery -Connection $Connection -Sql $rollupSql `
-                    -Parameters @{ t = $tenant } | Out-Null
+    $steps.Add(@{ Name = 'rollup'; Sql = $rollupSql })
 
-                $transaction.Commit()
-                $tenantsMerged++
-            }
-            catch {
-                # One bad tenant never blocks the fleet: roll back its transaction,
-                # log, and continue — the next scheduled run retries it.
-                $transaction.Rollback()
-                $tenantsFailed++
-                Write-ImperionLog -Level Error -Source 'posture' `
-                    -Message "Posture merge failed for tenant $tenant - rolled back." `
-                    -Data @{ tenant = $tenant; error = $_.Exception.Message }
-            }
-            finally {
-                $transaction.Dispose()
-            }
-        }
-
-        Write-ImperionLog -Level Metric -Source 'posture' -Message 'Posture merge complete.' -Data @{
-            tenants  = @($TenantId).Count
-            merged   = $tenantsMerged
-            failed   = $tenantsFailed
-            policies = $policiesClassified
-            seconds  = [math]::Round(((Get-Date) - $started).TotalSeconds, 1)
-        }
+    $plan = @{
+        Source               = 'posture'
+        Scope                = 'PerTenant'
+        TenantEnumerationSql = $tenantSql
+        Steps                = $steps
     }
-    finally { if ($ownConnection) { $Connection.Dispose() } }
+
+    # One operation-level gate so -WhatIf is accepted and short-circuits cleanly; the
+    # scaffold re-gates per tenant for real runs (silent unless -WhatIf / -Confirm).
+    if (-not $PSCmdlet.ShouldProcess('all posture tenants', 'Re-classify posture silver')) { return }
+
+    Invoke-ImperionMergeByPlan -Plan $plan -TenantId $TenantId -Connection $Connection
 }
