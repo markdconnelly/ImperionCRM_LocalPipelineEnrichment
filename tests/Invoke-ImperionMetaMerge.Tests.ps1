@@ -46,7 +46,7 @@ Describe 'Invoke-ImperionMetaMerge' {
                 $tally.social_metrics_merged | Should -Be 1
                 $tally.fb_dm_to_client_communication | Should -Be 1
                 $tally.ig_dm_to_client_communication | Should -Be 1
-                Should -Invoke Write-ImperionLog -Times 1 -ParameterFilter { $Level -eq 'Metric' -and $Message -match 'Meta merge complete' }
+                Should -Invoke Write-ImperionLog -Times 1 -ParameterFilter { $Level -eq 'Metric' -and $Message -match 'Merge plan complete' }
             }
         }
 

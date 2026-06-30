@@ -42,6 +42,12 @@ function Invoke-ImperionMetaMerge {
         junk lands as the collected_at fallback, never throws. INSERT-only — never
         UPDATE/DELETE on silver (the 0075 grant posture). Requires
         Initialize-ImperionContext.
+
+        This cmdlet is a thin **Merge Plan builder** (epic #429, ADR-0026): it assembles
+        the declarative Global Plan — the ordered, set-based SQL steps — and hands it to
+        Invoke-ImperionMergeByPlan, which owns the shared orchestration (connection
+        lifecycle, ShouldProcess, tally, structured logging). The SQL below is unchanged
+        from the hand-rolled version it replaces, so behaviour is byte-identical.
     .PARAMETER Connection
         Optional open Npgsql connection to reuse; otherwise one is opened and disposed.
     .EXAMPLE
@@ -55,23 +61,19 @@ function Invoke-ImperionMetaMerge {
         $Connection
     )
 
-    $started = Get-Date
+    # One operation-level gate so -WhatIf short-circuits cleanly with no connection and no
+    # SQL, before the scaffold is built or called.
     if (-not $PSCmdlet.ShouldProcess('meta bronze (facebook_*, instagram_*, meta_insights)', 'merge to silver')) { return }
 
-    $ownConnection = -not $Connection
-    if ($ownConnection) { $Connection = New-ImperionDbConnection }
+    $steps = [System.Collections.Generic.List[hashtable]]::new()
 
-    try {
-        $tally = [ordered]@{}
-
-        # ── 1–4. bronze → interaction ────────────────────────────────────────────
-        # One INSERT…SELECT per (bronze table, kind); the NOT EXISTS gate keys on
-        # (source, external_ref) — the merge's idempotency contract. occurred_at:
-        # guarded created_time cast, collected_at fallback (loader-written ISO).
-        $interactionSteps = @(
-            [pscustomobject]@{
-                Name = 'facebook_posts_to_interaction'
-                Sql  = @"
+    # ── 1–4. bronze → interaction ────────────────────────────────────────────
+    # One INSERT…SELECT per (bronze table, kind); the NOT EXISTS gate keys on
+    # (source, external_ref) — the merge's idempotency contract. occurred_at:
+    # guarded created_time cast, collected_at fallback (loader-written ISO).
+    $steps.Add(@{
+            Name = 'facebook_posts_to_interaction'
+            Sql  = @"
 INSERT INTO interaction (source, kind, subject, direction, external_ref, payload_bronze, normalized_silver, occurred_at)
 SELECT 'facebook'::interaction_source, 'social_post', left(b.message, 140), 'outbound'::interaction_direction,
        b.external_id, b.raw_payload,
@@ -87,10 +89,10 @@ SELECT 'facebook'::interaction_source, 'social_post', left(b.message, 140), 'out
    AND NOT EXISTS (SELECT 1 FROM interaction i
                     WHERE i.source = 'facebook' AND i.external_ref = b.external_id)
 "@
-            }
-            [pscustomobject]@{
-                Name = 'facebook_comments_to_interaction'
-                Sql  = @"
+        })
+    $steps.Add(@{
+            Name = 'facebook_comments_to_interaction'
+            Sql  = @"
 INSERT INTO interaction (source, kind, subject, direction, external_ref, payload_bronze, normalized_silver, occurred_at)
 SELECT 'facebook'::interaction_source, 'social_comment', left(b.message, 140), 'inbound'::interaction_direction,
        b.external_id, b.raw_payload,
@@ -105,10 +107,10 @@ SELECT 'facebook'::interaction_source, 'social_comment', left(b.message, 140), '
    AND NOT EXISTS (SELECT 1 FROM interaction i
                     WHERE i.source = 'facebook' AND i.external_ref = b.external_id)
 "@
-            }
-            [pscustomobject]@{
-                Name = 'instagram_media_to_interaction'
-                Sql  = @"
+        })
+    $steps.Add(@{
+            Name = 'instagram_media_to_interaction'
+            Sql  = @"
 INSERT INTO interaction (source, kind, subject, direction, external_ref, payload_bronze, normalized_silver, occurred_at)
 SELECT 'instagram'::interaction_source, 'social_post', left(b.caption, 140), 'outbound'::interaction_direction,
        b.external_id, b.raw_payload,
@@ -123,10 +125,10 @@ SELECT 'instagram'::interaction_source, 'social_post', left(b.caption, 140), 'ou
    AND NOT EXISTS (SELECT 1 FROM interaction i
                     WHERE i.source = 'instagram' AND i.external_ref = b.external_id)
 "@
-            }
-            [pscustomobject]@{
-                Name = 'instagram_comments_to_interaction'
-                Sql  = @"
+        })
+    $steps.Add(@{
+            Name = 'instagram_comments_to_interaction'
+            Sql  = @"
 INSERT INTO interaction (source, kind, subject, direction, external_ref, payload_bronze, normalized_silver, occurred_at)
 SELECT 'instagram'::interaction_source, 'social_comment', left(b.comment_text, 140), 'inbound'::interaction_direction,
        b.external_id, b.raw_payload,
@@ -141,10 +143,10 @@ SELECT 'instagram'::interaction_source, 'social_comment', left(b.comment_text, 1
    AND NOT EXISTS (SELECT 1 FROM interaction i
                     WHERE i.source = 'instagram' AND i.external_ref = b.external_id)
 "@
-            }
-            [pscustomobject]@{
-                Name = 'facebook_messages_to_interaction'
-                Sql  = @"
+        })
+    $steps.Add(@{
+            Name = 'facebook_messages_to_interaction'
+            Sql  = @"
 INSERT INTO interaction (source, kind, subject, direction, external_ref, payload_bronze, normalized_silver, occurred_at)
 SELECT 'facebook'::interaction_source, 'dm', left(b.message, 140),
        CASE WHEN b.from_id = b.page_id THEN 'outbound'::interaction_direction
@@ -160,10 +162,10 @@ SELECT 'facebook'::interaction_source, 'dm', left(b.message, 140),
    AND NOT EXISTS (SELECT 1 FROM interaction i
                     WHERE i.source = 'facebook' AND i.external_ref = b.external_id)
 "@
-            }
-            [pscustomobject]@{
-                Name = 'instagram_messages_to_interaction'
-                Sql  = @"
+        })
+    $steps.Add(@{
+            Name = 'instagram_messages_to_interaction'
+            Sql  = @"
 INSERT INTO interaction (source, kind, subject, direction, external_ref, payload_bronze, normalized_silver, occurred_at)
 SELECT 'instagram'::interaction_source, 'dm', left(b.message, 140),
        CASE WHEN b.from_id = b.ig_user_id THEN 'outbound'::interaction_direction
@@ -179,15 +181,13 @@ SELECT 'instagram'::interaction_source, 'dm', left(b.message, 140),
    AND NOT EXISTS (SELECT 1 FROM interaction i
                     WHERE i.source = 'instagram' AND i.external_ref = b.external_id)
 "@
-            }
-        )
-        foreach ($step in $interactionSteps) {
-            $tally[$step.Name] = Invoke-ImperionDbNonQuery -Connection $Connection -Sql $step.Sql
-        }
+        })
 
-        # ── 5. DM senders → leads ────────────────────────────────────────────────
-        # 5a. Exactly one hook row for the page inbox, keyed (kind, name).
-        $tally['lead_hook_ensured'] = Invoke-ImperionDbNonQuery -Connection $Connection -Sql @"
+    # ── 5. DM senders → leads ────────────────────────────────────────────────
+    # 5a. Exactly one hook row for the page inbox, keyed (kind, name).
+    $steps.Add(@{
+            Name = 'lead_hook_ensured'
+            Sql  = @"
 INSERT INTO lead_hook (name, kind, config)
 SELECT 'Facebook page inbox', 'facebook_dm'::lead_hook_kind,
        jsonb_build_object('page_id', (SELECT page_id FROM facebook_messages
@@ -195,11 +195,14 @@ SELECT 'Facebook page inbox', 'facebook_dm'::lead_hook_kind,
  WHERE NOT EXISTS (SELECT 1 FROM lead_hook
                     WHERE kind = 'facebook_dm' AND name = 'Facebook page inbox')
 "@
+        })
 
-        # 5b. Minimal contact + facebook social identity for senders not yet known.
-        # The new contact carries the sender's from_id in attribution so the identity
-        # insert can join RETURNING rows back to their sender deterministically.
-        $tally['contacts_created'] = Invoke-ImperionDbNonQuery -Connection $Connection -Sql @"
+    # 5b. Minimal contact + facebook social identity for senders not yet known.
+    # The new contact carries the sender's from_id in attribution so the identity
+    # insert can join RETURNING rows back to their sender deterministically.
+    $steps.Add(@{
+            Name = 'contacts_created'
+            Sql  = @"
 WITH sender AS (
     SELECT DISTINCT ON (from_id) from_id, from_name
       FROM facebook_messages
@@ -222,10 +225,13 @@ SELECT nc.id, 'facebook', nc.from_id,
   FROM new_contact nc
   JOIN missing m ON m.from_id = nc.from_id
 "@
+        })
 
-        # 5c. ONE lead_capture_event per sender (not per message): keyed on
-        # (hook, payload_bronze->>'from_id'); payload carries the FIRST message.
-        $tally['lead_captures_created'] = Invoke-ImperionDbNonQuery -Connection $Connection -Sql @"
+    # 5c. ONE lead_capture_event per sender (not per message): keyed on
+    # (hook, payload_bronze->>'from_id'); payload carries the FIRST message.
+    $steps.Add(@{
+            Name = 'lead_captures_created'
+            Sql  = @"
 WITH sender AS (
     SELECT DISTINCT ON (from_id) from_id, from_name, conversation_id, message, created_time
       FROM facebook_messages
@@ -255,13 +261,16 @@ SELECT h.id,
                     WHERE e.hook_id = h.id
                       AND e.payload_bronze->>'from_id' = s.from_id)
 "@
+        })
 
-        # ── 5d-5f. IG DM senders → leads ─────────────────────────────────────────
-        # The IG twin of 5a-5c (front-end migration 0207): own hook kind instagram_dm,
-        # platform 'instagram' on contact_social_identity, sender = from_id <> ig_user_id.
-        # IG participants carry from_username (not from_name).
-        # 5d. Exactly one hook row for the IG inbox.
-        $tally['ig_lead_hook_ensured'] = Invoke-ImperionDbNonQuery -Connection $Connection -Sql @"
+    # ── 5d-5f. IG DM senders → leads ─────────────────────────────────────────
+    # The IG twin of 5a-5c (front-end migration 0207): own hook kind instagram_dm,
+    # platform 'instagram' on contact_social_identity, sender = from_id <> ig_user_id.
+    # IG participants carry from_username (not from_name).
+    # 5d. Exactly one hook row for the IG inbox.
+    $steps.Add(@{
+            Name = 'ig_lead_hook_ensured'
+            Sql  = @"
 INSERT INTO lead_hook (name, kind, config)
 SELECT 'Instagram direct messages', 'instagram_dm'::lead_hook_kind,
        jsonb_build_object('ig_user_id', (SELECT ig_user_id FROM instagram_messages
@@ -269,9 +278,12 @@ SELECT 'Instagram direct messages', 'instagram_dm'::lead_hook_kind,
  WHERE NOT EXISTS (SELECT 1 FROM lead_hook
                     WHERE kind = 'instagram_dm' AND name = 'Instagram direct messages')
 "@
+        })
 
-        # 5e. Minimal contact + instagram social identity for senders not yet known.
-        $tally['ig_contacts_created'] = Invoke-ImperionDbNonQuery -Connection $Connection -Sql @"
+    # 5e. Minimal contact + instagram social identity for senders not yet known.
+    $steps.Add(@{
+            Name = 'ig_contacts_created'
+            Sql  = @"
 WITH sender AS (
     SELECT DISTINCT ON (from_id) from_id, from_username
       FROM instagram_messages
@@ -294,9 +306,12 @@ SELECT nc.id, 'instagram', nc.from_id,
   FROM new_contact nc
   JOIN missing m ON m.from_id = nc.from_id
 "@
+        })
 
-        # 5f. ONE lead_capture_event per IG DM sender, keyed (hook, payload from_id).
-        $tally['ig_lead_captures_created'] = Invoke-ImperionDbNonQuery -Connection $Connection -Sql @"
+    # 5f. ONE lead_capture_event per IG DM sender, keyed (hook, payload from_id).
+    $steps.Add(@{
+            Name = 'ig_lead_captures_created'
+            Sql  = @"
 WITH sender AS (
     SELECT DISTINCT ON (from_id) from_id, from_username, conversation_id, message, created_time
       FROM instagram_messages
@@ -326,12 +341,15 @@ SELECT h.id,
                     WHERE e.hook_id = h.id
                       AND e.payload_bronze->>'from_id' = s.from_id)
 "@
+        })
 
-        # ── 6. meta_insights → social_metric ─────────────────────────────────────
-        # Guarded numeric/timestamptz casts (posture-merge pattern); the 0075 unique
-        # key (platform, entity_kind, entity_external_id, metric, period, captured_at)
-        # makes the snapshot series naturally idempotent.
-        $tally['social_metrics_merged'] = Invoke-ImperionDbNonQuery -Connection $Connection -Sql @"
+    # ── 6. meta_insights → social_metric ─────────────────────────────────────
+    # Guarded numeric/timestamptz casts (posture-merge pattern); the 0075 unique
+    # key (platform, entity_kind, entity_external_id, metric, period, captured_at)
+    # makes the snapshot series naturally idempotent.
+    $steps.Add(@{
+            Name = 'social_metrics_merged'
+            Sql  = @"
 INSERT INTO social_metric (platform, entity_kind, entity_external_id, metric, period, value, captured_at)
 SELECT CASE WHEN b.entity_kind = 'page' THEN 'facebook' ELSE 'instagram' END,
        b.entity_kind, b.entity_external_id, b.metric, b.period,
@@ -343,22 +361,25 @@ SELECT CASE WHEN b.entity_kind = 'page' THEN 'facebook' ELSE 'instagram' END,
    AND b.period IS NOT NULL  -- NULLs are distinct under the unique key: a NULL period would defeat ON CONFLICT and duplicate on re-run
 ON CONFLICT (platform, entity_kind, entity_external_id, metric, period, captured_at) DO NOTHING
 "@
+        })
 
-        # ── 7-8. DMs with an onboarded client → client_communication (social_dm) ──────
-        # The SECOND, filtered projection of the DM bronze (#383, front-end #1370 /
-        # docs/database/social-dm-foldin.md; silver client_communication 0211, ADR-0126).
-        # A DM is retained ONLY when its non-Imperion counterparty resolves to a LINKED
-        # client contact via contact_social_identity (the table steps 5b/5e populate) —
-        # the INNER JOIN LATERAL is the filter gate, so prospect/public DMs (no linked
-        # contact) stay interaction/lead_capture-only and never enter the client-comms
-        # ledger. No account_domain path (handles carry no email domain). PII-minimal:
-        # subject NULL, snippet = truncated message preview, NEVER the full body
-        # (ADR-0126 privacy posture; the full text stays in interaction / bronze).
-        # direction by sender (inbound = client→Imperion). Idempotent upsert on the 0211
-        # key (channel, source_system, external_id) with content_hash change detection.
+    # ── 7-8. DMs with an onboarded client → client_communication (social_dm) ──────
+    # The SECOND, filtered projection of the DM bronze (#383, front-end #1370 /
+    # docs/database/social-dm-foldin.md; silver client_communication 0211, ADR-0126).
+    # A DM is retained ONLY when its non-Imperion counterparty resolves to a LINKED
+    # client contact via contact_social_identity (the table steps 5b/5e populate) —
+    # the INNER JOIN LATERAL is the filter gate, so prospect/public DMs (no linked
+    # contact) stay interaction/lead_capture-only and never enter the client-comms
+    # ledger. No account_domain path (handles carry no email domain). PII-minimal:
+    # subject NULL, snippet = truncated message preview, NEVER the full body
+    # (ADR-0126 privacy posture; the full text stays in interaction / bronze).
+    # direction by sender (inbound = client→Imperion). Idempotent upsert on the 0211
+    # key (channel, source_system, external_id) with content_hash change detection.
 
-        # 7. facebook_messages → client_communication (channel social_dm, source meta_messenger)
-        $tally['fb_dm_to_client_communication'] = Invoke-ImperionDbNonQuery -Connection $Connection -Sql @"
+    # 7. facebook_messages → client_communication (channel social_dm, source meta_messenger)
+    $steps.Add(@{
+            Name = 'fb_dm_to_client_communication'
+            Sql  = @"
 INSERT INTO client_communication
   (account_id, contact_id, channel, direction, client_participants, imperion_participants,
    subject, snippet, occurred_at, source_system, external_id, thread_ref, content_hash, data_class)
@@ -393,9 +414,12 @@ ON CONFLICT (channel, source_system, external_id) DO UPDATE SET
     content_hash          = EXCLUDED.content_hash
   WHERE client_communication.content_hash IS DISTINCT FROM EXCLUDED.content_hash
 "@
+        })
 
-        # 8. instagram_messages → client_communication (channel social_dm, source instagram_dm)
-        $tally['ig_dm_to_client_communication'] = Invoke-ImperionDbNonQuery -Connection $Connection -Sql @"
+    # 8. instagram_messages → client_communication (channel social_dm, source instagram_dm)
+    $steps.Add(@{
+            Name = 'ig_dm_to_client_communication'
+            Sql  = @"
 INSERT INTO client_communication
   (account_id, contact_id, channel, direction, client_participants, imperion_participants,
    subject, snippet, occurred_at, source_system, external_id, thread_ref, content_hash, data_class)
@@ -430,12 +454,14 @@ ON CONFLICT (channel, source_system, external_id) DO UPDATE SET
     content_hash          = EXCLUDED.content_hash
   WHERE client_communication.content_hash IS DISTINCT FROM EXCLUDED.content_hash
 "@
+        })
 
-        $metrics = [ordered]@{ seconds = [math]::Round(((Get-Date) - $started).TotalSeconds, 1) }
-        foreach ($key in $tally.Keys) { $metrics[$key] = $tally[$key] }
-        Write-ImperionLog -Level Metric -Source 'meta' -Message 'Meta merge complete.' -Data ([hashtable]$metrics)
-
-        return [pscustomobject]$tally
+    $plan = @{
+        Source = 'meta'
+        Scope  = 'Global'
+        Steps  = $steps
     }
-    finally { if ($ownConnection) { $Connection.Dispose() } }
+
+    $result = Invoke-ImperionMergeByPlan -Plan $plan -Connection $Connection
+    return [pscustomobject]$result.tally
 }
