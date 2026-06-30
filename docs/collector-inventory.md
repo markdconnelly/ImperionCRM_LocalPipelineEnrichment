@@ -28,6 +28,21 @@ the higher-altitude catalog.
 | **Meta (FB / IG)** | `Invoke-ImperionMetaRequest` (+ `Get-ImperionMetaPageToken`) | Page posts/comments/conversations/insights · IG media/comments (+ `Invoke-ImperionMetaMerge`) | `meta_*` / `instagram_*` (migration 0075) | daily | ADR-0013 / #126 |
 | **Kaseya (legacy bulk)** | — | `Invoke-ImperionKaseyaImport` (contracts/tickets/proposals; Proposals branch delegates to KQM) | bulk upsert, watermarked | hourly–daily | #98 |
 
+## Social plane (engagement · metrics · lead ads · Threads — front-end ADR-0124 / Threads ADR-0125)
+
+Brand-presence + engagement collectors on the Meta connect (Page token, #133) plus the separate
+Threads API. All **GATED** until the Page token / Threads connector are provisioned — each logs
+the gap and exits cleanly; the next run converges (idempotent upsert + ON CONFLICT / NOT-EXISTS
+merge). Third-party comment/DM/mention text is never logged (counts/ids only).
+
+| Source | Connect | Get (collector) | Bronze target | Cadence | ADR / issue |
+| --- | --- | --- | --- | --- | --- |
+| **Social Engagement** | `Invoke-ImperionMetaRequest` (Page token #133) | post/media comments + `Get-ImperionMetaMention` (FB `/tagged`, IG `/tags`) → orch. `Invoke-ImperionSocialEngagementSync` | `facebook_comments` / `instagram_comments` (0075) + `meta_mentions` (#391) → silver `social_engagement` (FE 0210) **merged** by `Invoke-ImperionSocialEngagementMerge` | daily | #357/#378, #391/#392 / ADR-0124 |
+| **Social Metric** | `Invoke-ImperionMetaRequest` | `Get-ImperionMetaPostInsight` + optional `Get-ImperionMetaAdInsight` → orch. `Invoke-ImperionSocialMetricSync` | `meta_insights` (0075) → silver `social_metric`, metric names normalized to one network-agnostic vocabulary (resolves front-end #135) **merged** by `Invoke-ImperionSocialMetricMerge` | daily | #357/#378 / ADR-0124 |
+| **Meta Lead Ads** | `Invoke-ImperionMetaRequest` (+ `leads_retrieval`) | lead forms + submitted leads → orch. `Invoke-ImperionMetaLeadAdsSync` | `meta_lead_ads` (FE 0207) → silver `lead_hook` (idempotent on the Meta `leadgen_id`) **merged** by `Invoke-ImperionMetaLeadAdsMerge` | daily | #362/#365 |
+| **Instagram DM** | `Invoke-ImperionMetaRequest` | `Get-ImperionInstagramMessage` | `instagram_messages` (FE 0207) → silver `interaction` (kind dm) + `lead_hook` (kind `instagram_dm`, 0206) **merged** by `Invoke-ImperionMetaMerge` | daily | #361/#363 |
+| **Threads** | `Invoke-ImperionThreadsRequest` (token `conn-company-threads`, ADR-0103) | `Get-ImperionThreadsPost` / `Reply` / `Mention` / `Insight` → orch. `Invoke-ImperionThreadsSync` | `threads_posts` / `threads_replies` / `threads_mentions` / `threads_insights` (FE 0208) → silver `interaction` + `social_metric` (platform `threads`) **merged** by `Invoke-ImperionThreadsMerge`; **DORMANT** until App Review + token | daily | #356/#371 (front-end #1334 / ADR-0125) |
+
 ## Support / operational (RMM / managed estate)
 
 | Source | Connect | Get (collector) | Bronze target | Cadence | ADR / issue |
@@ -44,7 +59,7 @@ the higher-altitude catalog.
 | Source | Connect | Get (collector) | Bronze target | Cadence | ADR / issue |
 | --- | --- | --- | --- | --- | --- |
 | **m365 directory** | `Invoke-ImperionGraphRequest` | User · Device · Group · GroupMember | `m365_contacts` / `m365_devices` / `m365_groups` / `m365_group_members` (ADR-0039 shape) → silver `contact_enrichment.directory_groups` **merged on-prem** by `Invoke-ImperionM365DirectoryMerge` (#239; cloud cede Pipeline #134 held until bronze fills) | daily | ADR-0005 / ADR-0026 |
-| **m365 Intune** | `Invoke-ImperionGraphRequest` | Managed device compliance · Managed app | `intune_managed_devices` / `intune_managed_apps` (pending FE migration) | daily | #75 / #143 |
+| **m365 Intune** | `Invoke-ImperionGraphRequest` | Managed device compliance · Managed app | `intune_managed_devices` / `intune_managed_apps` (pending FE migration) → silver `software_ci` **merged on-prem** by `Invoke-ImperionSoftwareCiMerge` (#354/#355) | daily | #75 / #143 |
 | **m365 communications (cross-org)** | `Invoke-ImperionGraphRequest` | Mail · TeamsChat · TeamsMeeting (Imperion↔client filter) | `m365_mail_messages` / `m365_teams_chats` / `m365_teams_meetings` (migration 0065) | mail/chat hourly · meetings 4h | #100 |
 | **Entra hygiene** | `Invoke-ImperionGraphRequest` | Domain · AppRegistration · RoleAssignment · Group · GroupMember · AuthMethod | `entra_domains` / `entra_app_registrations` / `entra_role_assignments` / `entra_groups` / `entra_role*` (migrations 0136/0079/0077, all prod-applied) | daily | #219/#139–#142 / #150 |
 | **Information protection** | `Invoke-ImperionGraphRequest` | SensitivityLabel (beta) · CustomSecurityAttribute (definitions only) | `m365_sensitivity_labels` / `entra_custom_security_attributes` (FE #575, applied) | daily | #141/#372 |
@@ -127,11 +142,17 @@ opportunity/expense sweep + DocuSign).
 | --- | --- | --- | --- | --- |
 | **Posture** (the precedent) | `Invoke-ImperionPostureMerge` | `posture_policy` + `tenant_posture` | daily 03:20 | ADR-0010 |
 | **DNS** | `Invoke-ImperionDnsMerge` | `dns_domain` (golden/drift) | daily | ADR-0008 / ADR-0063 (FE) |
-| **Meta** | `Invoke-ImperionMetaMerge` | social interaction silver | daily | ADR-0013 |
+| **Meta** | `Invoke-ImperionMetaMerge` | `interaction` (posts / comments / FB+IG DMs) **+** `client_communication` (DMs → channel `social_dm`, source_system `meta_messenger` / `instagram_dm`, #383/#397) | daily | ADR-0013 / ADR-0026 |
 | **M365 directory** | `Invoke-ImperionM365DirectoryMerge` | `contact_enrichment.directory_groups` (FE migration 0079) | daily | ADR-0026 / #239 |
 | **Azure ARM cloud-asset** | `Invoke-ImperionCloudAssetMerge` | `cloud_asset` CMDB CI (FE migration 0139; cloud ceded #135; 101 live) | daily | ADR-0026 / #241 |
 | **UniFi** | `Invoke-ImperionUniFiMerge` | `device` (from `unifi_devices` bronze; per-site attribution defect #346) | daily | ADR-0026 / #284 |
-| **Pax8** | `Invoke-ImperionPax8Merge` | `license_assignment` (resolves company → account via `entity_xref`; agreement/device link) | daily | ADR-0026 / #280 |
+| **Pax8** | `Invoke-ImperionPax8Merge` | `license_assignment` (resolves company → account via `entity_xref`; agreement/device link; ON CONFLICT repeats the SCD-2 partial-index predicate, #404) | daily | ADR-0026 / #280 |
+| **Client communication (M365)** | `Invoke-ImperionClientCommunicationMerge` | `client_communication`, **client-filtered** (from home-tenant `m365_mail_messages` / `m365_teams_chats` / `m365_teams_meetings`, 0065; drops internal/unattributable; FE 0211) | daily | ADR-0026 / #396 (front-end ADR-0126) |
+| **Social Engagement** | `Invoke-ImperionSocialEngagementMerge` | `social_engagement` (FB/IG comments + brand mentions; FE 0210) | daily | ADR-0026 / #378, #392 |
+| **Social Metric** | `Invoke-ImperionSocialMetricMerge` | `social_metric`, metric names normalized (resolves front-end #135; FE 0075) | daily | ADR-0026 / #378 |
+| **Meta Lead Ads** | `Invoke-ImperionMetaLeadAdsMerge` | `lead_hook` (idempotent on `leadgen_id`; FE 0207) | daily | ADR-0026 / #365 |
+| **Threads** | `Invoke-ImperionThreadsMerge` | `interaction` (posts/replies/mentions) + `social_metric` (platform `threads`; FE 0208) | daily | ADR-0026 / #371 |
+| **Software CI** | `Invoke-ImperionSoftwareCiMerge` | `software_ci` (from `intune_managed_apps`) | daily | ADR-0026 / #355 |
 
 > **Cutover is gap-free** because both the LP and cloud copies are replace-from-source on the
 > same source label: ship the LP merge first (additive), cede the cloud copy second, never cede
@@ -141,7 +162,7 @@ opportunity/expense sweep + DocuSign).
 
 | Stage | Cmdlet | Output |
 | --- | --- | --- |
-| **Compose** | `Get-ImperionKnowledge*` (account · contact · contract · ticket · device · exposure · assessment · proposal · posture · social · conversation_segment) → `Set-ImperionKnowledgeObject` | `knowledge_object` (change-detected) |
+| **Compose** | `Get-ImperionKnowledge*` (account · contact · contract · ticket · device · exposure · assessment · proposal · posture · social · conversation_segment · memory · semantic_concept) → `Set-ImperionKnowledgeObject` | `knowledge_object` (change-detected) |
 | **Chunk** | `Split-ImperionTextChunk` (v1: 6000 chars / 500 overlap) | text chunks |
 | **Embed** | `Get-ImperionVoyageEmbedding` (voyage-3-large @ 1024, refuses other dims) | 1024-dim vectors |
 | **Upsert** | `Invoke-ImperionVectorizeKnowledge` (chunk-hash idempotent, cost telemetry) | `knowledge_embedding` (pgvector) |
