@@ -41,7 +41,7 @@ Describe 'Invoke-ImperionMetaLeadAdsMerge' {
                 $tally.lead_hook_ensured | Should -Be 1
                 $tally.contacts_created | Should -Be 1
                 $tally.lead_captures_created | Should -Be 1
-                Should -Invoke Write-ImperionLog -Times 1 -ParameterFilter { $Level -eq 'Metric' -and $Message -match 'Meta Lead Ads merge complete' }
+                Should -Invoke Write-ImperionLog -Times 1 -ParameterFilter { $Level -eq 'Metric' -and $Message -match 'Merge plan complete' }
             }
         }
 
