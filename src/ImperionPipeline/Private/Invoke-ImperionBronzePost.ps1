@@ -24,7 +24,10 @@ function Invoke-ImperionBronzePost {
         - -ColumnSet (over-collecting collectors, e.g. the Azure inventory set): each
           row is projected to exactly the named columns (missing ones land NULL, extras
           are dropped from the flat projection but survive in raw_payload), so a future
-          collector field can never break the insert.
+          collector field can never break the insert. Before the upsert, the declared
+          set is validated against the live table via Assert-ImperionColumnSet (#427):
+          a declared column absent from the table fails fast with an error naming the
+          table + missing columns, instead of an opaque insert failure.
     .PARAMETER Rows
         The collected (non-null) flat rows to write. The public adapter owns pipeline
         collection; this function owns everything after it.
@@ -55,6 +58,8 @@ function Invoke-ImperionBronzePost {
         -NoChangeDetect (see DESCRIPTION).
     .PARAMETER ColumnSet
         Project each row to exactly these columns before the upsert (see DESCRIPTION).
+        Validated against the live table's information_schema.columns before the write —
+        schema drift throws a clear error rather than an opaque insert failure (#427).
     .OUTPUTS
         The upsert tally { scanned; inserted; updated; unchanged }.
     .EXAMPLE
@@ -141,6 +146,12 @@ function Invoke-ImperionBronzePost {
     $activeConnection = $Connection
     if (-not $activeConnection) { $activeConnection = New-ImperionDbConnection; $ownsConnection = $true }
     try {
+        # -ColumnSet drift guard (#427): the declared set is authored against the FINAL
+        # front-end schema, but collectors can outlive (or predate) a migration. Validate
+        # against the live table before writing so drift fails fast with the table and
+        # missing columns named, not as an opaque Postgres insert error.
+        if ($ColumnSet) { Assert-ImperionColumnSet -Connection $activeConnection -Table $Table -ColumnSet $ColumnSet }
+
         $tally = Invoke-ImperionBronzeUpsert -Connection $activeConnection @upsertParameters
         Write-ImperionLog -Level Metric -Source $LogSource -Message "$Table written." -Data @{
             table = $Table; scanned = $tally.scanned; inserted = $tally.inserted; updated = $tally.updated; unchanged = $tally.unchanged

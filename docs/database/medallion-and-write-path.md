@@ -60,7 +60,11 @@ delegated `ShouldProcess` gate, the own-vs-reuse connection lifecycle (ADR-0003)
   `{ external_ref ← external_id, payload_bronze ← raw_payload }`, upsert on `external_ref`
   with `-NoChangeDetect` (no `content_hash` column; the merge resolves change).
 - **Column-set projection** (`-ColumnSet`, over-collecting collectors) — rows project to
-  exactly the migration-defined column set; extras survive only in `raw_payload`.
+  exactly the migration-defined column set; extras survive only in `raw_payload`. Before
+  the upsert, the declared set is validated against the live table's
+  `information_schema.columns` (`Assert-ImperionColumnSet`, #427): a declared column the
+  table doesn't have fails fast with an error naming the table + the missing columns, so
+  schema drift never surfaces as an opaque insert failure (CLAUDE.md §6 "fail loudly").
 
 New collectors add a ~15-line adapter, never a new copy of the scaffold.
 
