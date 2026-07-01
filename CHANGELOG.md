@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.16.0](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.15.1...v0.16.0) (2026-07-01)
+
+
+### Features
+
+* **merge:** add Invoke-ImperionMergeByPlan scaffold + invariant tests ([#430](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/430)) ([#434](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/434)) ([cfb6425](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/cfb6425ba9489122cd3e785b045f31bb6bab212b))
+* **meta:** emit agent_event wake on freshly-merged inbound DM ([#446](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/446)) ([#448](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/448)) ([cc21749](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/cc2174952b833659abbf47d6e908e00e264ee58a))
+
 ## [0.15.1](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.15.0...v0.15.1) (2026-06-29)
 
 
