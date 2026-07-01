@@ -10,6 +10,7 @@ BeforeAll {
 Describe 'Set-ImperionAzureSubscriptionToBronze' {
     It 'projects rows to the migration-0038 column set and change-detect upserts azure_subscriptions' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Write-ImperionLog { }
             $script:opened = 0; $script:disposed = 0
             Mock New-ImperionDbConnection {
@@ -53,6 +54,7 @@ Describe 'Set-ImperionAzureSubscriptionToBronze' {
 
     It 'reuses a supplied connection and does not open or dispose one' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Write-ImperionLog { }
             Mock New-ImperionDbConnection { throw 'should not open its own connection' }
             Mock Invoke-ImperionBronzeUpsert { [pscustomobject]@{ scanned = 1; inserted = 1; updated = 0; unchanged = 0 } }
@@ -69,6 +71,7 @@ Describe 'Set-ImperionAzureSubscriptionToBronze' {
 
     It 'writes nothing and opens no connection for empty input' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Write-ImperionLog { }
             Mock New-ImperionDbConnection { throw 'should not open a connection for 0 rows' }
             Mock Invoke-ImperionBronzeUpsert { throw 'should not upsert 0 rows' }
@@ -81,6 +84,7 @@ Describe 'Set-ImperionAzureSubscriptionToBronze' {
 
     It 'honours -WhatIf: no upsert, no connection' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Write-ImperionLog { }
             Mock New-ImperionDbConnection { throw 'should not open a connection under -WhatIf' }
             Mock Invoke-ImperionBronzeUpsert { throw 'should not upsert under -WhatIf' }

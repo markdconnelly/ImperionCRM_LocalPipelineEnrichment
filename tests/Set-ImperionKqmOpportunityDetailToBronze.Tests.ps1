@@ -9,12 +9,14 @@ BeforeAll {
 Describe 'Set-ImperionKqmOpportunityDetailToBronze' {
     BeforeEach {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Write-ImperionLog { }
         }
     }
 
     It 'writes each detail set to its own migration-0083 table over the shared connection' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             $captured = [System.Collections.Generic.List[object]]::new()
             Mock Invoke-ImperionBronzeUpsert {
                 $captured.Add([pscustomobject]@{ Table = $Table; Rows = $Rows })
@@ -43,6 +45,7 @@ Describe 'Set-ImperionKqmOpportunityDetailToBronze' {
 
     It 'returns four zero tallies on an empty/all-empty detail without touching the database' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Invoke-ImperionBronzeUpsert { }
             $detail = [pscustomobject]@{ Sections = @(); Lines = @(); SalesOrders = @(); SalesOrderLines = @() }
             $conn = [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { }
@@ -55,6 +58,7 @@ Describe 'Set-ImperionKqmOpportunityDetailToBronze' {
 
     It 'honors -WhatIf (no upsert)' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Invoke-ImperionBronzeUpsert { }
             $env = @{ tenant_id = 't'; source = 'kqm'; collected_at = 'n'; raw_payload = '{}'; content_hash = 'h' }
             $detail = [pscustomobject]@{

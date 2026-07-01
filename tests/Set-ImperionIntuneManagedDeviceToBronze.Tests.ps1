@@ -10,6 +10,7 @@ BeforeAll {
 Describe 'Set-ImperionIntuneManagedDeviceToBronze' {
     It 'projects rows to the proposed intune_managed_devices column set and change-detect upserts' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Write-ImperionLog { }
             Mock New-ImperionDbConnection {
                 [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { }
@@ -51,6 +52,7 @@ Describe 'Set-ImperionIntuneManagedDeviceToBronze' {
 
     It 'writes nothing for empty input and honours -WhatIf' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Write-ImperionLog { }
             Mock New-ImperionDbConnection { throw 'should not open a connection' }
             Mock Invoke-ImperionBronzeUpsert { throw 'should not upsert' }

@@ -13,6 +13,7 @@ Describe 'Set-ImperionQboCustomerToBronze' {
 
     It 'projects rows to the qbo_customers column set and upserts on external_id (the customer Id)' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             $captured = @{}
             Mock Invoke-ImperionBronzeUpsert { $captured.Table = $Table; $captured.Rows = $Rows; [pscustomobject]@{ scanned = 1; inserted = 1; updated = 0; unchanged = 0 } }
             $row = [pscustomobject]@{
@@ -33,6 +34,7 @@ Describe 'Set-ImperionQboCustomerToBronze' {
 
     It 'returns the zero tally on empty input without touching the database' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Invoke-ImperionBronzeUpsert { }
             $tally = @() | Set-ImperionQboCustomerToBronze
             $tally.scanned | Should -Be 0
@@ -42,6 +44,7 @@ Describe 'Set-ImperionQboCustomerToBronze' {
 
     It 'honors -WhatIf (no upsert)' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Invoke-ImperionBronzeUpsert { }
             $row = [pscustomobject]@{ display_name = 'X'; tenant_id = 't'; source = 'qbo'; external_id = 'C-9'; collected_at = 'n'; raw_payload = '{}'; content_hash = 'h' }
             $conn = [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { }

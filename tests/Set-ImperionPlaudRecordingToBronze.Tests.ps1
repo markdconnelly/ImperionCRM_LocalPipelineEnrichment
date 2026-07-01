@@ -10,6 +10,7 @@ BeforeAll {
 Describe 'Set-ImperionPlaudRecordingToBronze' {
     It 'projects rows to the proposed plaud_recordings column set and change-detect upserts' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Write-ImperionLog { }
             Mock New-ImperionDbConnection {
                 [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { }
@@ -42,6 +43,7 @@ Describe 'Set-ImperionPlaudRecordingToBronze' {
 
     It 'writes nothing for empty input and honours -WhatIf' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Write-ImperionLog { }
             Mock New-ImperionDbConnection { throw 'should not open a connection' }
             Mock Invoke-ImperionBronzeUpsert { throw 'should not upsert' }

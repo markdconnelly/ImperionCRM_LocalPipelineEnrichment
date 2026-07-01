@@ -9,12 +9,14 @@ BeforeAll {
 Describe 'Set-ImperionAutotaskTimeEntryToBronze' {
     BeforeEach {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Write-ImperionLog { }
         }
     }
 
     It 'upserts on external_ref with payload_bronze jsonb, no change-detect, app_user_id untouched' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             $captured = @{}
             Mock Invoke-ImperionBronzeUpsert {
                 $captured.Table = $Table; $captured.Rows = $Rows
@@ -50,6 +52,7 @@ Describe 'Set-ImperionAutotaskTimeEntryToBronze' {
 
     It 'returns the zero tally on empty input without touching the database' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Invoke-ImperionBronzeUpsert { }
             $tally = @() | Set-ImperionAutotaskTimeEntryToBronze
             $tally.scanned | Should -Be 0
@@ -59,6 +62,7 @@ Describe 'Set-ImperionAutotaskTimeEntryToBronze' {
 
     It 'honors -WhatIf (no upsert)' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Invoke-ImperionBronzeUpsert { }
             $row = [pscustomobject]@{ external_ref = '1'; payload_bronze = '{}'; last_seen_at = [datetimeoffset]::UtcNow }
             $conn = [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { }

@@ -9,12 +9,14 @@ BeforeAll {
 Describe 'Set-ImperionMileIqDriveToBronze' {
     BeforeEach {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Write-ImperionLog { }
         }
     }
 
     It 'upserts on mileiq_drive_id with payload_bronze jsonb, no change-detect, app_user_id projected' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             $captured = @{}
             Mock Invoke-ImperionBronzeUpsert {
                 $captured.Table = $Table; $captured.Rows = $Rows
@@ -51,6 +53,7 @@ Describe 'Set-ImperionMileIqDriveToBronze' {
 
     It 'returns the zero tally on empty input without touching the database' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Invoke-ImperionBronzeUpsert { }
             $tally = @() | Set-ImperionMileIqDriveToBronze
             $tally.scanned | Should -Be 0
@@ -60,6 +63,7 @@ Describe 'Set-ImperionMileIqDriveToBronze' {
 
     It 'honors -WhatIf (no upsert)' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Invoke-ImperionBronzeUpsert { }
             $row = [pscustomobject]@{ mileiq_drive_id = 'DRV-1'; payload_bronze = '{}'; last_seen_at = [datetimeoffset]::UtcNow }
             $conn = [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { }
