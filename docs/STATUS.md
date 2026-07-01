@@ -93,6 +93,13 @@ source → connect → get → post → scheduled task → bronze target → cad
   → silver `cloud_asset` CMDB CI, #241). Each is an idempotent, set-based, replace-from-source
   merge run by a `.task.ps1` immediately after its source's collectors (`Register-ImperionTask`
   ordering, #243).
+- **Merge scaffold — COMPLETE (epic #429).** `Invoke-ImperionMergeByPlan` (#434) provides the
+  shared orchestration (connection lifecycle, `ShouldProcess`, transaction discipline, `@t`
+  injection, tally, logging) in two scopes — **Global** (set-based, autocommit) and **PerTenant**
+  (tenant-enumerated, per-tenant transaction with rollback + fail-isolation). 8 merges are now thin
+  adapters over it: posture (#436), threads (#437), meta-lead-ads (#438), meta (#439),
+  social-engagement (#440), m365-directory (#441), social-metric (#442), client-communication (#443)
+  — all close #432. `cloud_asset` / DNS / `software_ci` / Pax8 / UniFi remain hand-rolled (fold-in follow-ups).
 
 ### Azure ARM cloud-resource inventory + CMDB cloud-asset (ADR-0023, #217/#201)
 - `Get-ImperionCloudResource` walks each consented tenant's subscriptions → resource groups →
