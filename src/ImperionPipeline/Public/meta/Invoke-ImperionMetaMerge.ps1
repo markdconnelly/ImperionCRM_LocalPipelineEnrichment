@@ -17,6 +17,11 @@ function Invoke-ImperionMetaMerge {
              from_id = page_id → outbound, else inbound)
              instagram_messages  → interaction (source instagram, kind dm; direction by
              from_id = ig_user_id → outbound, else inbound) [0206, LocalPipeline #361]
+             + HANDS-OFF WAKE (#446): each step folds a data-modifying CTE that emits ONE
+             `social.dm.received` agent_event per NEWLY-MERGED INBOUND DM (RETURNING →
+             agent_event, key social:<platform>:dm:<external_id>, ON CONFLICT DO NOTHING),
+             so a fresh customer DM opens a social-triage run (backend event-dispatcher)
+             without the Meta webhook. Cadence-independent, no history backfill, PII-free.
           5. Lead capture (per channel): ensure ONE lead_hook — kind facebook_dm
              ('Facebook page inbox') and kind instagram_dm ('Instagram direct messages');
              for each DISTINCT inbound DM sender, resolve the contact via
@@ -146,7 +151,16 @@ SELECT 'instagram'::interaction_source, 'social_comment', left(b.comment_text, 1
         })
     $steps.Add(@{
             Name = 'facebook_messages_to_interaction'
+            # DM → interaction, AND (hands-off wake, #446) emit ONE `social.dm.received`
+            # agent_event per NEWLY-MERGED INBOUND DM via a data-modifying CTE: the
+            # RETURNING feeds the wake, so a fresh customer DM opens a social-triage run
+            # (backend event-dispatcher social.* → social-triage) without the webhook.
+            # Cadence-independent (fires whenever a new DM merges, at ANY poll interval) and
+            # no history backfill — DMs already in interaction never re-insert, so never
+            # re-wake; ON CONFLICT is the belt-and-suspenders idempotency floor. Routing-only,
+            # no PII. This step's tally reflects wakes emitted (0 when no new inbound DM).
             Sql  = @"
+WITH merged AS (
 INSERT INTO interaction (source, kind, subject, direction, external_ref, payload_bronze, normalized_silver, occurred_at)
 SELECT 'facebook'::interaction_source, 'dm', left(b.message, 140),
        CASE WHEN b.from_id = b.page_id THEN 'outbound'::interaction_direction
@@ -161,11 +175,26 @@ SELECT 'facebook'::interaction_source, 'dm', left(b.message, 140),
  WHERE b.external_id <> ''   -- defense-in-depth vs envelope rows (#133)
    AND NOT EXISTS (SELECT 1 FROM interaction i
                     WHERE i.source = 'facebook' AND i.external_ref = b.external_id)
+RETURNING external_ref, direction
+)
+INSERT INTO agent_event (event_type, idempotency_key, source, tenant_id, subject, payload, status)
+SELECT 'social.dm.received',
+       'social:facebook:dm:' || merged.external_ref,
+       'localpipeline:merge:meta:facebook', NULL,
+       jsonb_build_object('entity', 'social', 'platform', 'facebook', 'changeKind', 'dm', 'objectId', merged.external_ref),
+       jsonb_build_object('platform', 'facebook', 'changeKind', 'dm', 'objectId', merged.external_ref),
+       'pending'
+  FROM merged
+ WHERE merged.direction = 'inbound'::interaction_direction
+ON CONFLICT (idempotency_key) DO NOTHING
 "@
         })
     $steps.Add(@{
             Name = 'instagram_messages_to_interaction'
+            # IG DM → interaction + the same hands-off wake as facebook_messages (#446):
+            # one social.dm.received per newly-merged INBOUND IG DM (from_id <> ig_user_id).
             Sql  = @"
+WITH merged AS (
 INSERT INTO interaction (source, kind, subject, direction, external_ref, payload_bronze, normalized_silver, occurred_at)
 SELECT 'instagram'::interaction_source, 'dm', left(b.message, 140),
        CASE WHEN b.from_id = b.ig_user_id THEN 'outbound'::interaction_direction
@@ -180,6 +209,18 @@ SELECT 'instagram'::interaction_source, 'dm', left(b.message, 140),
  WHERE b.external_id <> ''   -- defense-in-depth vs envelope rows (#133)
    AND NOT EXISTS (SELECT 1 FROM interaction i
                     WHERE i.source = 'instagram' AND i.external_ref = b.external_id)
+RETURNING external_ref, direction
+)
+INSERT INTO agent_event (event_type, idempotency_key, source, tenant_id, subject, payload, status)
+SELECT 'social.dm.received',
+       'social:instagram:dm:' || merged.external_ref,
+       'localpipeline:merge:meta:instagram', NULL,
+       jsonb_build_object('entity', 'social', 'platform', 'instagram', 'changeKind', 'dm', 'objectId', merged.external_ref),
+       jsonb_build_object('platform', 'instagram', 'changeKind', 'dm', 'objectId', merged.external_ref),
+       'pending'
+  FROM merged
+ WHERE merged.direction = 'inbound'::interaction_direction
+ON CONFLICT (idempotency_key) DO NOTHING
 "@
         })
 

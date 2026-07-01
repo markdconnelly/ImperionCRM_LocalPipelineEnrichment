@@ -140,6 +140,32 @@ Describe 'Invoke-ImperionMetaMerge' {
             }
         }
 
+        It 'emits a social.dm.received wake for each newly-merged INBOUND DM (FB + IG, #446)' {
+            InModuleScope ImperionPipeline {
+                Invoke-ImperionMetaMerge -Confirm:$false | Out-Null
+                # both DM steps fold an agent_event wake via a data-modifying CTE
+                $wakeSteps = @($script:capturedMergeSql | Where-Object { $_ -match 'INSERT INTO agent_event' })
+                $wakeSteps.Count | Should -Be 2
+                foreach ($sql in $wakeSteps) {
+                    $sql | Should -Match 'WITH merged AS \('
+                    $sql | Should -Match 'RETURNING external_ref, direction'
+                    $sql | Should -Match "'social\.dm\.received'"
+                    # inbound only - the page's own outbound DMs never wake an agent
+                    $sql | Should -Match "merged\.direction = 'inbound'::interaction_direction"
+                    # idempotent: at most one wake per DM even on re-run / webhook overlap
+                    $sql | Should -Match 'ON CONFLICT \(idempotency_key\) DO NOTHING'
+                    # routing-only payload (platform/changeKind/objectId) - no message body
+                    $sql | Should -Match "'changeKind', 'dm'"
+                }
+                $fbWake = @($script:capturedMergeSql | Where-Object { $_ -match 'FROM facebook_messages b' })[0]
+                $fbWake | Should -Match "'social:facebook:dm:' \|\| merged\.external_ref"
+                $fbWake | Should -Match "'platform', 'facebook'"
+                $igWake = @($script:capturedMergeSql | Where-Object { $_ -match 'FROM instagram_messages b' })[0]
+                $igWake | Should -Match "'social:instagram:dm:' \|\| merged\.external_ref"
+                $igWake | Should -Match "'platform', 'instagram'"
+            }
+        }
+
         It 'ensures ONE facebook_dm hook and ONE lead per DM sender (not per message)' {
             InModuleScope ImperionPipeline {
                 Invoke-ImperionMetaMerge -Confirm:$false | Out-Null

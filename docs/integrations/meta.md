@@ -69,6 +69,16 @@ ON CONFLICT DO NOTHING; INSERT-only, never UPDATE/DELETE on silver):
 1–4. Posts/comments/media/DMs → `interaction` (kinds `social_post` /
 `social_comment` / `dm`; FB posts and IG media are outbound, comments inbound, FB DM
 direction by `from_id = page_id`, IG DM direction by `from_id = ig_user_id`).
+   - **Hands-off wake (#446).** Steps 4a/4b each fold a data-modifying CTE: for every
+     **newly-merged INBOUND DM** (`RETURNING external_ref, direction` → filtered to
+     `inbound`) they emit ONE `agent_event` (`event_type=social.dm.received`, key
+     `social:<platform>:dm:<external_id>`, routing-only `subject`/`payload`, `ON CONFLICT
+     (idempotency_key) DO NOTHING`). This opens a `social-triage` run (backend
+     event-dispatcher `social.* → social-triage` → Belle/Chase/Felix) **without** the Meta
+     webhook — cadence-independent, no history backfill (a DM already in `interaction`
+     never re-inserts, so never re-wakes). Consumer is deploy-dormant behind its dial
+     (backend ADR-0123). Matches the webhook producer contract (`ImperionCRM_Pipeline`
+     `social-wake.ts`), so the two paths dedupe on the same key.
 5. **DM senders become leads** (the 0075 / 0207 contract; commenters stay
 timeline-only), per channel: one `lead_hook` for the FB page inbox (kind `facebook_dm`,
 "Facebook page inbox") and one for the IG inbox (kind `instagram_dm`, "Instagram direct
