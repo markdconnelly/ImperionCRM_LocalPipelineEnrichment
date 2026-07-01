@@ -5,7 +5,7 @@ the durable contract lives in `CLAUDE.md`; anything dated, in-flight, or run-spe
 lives here. When a fact here hardens into a rule, move it to `CLAUDE.md`; when it is
 done or superseded, prune it.
 
-Last reviewed: **2026-06-29.**
+Last reviewed: **2026-06-30.**
 
 ---
 
@@ -191,7 +191,24 @@ The cloud Pipeline retains only the live/webhook-driven merge (the `website_*`-f
 contact/account/device/contract/ticket/opportunity/expense sweep + DocuSign).
 
 `Invoke-ImperionPostureMerge` / Meta / DNS are the established LP-merge precedent now
-generalized.
+generalized into a shared scaffold (below).
+
+### Merge scaffold — COMPLETE (epic #429, 2026-06-30)
+
+`Invoke-ImperionMergeByPlan` (#434, closes #430) is the shared bronze→silver merge
+orchestration behind every LP-ingested merge — connection lifecycle, `ShouldProcess`,
+transaction discipline, `@t` tenant injection, tally, and structured logging done once.
+Two scopes: **Global** (run steps in order, per-statement autocommit, no wrapping
+transaction — the set-based single-pass merges) and **PerTenant** (enumerate tenants,
+run all steps for one tenant inside ONE transaction with `@t` injected into a step-param
+clone; a failing tenant rolls back its own transaction, is logged, and never blocks the
+rest). Each merge is now a thin Plan-builder adapter over the scaffold, not a hand-rolled
+copy.
+
+**8 merges migrated onto the scaffold** (all close #432): posture (#436) · threads (#437) ·
+meta-lead-ads (#438) · meta (#439) · social-engagement (#440) · m365-directory (#441) ·
+social-metric (#442) · client-communication (#443). The remaining hand-rolled merges
+(`cloud_asset`, DNS, `software_ci`, Pax8, UniFi) fold onto the scaffold as follow-ups.
 
 ---
 
