@@ -207,8 +207,18 @@ copy.
 
 **8 merges migrated onto the scaffold** (all close #432): posture (#436) · threads (#437) ·
 meta-lead-ads (#438) · meta (#439) · social-engagement (#440) · m365-directory (#441) ·
-social-metric (#442) · client-communication (#443). The remaining hand-rolled merges
-(`cloud_asset`, DNS, `software_ci`, Pax8, UniFi) fold onto the scaffold as follow-ups.
+social-metric (#442) · client-communication (#443).
+
+**The 5 per-row-loop merges stay hand-rolled — settled by spike #433 (2026-07-01).**
+`cloud_asset`, DNS, `software_ci`, Pax8, and UniFi do NOT fold onto the scaffold: their
+variance is control flow (per-row skip predicates + diagnostic counters like
+`unresolved`/`unmapped`, per-row failure isolation over all-text bronze, the pinned
+PS category map in cloud_asset, the `Get-ImperionDnsDrift` cmdlet fetch, UniFi's
+match-then-branch), not declarative SQL — a PerRow variant would need scriptblock
+hooks, breaking the scaffold's no-scriptblocks invariant for a net-zero LOC change.
+Revisit per cmdlet only when a shape changes: UniFi becomes a set-based ON CONFLICT
+candidate (rideable as `Scope='Global'`) once front-end #1241 lands a `mac` unique
+key + `source` column. Full decision record: #433.
 
 ---
 
