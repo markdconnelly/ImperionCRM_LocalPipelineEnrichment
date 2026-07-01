@@ -287,7 +287,7 @@ retired names from `-PageMetric`/`-IgMetric` as Meta retires them.
 
 | Task | Entities | Cadence |
 | --- | --- | --- |
-| `meta/social.task.ps1` | posts, comments, DMs, IG media/comments + merge | Daily |
+| `Imperion-MetaSocial` (`Invoke-ImperionMetaSocialSync`) | posts, comments, DMs, IG media/comments + merge | **Every 5 min** (`IntervalMinutes = 5`, anchor 04:00 — #447; cuts the #446 DM-wake latency to minutes) |
 | `meta/insights.task.ps1` | Page + IG insight snapshots + merge | Daily |
 | `Imperion-MetaLeadAds` (`Invoke-ImperionMetaLeadAdsSync`) | Lead Ad forms + submitted leads + merge | Daily @ 04:08 |
 | `meta/engagement.task.ps1` (`Invoke-ImperionSocialEngagementSync`) | FB/IG post comments → `social_engagement` + merge (slice H #357) | Daily |
