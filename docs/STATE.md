@@ -5,7 +5,26 @@ the durable contract lives in `CLAUDE.md`; anything dated, in-flight, or run-spe
 lives here. When a fact here hardens into a rule, move it to `CLAUDE.md`; when it is
 done or superseded, prune it.
 
-Last reviewed: **2026-06-30.**
+Last reviewed: **2026-07-02.**
+
+---
+
+## Shipped 0.16.0 → 0.17.0 (2026-07-01 → 02)
+
+- **Fail-fast `-ColumnSet` schema-drift guard (#449 / #427).** Collectors now assert their
+  `-ColumnSet` against `information_schema` before an upsert — a column absent from the
+  physical table **hard-fails the run** (with the missing column named) instead of silently
+  dropping data or erroring deep in the write. New `Assert-ImperionColumnSet` private helper
+  + Pester coverage. Closes the collector-built-pre-migration drift class.
+- **Sub-daily repetition for `Register-ImperionTask` (#452 / #447).** The task registrar can
+  now schedule intervals finer than once/day (repetition interval + duration), so
+  latency-sensitive local collectors can run on a sub-daily cadence without a monolith.
+- **Per-row merge spike — conclusion recorded (#453 / #433).** The five hand-rolled
+  per-row merges **stay hand-rolled**; the set-based generalization was evaluated and
+  rejected for them (rationale in the merge-scaffold docs). Closes the epic-#429 follow-up.
+- **Merge-scaffold epic #429 complete** — the LP-side bronze→silver merge scaffolding
+  (ADR-0026 co-location) is landed; parity-pin test guards the LP↔cloud merge contract (#428).
+- Releases `0.16.0` → **`0.17.0`** cut 2026-07-02.
 
 ---
 
