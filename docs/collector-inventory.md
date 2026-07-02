@@ -162,7 +162,7 @@ opportunity/expense sweep + DocuSign).
 
 | Stage | Cmdlet | Output |
 | --- | --- | --- |
-| **Compose** | `Get-ImperionKnowledge*` (account · contact · contract · ticket · device · exposure · assessment · proposal · posture · social · conversation_segment · memory · semantic_concept) → `Set-ImperionKnowledgeObject` | `knowledge_object` (change-detected) |
+| **Compose** | `Get-ImperionKnowledge*` (account · contact · contract · ticket · device · exposure · assessment · proposal · posture · social · conversation_segment · memory · agent_persona · agent_procedure · semantic_concept) → `Set-ImperionKnowledgeObject` | `knowledge_object` (change-detected) |
 | **Chunk** | `Split-ImperionTextChunk` (v1: 6000 chars / 500 overlap) | text chunks |
 | **Embed** | `Get-ImperionVoyageEmbedding` (voyage-3-large @ 1024, refuses other dims) | 1024-dim vectors |
 | **Upsert** | `Invoke-ImperionVectorizeKnowledge` (chunk-hash idempotent, cost telemetry) | `knowledge_embedding` (pgvector) |
