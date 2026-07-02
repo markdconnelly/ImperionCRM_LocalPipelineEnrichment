@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.17.0](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.16.0...v0.17.0) (2026-07-02)
+
+
+### Features
+
+* **host:** sub-daily repetition for Register-ImperionTask ([#447](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/447)) ([#452](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/452)) ([cfcac59](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/cfcac59683e261ab4d2a9ef6d254ea7e7983bf16))
+
+
+### Bug Fixes
+
+* **collectors:** fail fast on -ColumnSet schema drift via information_schema guard ([#427](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/427)) ([#449](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/449)) ([59bdb58](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/59bdb58df6d72a99078e55a5cdaaca39dbe05b19))
+
 ## [0.16.0](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.15.1...v0.16.0) (2026-07-01)
 
 
