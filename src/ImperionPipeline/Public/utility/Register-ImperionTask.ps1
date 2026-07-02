@@ -6,7 +6,18 @@ function Register-ImperionTask {
         Each task runs the installed module's cmdlet under the dedicated service
         identity, "whether logged on or not", with overlap prevention. The task command
         imports the module, initializes context, and invokes one cmdlet. Re-running
-        updates definitions in place. Two identity modes (ADR-0012):
+        updates definitions in place.
+
+        Cadence (#447): a catalog row is daily by default (At = 'HH:MM' -> -Daily
+        trigger). An optional IntervalMinutes field makes the row SUB-DAILY: it
+        registers a -Once trigger anchored at At with an indefinite repetition
+        pattern (-RepetitionInterval of N minutes, [TimeSpan]::MaxValue duration) so
+        the task repeats every N minutes durably — surviving reboots exactly like
+        the daily tasks (-StartWhenAvailable catches up a missed anchor). The
+        trigger shape is independent of the identity mode, so both gMSA and
+        local-account (-TaskCredential) registrations support it unchanged.
+
+        Two identity modes (ADR-0012):
 
           -TaskIdentity   gMSA (domain-joined hosts): registers a principal with no
                           stored password — AD manages the credential.
@@ -43,8 +54,9 @@ function Register-ImperionTask {
     $tasks = @(
         # Autotask bulk reconcile -> bronze (#287). Tickets also arrive in real time via the cloud
         # Pipeline webhooks (ADR-0001); this is the daily catch-up. NOTE: the registry-doc cadence
-        # for tickets is 15-30 min — the daily trigger here is a deliberate (documented) bulk
-        # cadence until the $tasks schema gains sub-daily repetition (epic #286).
+        # for tickets is 15-30 min — the daily trigger here stays a deliberate (documented) bulk
+        # cadence even now that the $tasks schema supports sub-daily repetition (#447):
+        # real-time tickets ride the webhooks, so a tighter poll buys nothing.
         @{ Name = 'Imperion-AutotaskContracts';      Cmdlet = 'Invoke-ImperionAutotaskContractSync'; At = '01:15' }
         @{ Name = 'Imperion-AutotaskTickets';        Cmdlet = 'Invoke-ImperionAutotaskTicketSync';    At = '01:30' }
         @{ Name = 'Imperion-EntraServicePrincipals'; Cmdlet = 'Invoke-ImperionServicePrincipalSync'; At = '02:00' }
@@ -73,8 +85,9 @@ function Register-ImperionTask {
         # (ADR-0007, cmdlet-first) and registered here. Times stagger collectors BEFORE the merges
         # (03:10-03:44) and the gold vectorize (04:30). All are dormant-safe: each fails closed
         # (log + exit) on a missing credential row or unapplied bronze migration. The $tasks schema
-        # is -Daily only; sub-daily cadences in scheduled-task-registry.md (tickets 15-30m, comms
-        # hourly) register daily as bulk catch-up until a repetition field is added (#286). ===
+        # supports sub-daily repetition via an optional IntervalMinutes field (#447); rows whose
+        # registry-doc target is sub-daily (tickets 15-30m, comms hourly) still register daily as
+        # bulk catch-up deliberately — move one by adding IntervalMinutes when its latency matters. ===
 
         # QBO finance (read-only; dormant until qbo-access-token/realm provisioned)
         @{ Name = 'Imperion-QboAccounts';            Cmdlet = 'Invoke-ImperionQboAccountSync';            At = '00:00' }
@@ -146,7 +159,11 @@ function Register-ImperionTask {
         @{ Name = 'Imperion-ScopedInteractionTeams'; Cmdlet = 'Invoke-ImperionScopedInteractionTeamsSync'; At = '03:54' }
         # Meta (each *Sync runs Invoke-ImperionMetaMerge itself, ADR-0026). MetaSocial collects
         # FB posts/comments/DMs + IG media/comments/DMs (IG DMs LocalPipeline #361) in one run.
-        @{ Name = 'Imperion-MetaSocial';             Cmdlet = 'Invoke-ImperionMetaSocialSync';            At = '04:00' }
+        # SUB-DAILY (#447): every 5 minutes so freshly-inbound DMs merge (and emit the
+        # social.dm.received wake, #446) within minutes instead of next-day. The wake itself is
+        # cadence-independent — 5-min only cuts latency. Idempotent + IgnoreNew, so the tight
+        # cadence never overlaps or duplicates; a run finding nothing new is a cheap no-op.
+        @{ Name = 'Imperion-MetaSocial';             Cmdlet = 'Invoke-ImperionMetaSocialSync';            At = '04:00'; IntervalMinutes = 5 }
         @{ Name = 'Imperion-MetaInsights';           Cmdlet = 'Invoke-ImperionMetaInsightSync';           At = '04:05' }
         # Lead Ads (leads_retrieval): forms + submitted leads -> bronze, then the co-located
         # lead_hook/lead_capture_event merge (LP #362). Dormant until the page token carries
@@ -189,7 +206,25 @@ function Register-ImperionTask {
         $command = "Import-Module ImperionPipeline; Initialize-ImperionContext; try { $($t.Cmdlet) } catch { Write-ImperionLog -Level Error -Source 'task' -Message ('$($t.Name) failed: ' + (`$_.Exception.Message -replace '\s+', ' ')); throw }"
         $argument = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command `"$command`""
         $action = New-ScheduledTaskAction -Execute $PwshPath -Argument $argument
-        $trigger = New-ScheduledTaskTrigger -Daily -At $t.At
+        # ContainsKey, not property access: the module runs under StrictMode, where a
+        # missing hashtable key read as a property throws.
+        $intervalMinutes = if ($t.ContainsKey('IntervalMinutes')) { [int]$t.IntervalMinutes } else { 0 }
+        if ($intervalMinutes -gt 0) {
+            # Sub-daily repetition (#447): Task Scheduler has no "-Daily every N minutes", so a
+            # sub-daily row registers -Once at its At anchor with an indefinite repetition
+            # pattern ([TimeSpan]::MaxValue renders as "Indefinitely"). Repetition keeps firing
+            # after the one-time start boundary passes, so this is durable across reboots
+            # (-StartWhenAvailable). Trigger shape is orthogonal to the principal/credential
+            # mode — local-account (-TaskCredential) registration is unchanged.
+            $trigger = New-ScheduledTaskTrigger -Once -At $t.At `
+                -RepetitionInterval (New-TimeSpan -Minutes $intervalMinutes) `
+                -RepetitionDuration ([TimeSpan]::MaxValue)
+            $cadence = "every ${intervalMinutes}m (anchor $($t.At))"
+        }
+        else {
+            $trigger = New-ScheduledTaskTrigger -Daily -At $t.At
+            $cadence = "daily @ $($t.At)"
+        }
 
         if ($PSCmdlet.ShouldProcess($t.Name, 'Register scheduled task')) {
             # Report success only on success: the seam makes Register-ScheduledTask terminating
@@ -198,7 +233,7 @@ function Register-ImperionTask {
             try {
                 Invoke-ImperionTaskRegistration -TaskName $t.Name -TaskPath $TaskFolder -Action $action `
                     -Trigger $trigger -Settings $settings -Principal $principal -Credential $TaskCredential
-                Write-Host "Registered $TaskFolder\$($t.Name) -> $($t.Cmdlet) @ $($t.At)"
+                Write-Host "Registered $TaskFolder\$($t.Name) -> $($t.Cmdlet) $cadence"
             }
             catch {
                 Write-Warning "Failed to register $TaskFolder\$($t.Name): $($_.Exception.Message)"

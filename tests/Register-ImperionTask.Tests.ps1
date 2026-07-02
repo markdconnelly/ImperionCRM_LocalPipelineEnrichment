@@ -60,6 +60,57 @@ Describe 'Register-ImperionTask' {
         }
     }
 
+    It 'a sub-daily catalog row registers a -Once trigger with indefinite repetition (#447)' {
+        InModuleScope ImperionPipeline {
+            Register-ImperionTask -TaskIdentity 'CORP\svc-imperion$' -PwshPath 'C:\pwsh\pwsh.exe' -WhatIf
+            Should -Invoke New-ScheduledTaskTrigger -ParameterFilter {
+                $Once -eq $true -and
+                $RepetitionInterval -eq (New-TimeSpan -Minutes 5) -and
+                $RepetitionDuration -eq ([TimeSpan]::MaxValue)
+            }
+        }
+    }
+
+    It 'the Meta social poll is the sub-daily row: every 5 minutes, anchored 04:00 (#447)' {
+        InModuleScope ImperionPipeline {
+            Register-ImperionTask -TaskIdentity 'CORP\svc-imperion$' -PwshPath 'C:\pwsh\pwsh.exe' -WhatIf
+            Should -Invoke New-ScheduledTaskTrigger -Times 1 -Exactly -ParameterFilter {
+                $Once -eq $true -and $At -eq '04:00' -and
+                $RepetitionInterval -eq (New-TimeSpan -Minutes 5)
+            }
+        }
+    }
+
+    It 'rows without IntervalMinutes keep the -Daily trigger (backward compatibility, #447)' {
+        InModuleScope ImperionPipeline {
+            Register-ImperionTask -TaskIdentity 'CORP\svc-imperion$' -PwshPath 'C:\pwsh\pwsh.exe' -WhatIf
+            # the daily rows never gain a repetition interval…
+            Should -Invoke New-ScheduledTaskTrigger -Times 0 -Exactly -ParameterFilter {
+                $Daily -eq $true -and $null -ne $RepetitionInterval
+            }
+            # …and a known daily row still registers -Daily at its documented time
+            Should -Invoke New-ScheduledTaskTrigger -ParameterFilter {
+                $Daily -eq $true -and $At -eq '01:30'
+            }
+        }
+    }
+
+    It 'sub-daily registration works identically in local-account (-TaskCredential) mode (#447)' {
+        InModuleScope ImperionPipeline {
+            $secret = ConvertTo-SecureString 'test-only-password' -AsPlainText -Force
+            $credential = [pscredential]::new('.\svc-imperion', $secret)
+
+            Register-ImperionTask -TaskCredential $credential -PwshPath 'C:\pwsh\pwsh.exe'
+
+            Should -Invoke New-ScheduledTaskTrigger -Times 1 -Exactly -ParameterFilter {
+                $Once -eq $true -and $RepetitionInterval -eq (New-TimeSpan -Minutes 5)
+            }
+            Should -Invoke Invoke-ImperionTaskRegistration -ParameterFilter {
+                $TaskName -eq 'Imperion-MetaSocial' -and $Credential.UserName -eq '.\svc-imperion' -and $null -eq $Principal
+            }
+        }
+    }
+
     It 'runs each task under the supplied gMSA/service identity' {
         InModuleScope ImperionPipeline {
             Register-ImperionTask -TaskIdentity 'CORP\svc-imperion$' -PwshPath 'C:\pwsh\pwsh.exe' -WhatIf
