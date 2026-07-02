@@ -8,7 +8,10 @@ BeforeAll {
 
 Describe 'Set-ImperionPax8OrderToBronze' {
     BeforeEach {
-        InModuleScope ImperionPipeline { Mock Write-ImperionLog { } }
+        InModuleScope ImperionPipeline {
+            Mock Write-ImperionLog { }
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
+        }
     }
 
     It 'projects rows to the pax8_orders column set and upserts on external_id' {

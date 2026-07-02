@@ -10,6 +10,7 @@ BeforeAll {
 Describe 'Set-ImperionM365TeamsChatToBronze' {
     It 'renames user -> user_upn and projects to the migration-0065 column set' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Write-ImperionLog { }
             Mock New-ImperionDbConnection {
                 [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { }
