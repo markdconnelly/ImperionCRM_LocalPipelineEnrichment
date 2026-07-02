@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.0](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.17.0...v0.18.0) (2026-07-02)
+
+
+### Features
+
+* **brain:** vectorize agent persona sections + procedure definitions ([#458](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/458)) ([#459](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/issues/459)) ([954a511](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/commit/954a5114d908b0681c899dc04f13d933c0d5a764))
+
 ## [0.17.0](https://github.com/markdconnelly/ImperionCRM_LocalPipelineEnrichment/compare/v0.16.0...v0.17.0) (2026-07-02)
 
 
