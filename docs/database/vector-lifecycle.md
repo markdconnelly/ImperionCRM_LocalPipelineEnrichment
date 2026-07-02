@@ -53,7 +53,14 @@ tasks land).
   diarized turn from ACS calls / Teams meetings / uploads: speaker + turn text framed with
   the channel, account, and recording offsets; front-end ADR-0068, #200. The segment is
   the embedding unit pinned by ADR-0068; a retrieved vector traces back to its source
-  conversation + turn through the **`conversation_segment_citation`** view — see below).
+  conversation + turn through the **`conversation_segment_citation`** view — see below),
+  and the **agent-governance config** (front-end ADR-0144 / epic ImperionCRM#1874; LP
+  #455/#458): **agent personas** (`'agent_persona'` — one per `agent_persona_section` row,
+  `entity_ref = <agent_key>:<section_key>` across the eleven persona section keys) and
+  **agent procedures** (`'agent_procedure'` — one per `procedure_definition` +
+  its ordered `procedure_step` rows, `entity_ref = <agent_key>:<procedure_key>`; goal ·
+  trigger · archetype · steps summary, status in metadata not a filter. Both are PII-free
+  governance config; `updated_by` — an operator UPN — is never selected).
   Each further entity (IT Glue/Azure docs) is one new
   composer + one line in the sync — coverage is the goal, tracked in the
   production-readiness plan.

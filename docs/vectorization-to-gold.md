@@ -29,6 +29,7 @@ flowchart LR
       A["account · contact · contract · ticket · device"]
       B["credential_exposure · assessment_artifact · proposal · posture"]
       C["social interactions (FB/IG) · conversation_segment (ACS/Teams/Plaud)"]
+      D["agent governance config: agent_persona_section · procedure_definition + procedure_step"]
     end
 
     SILVER --> COMPOSE
@@ -55,7 +56,8 @@ refreshed the silver/gold inputs.
 `Invoke-ImperionKnowledgeCompose` spine (#106) which owns the tenant default, connection
 lifecycle, related-row caches, the row emit + `content_hash` over title+body, and the metric
 log. Entity types: **account · contact · contract · ticket · device · exposure · assessment ·
-proposal · posture · social · conversation_segment · memory · semantic_concept**. A new
+proposal · posture · social · conversation_segment · memory · agent_persona ·
+agent_procedure · semantic_concept**. A new
 DB-sourced entity is a SQL query + a `-Compose` scriptblock — the row shape and idempotency
 contract live in one place.
 
@@ -73,6 +75,18 @@ contract live in one place.
 > [-Vectorize]`** (suggested task `Imperion-SemanticConceptVectorize`; wiring the schedule is
 > Mark-gated, CLAUDE.md §10). It rides the normal chunk→Voyage→pgvector stage scoped to
 > `entity_type='semantic_concept'`.
+
+> **`agent_persona` + `agent_procedure` are the agent-governance config** (front-end
+> ADR-0144 / epic ImperionCRM#1874; LP #455/#458). The DB is the source of truth for who each
+> agent is and what it does: `Get-ImperionKnowledgeAgentPersona` emits one object per
+> `agent_persona_section` row (`entity_ref = <agent_key>:<section_key>`, the eleven persona
+> section keys), and `Get-ImperionKnowledgeAgentProcedure` rolls each `procedure_definition`
+> plus its ordered `procedure_step` rows into one object per `<agent_key>:<procedure_key>`
+> (goal · trigger · archetype · steps summary; draft/active/retired all compose — status is a
+> `metadata` facet, not a filter). Both are PII-free governance config by the ADR-0144
+> conformance rules; the one people-adjacent column, `updated_by` (an operator UPN), is never
+> selected, so it reaches neither body nor metadata. Re-embed on change rides the normal
+> content-hash gating below.
 
 > **PII / safety boundaries (enforced in the composers):** `exposure` carries
 > `credential_exposure` **facts only** — no raw breach payloads, no plaintext credentials ever

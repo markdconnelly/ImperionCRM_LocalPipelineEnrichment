@@ -7,8 +7,8 @@ function Invoke-ImperionKnowledgeSync {
         scheduled task runs. Composes knowledge objects (accounts, contacts, contracts,
         tickets, devices, credential exposures, assessment artifacts, proposals,
         per-tenant security-posture summaries, FB/IG social interactions,
-        conversation transcript segments, and deliberate-capture memory threads) through the
-        Get-ImperionKnowledge*
+        conversation transcript segments, deliberate-capture memory threads, agent persona
+        sections, and agent operating procedures) through the Get-ImperionKnowledge*
         composers, upserts them change-detected into `knowledge_object`, and — with
         -Vectorize — runs the chunk→Voyage→pgvector stage so the backend agent's
         retrieval surface is current.
@@ -17,7 +17,8 @@ function Invoke-ImperionKnowledgeSync {
         Idempotent and resumable: unchanged objects are not rewritten and never re-embedded.
     .PARAMETER EntityType
         'account', 'contact', 'contract', 'ticket', 'device', 'exposure', 'assessment',
-        'proposal', 'posture', 'social', 'conversation', 'memory', or 'all' (default).
+        'proposal', 'posture', 'social', 'conversation', 'memory', 'agent_persona',
+        'agent_procedure', or 'all' (default).
     .PARAMETER Vectorize
         Also run Invoke-ImperionVectorizeKnowledge after the gold upsert.
     .PARAMETER TenantId
@@ -32,7 +33,7 @@ function Invoke-ImperionKnowledgeSync {
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
-        [ValidateSet('account', 'contact', 'contract', 'ticket', 'device', 'exposure', 'assessment', 'proposal', 'posture', 'social', 'conversation', 'memory', 'all')][string] $EntityType = 'all',
+        [ValidateSet('account', 'contact', 'contract', 'ticket', 'device', 'exposure', 'assessment', 'proposal', 'posture', 'social', 'conversation', 'memory', 'agent_persona', 'agent_procedure', 'all')][string] $EntityType = 'all',
         [switch] $Vectorize,
         [string] $TenantId
     )
@@ -88,6 +89,14 @@ function Invoke-ImperionKnowledgeSync {
         if ($EntityType -in 'memory', 'all') {
             $memoryRows = Get-ImperionKnowledgeMemory -Connection $conn -TenantId $TenantId
             $tallies['memory'] = $memoryRows | Set-ImperionKnowledgeObject -Connection $conn
+        }
+        if ($EntityType -in 'agent_persona', 'all') {
+            $agentPersonaRows = Get-ImperionKnowledgeAgentPersona -Connection $conn -TenantId $TenantId
+            $tallies['agent_persona'] = $agentPersonaRows | Set-ImperionKnowledgeObject -Connection $conn
+        }
+        if ($EntityType -in 'agent_procedure', 'all') {
+            $agentProcedureRows = Get-ImperionKnowledgeAgentProcedure -Connection $conn -TenantId $TenantId
+            $tallies['agent_procedure'] = $agentProcedureRows | Set-ImperionKnowledgeObject -Connection $conn
         }
 
         if ($Vectorize) {
