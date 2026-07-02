@@ -9,12 +9,14 @@ BeforeAll {
 Describe 'Set-ImperionQboPurchaseToBronze' {
     BeforeEach {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Write-ImperionLog { }
         }
     }
 
     It 'projects rows to the qbo_purchases column set and upserts on external_id (the purchase Id)' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             $captured = @{}
             Mock Invoke-ImperionBronzeUpsert { $captured.Table = $Table; $captured.Rows = $Rows; [pscustomobject]@{ scanned = 1; inserted = 1; updated = 0; unchanged = 0 } }
             $row = [pscustomobject]@{
@@ -37,6 +39,7 @@ Describe 'Set-ImperionQboPurchaseToBronze' {
 
     It 'returns the zero tally on empty input without touching the database' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Invoke-ImperionBronzeUpsert { }
             $tally = @() | Set-ImperionQboPurchaseToBronze
             $tally.scanned | Should -Be 0
@@ -46,6 +49,7 @@ Describe 'Set-ImperionQboPurchaseToBronze' {
 
     It 'honors -WhatIf (no upsert)' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Invoke-ImperionBronzeUpsert { }
             $row = [pscustomobject]@{ total_amount = '1'; tenant_id = 't'; source = 'qbo'; external_id = 'PUR-1'; collected_at = 'n'; raw_payload = '{}'; content_hash = 'h' }
             $conn = [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { }

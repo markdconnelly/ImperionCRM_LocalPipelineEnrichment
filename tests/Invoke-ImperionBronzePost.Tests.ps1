@@ -91,6 +91,7 @@ Describe 'Invoke-ImperionBronzePost' {
             Mock New-ImperionDbConnection {
                 [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { }
             }
+            Mock Assert-ImperionColumnSet { }
             $captured = $null
             Mock Invoke-ImperionBronzeUpsert {
                 $script:captured = @{ Rows = $Rows; Keys = $KeyColumns; NoChange = [bool]$NoChangeDetect }
@@ -107,6 +108,69 @@ Describe 'Invoke-ImperionBronzePost' {
             $projected.kind | Should -BeNullOrEmpty                 # missing on input -> projected as NULL
             $script:captured.Keys | Should -BeNullOrEmpty           # change detection + standard key stay on
             $script:captured.NoChange | Should -BeFalse
+        }
+    }
+
+    It '-ColumnSet: runs the drift guard against the live table before the upsert (#427)' {
+        InModuleScope ImperionPipeline {
+            Mock Write-ImperionLog { }
+            Mock New-ImperionDbConnection {
+                [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { }
+            }
+            $script:callOrder = [System.Collections.Generic.List[string]]::new()
+            $guardCall = $null
+            Mock Assert-ImperionColumnSet {
+                $script:callOrder.Add('guard')
+                $script:guardCall = @{ Table = $Table; ColumnSet = $ColumnSet }
+            }
+            Mock Invoke-ImperionBronzeUpsert {
+                $script:callOrder.Add('upsert')
+                [pscustomobject]@{ scanned = 1; inserted = 1; updated = 0; unchanged = 0 }
+            }
+
+            $rows = @([pscustomobject]@{ name = 'vm-01'; external_id = 'e1'; content_hash = 'h' })
+            Invoke-ImperionBronzePost -Rows $rows -Table 'azure_resources' -LogSource 'azure' `
+                -ColumnSet @('name', 'external_id', 'content_hash') | Out-Null
+
+            $script:callOrder | Should -Be @('guard', 'upsert')       # fail-fast layer: guard BEFORE write
+            $script:guardCall.Table | Should -Be 'azure_resources'
+            $script:guardCall.ColumnSet | Should -Be @('name', 'external_id', 'content_hash')
+        }
+    }
+
+    It '-ColumnSet: drift throws before any upsert and still disposes the owned connection (#427)' {
+        InModuleScope ImperionPipeline {
+            Mock Write-ImperionLog { }
+            $script:disposed = 0
+            Mock New-ImperionDbConnection {
+                [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { $script:disposed++ }
+            }
+            Mock Assert-ImperionColumnSet { throw "ColumnSet drift guard: table 'azure_resources' is missing declared column(s): kind." }
+            Mock Invoke-ImperionBronzeUpsert { throw 'must never be reached on drift' }
+
+            $rows = @([pscustomobject]@{ name = 'vm-01'; external_id = 'e1'; content_hash = 'h' })
+            { Invoke-ImperionBronzePost -Rows $rows -Table 'azure_resources' -LogSource 'azure' `
+                    -ColumnSet @('name', 'kind', 'external_id', 'content_hash') } |
+                Should -Throw '*missing declared column(s): kind*'
+
+            Should -Invoke Invoke-ImperionBronzeUpsert -Times 0
+            $script:disposed | Should -Be 1
+        }
+    }
+
+    It 'skips the drift guard for standard-envelope and -PerSourceShape writes' {
+        InModuleScope ImperionPipeline {
+            Mock Write-ImperionLog { }
+            Mock New-ImperionDbConnection {
+                [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { }
+            }
+            Mock Assert-ImperionColumnSet { throw 'guard must not run without -ColumnSet' }
+            Mock Invoke-ImperionBronzeUpsert { [pscustomobject]@{ scanned = 1; inserted = 1; updated = 0; unchanged = 0 } }
+
+            $rows = @([pscustomobject]@{ external_id = '1'; raw_payload = '{}'; content_hash = 'a' })
+            { Invoke-ImperionBronzePost -Rows $rows -Table 't' -LogSource 's' } | Should -Not -Throw
+            { Invoke-ImperionBronzePost -Rows $rows -Table 'televy_reports' -LogSource 'televy' -PerSourceShape } | Should -Not -Throw
+            Should -Invoke Assert-ImperionColumnSet -Times 0
         }
     }
 

@@ -11,6 +11,7 @@ BeforeAll {
 Describe 'Set-ImperionCloudResourceToBronze' {
     BeforeEach {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Write-ImperionLog { }
             Mock New-ImperionDbConnection { [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { } }
         }
@@ -18,6 +19,7 @@ Describe 'Set-ImperionCloudResourceToBronze' {
 
     It 'routes subscription / resource-group / resource rows to their cloud_* tables by the entity discriminator' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             $captured = @{}
             $capturedJson = @{}
             Mock Invoke-ImperionBronzeUpsert { $captured[$Table] = $Rows; $capturedJson[$Table] = $JsonColumns; [pscustomobject]@{ scanned = @($Rows).Count; inserted = @($Rows).Count; updated = 0; unchanged = 0 } }
@@ -52,6 +54,7 @@ Describe 'Set-ImperionCloudResourceToBronze' {
 
     It 'fails loudly on an unknown entity (never invents a table)' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Invoke-ImperionBronzeUpsert { }
             $bad = [pscustomobject]@{ entity = 'unicorns'; external_id = 'x' }
             { $bad | Set-ImperionCloudResourceToBronze -Confirm:$false } | Should -Throw '*unknown cloud entity*'
@@ -60,6 +63,7 @@ Describe 'Set-ImperionCloudResourceToBronze' {
 
     It 'returns the zero tally on empty input without touching the database' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Invoke-ImperionBronzeUpsert { }
             $tally = @() | Set-ImperionCloudResourceToBronze
             $tally.scanned | Should -Be 0
@@ -69,6 +73,7 @@ Describe 'Set-ImperionCloudResourceToBronze' {
 
     It 'honors -WhatIf (no upsert)' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Invoke-ImperionBronzeUpsert { }
             $row = [pscustomobject]@{ entity = 'resources'; name = 'r'; tenant_id = 't'; source = 'azure_arm'; external_id = 'rid'; collected_at = 'n'; raw_payload = '{}'; content_hash = 'h' }
             $row | Set-ImperionCloudResourceToBronze -WhatIf | Out-Null

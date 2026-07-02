@@ -8,7 +8,10 @@ BeforeAll {
 
 Describe 'Set-ImperionPax8LicenseToBronze' {
     BeforeEach {
-        InModuleScope ImperionPipeline { Mock Write-ImperionLog { } }
+        InModuleScope ImperionPipeline {
+            Mock Write-ImperionLog { }
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
+        }
     }
 
     It 'projects rows to the pax8_licenses column set and upserts on external_id' {

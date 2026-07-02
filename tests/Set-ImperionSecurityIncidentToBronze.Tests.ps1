@@ -10,6 +10,7 @@ BeforeAll {
 Describe 'Set-ImperionSecurityIncidentToBronze' {
     BeforeEach {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Write-ImperionLog { }
             Mock New-ImperionDbConnection { [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { } }
         }
@@ -17,6 +18,7 @@ Describe 'Set-ImperionSecurityIncidentToBronze' {
 
     It 'routes incident / alert / evidence rows to their m365_* tables by the entity discriminator' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             $captured = @{}
             Mock Invoke-ImperionBronzeUpsert { $captured[$Table] = $Rows; [pscustomobject]@{ scanned = @($Rows).Count; inserted = @($Rows).Count; updated = 0; unchanged = 0 } }
 
@@ -42,6 +44,7 @@ Describe 'Set-ImperionSecurityIncidentToBronze' {
 
     It 'fails loudly on an unknown entity (never invents a table)' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Invoke-ImperionBronzeUpsert { }
             $bad = [pscustomobject]@{ entity = 'unicorns'; external_id = 'x' }
             { $bad | Set-ImperionSecurityIncidentToBronze -Confirm:$false } | Should -Throw '*unknown security entity*'
@@ -50,6 +53,7 @@ Describe 'Set-ImperionSecurityIncidentToBronze' {
 
     It 'returns the zero tally on empty input without touching the database' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Invoke-ImperionBronzeUpsert { }
             $tally = @() | Set-ImperionSecurityIncidentToBronze
             $tally.scanned | Should -Be 0
@@ -59,6 +63,7 @@ Describe 'Set-ImperionSecurityIncidentToBronze' {
 
     It 'honors -WhatIf (no upsert)' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Invoke-ImperionBronzeUpsert { }
             $row = [pscustomobject]@{ entity = 'incidents'; incident_id = 'inc-1'; tenant_id = 't'; source = 'm365'; external_id = 'inc-1'; collected_at = 'n'; raw_payload = '{}'; content_hash = 'h' }
             $row | Set-ImperionSecurityIncidentToBronze -WhatIf | Out-Null

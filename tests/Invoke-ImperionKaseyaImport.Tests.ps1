@@ -9,6 +9,7 @@ BeforeAll {
 Describe 'Invoke-ImperionKaseyaImport' {
     BeforeEach {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Get-ImperionConfig { @{ LocalTenantId = 't1' } }
             Mock Get-ImperionSecretNames { @{ AutotaskUserName = 'autotask-username'; AutotaskIntegrationCode = 'autotask-integration-code'; AutotaskSecret = 'autotask-secret'; KqmApiKey = 'kqm-api-key'; KqmApiKeyVaultSecret = 'KQM-API-Key' } }
             Mock Get-ImperionSecretValue { 'secret-value' }
@@ -19,6 +20,7 @@ Describe 'Invoke-ImperionKaseyaImport' {
 
     It 'loads Autotask contracts via the connect layer (no inline zone/paging)' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Get-ImperionAutotaskZone { 'https://ws.autotask.net/atservicesrest/V1.0' }
             Mock Invoke-ImperionAutotaskRequest { , @([pscustomobject]@{ id = 1; contractName = 'C1' }) }
             $tables = @{}
@@ -33,6 +35,7 @@ Describe 'Invoke-ImperionKaseyaImport' {
 
     It 'loads KQM opportunities through the verified collector path (kqm_opportunities, migration 0083)' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             # KQM is registry-backed (epic #318): the row points at conn-company-quotemanager in KV.
             Mock Invoke-ImperionDbQuery { [pscustomobject]@{ keyvault_secret_ref = 'conn-company-quotemanager' } }
             Mock Get-ImperionKeyVaultSecret { 'kv-kqm-key' }

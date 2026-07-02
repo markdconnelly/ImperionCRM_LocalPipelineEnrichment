@@ -10,6 +10,7 @@ BeforeAll {
 Describe 'Set-ImperionSentinelToBronze' {
     BeforeEach {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Write-ImperionLog { }
             Mock New-ImperionDbConnection {
                 [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { }
@@ -24,6 +25,7 @@ Describe 'Set-ImperionSentinelToBronze' {
 
     It 'routes a mixed batch by entity, projecting each table''s exact column set (entity stripped)' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             $rows = @(
                 [pscustomobject]@{
                     entity = 'analytic_rules'; name = 'ar-1'; display_name = 'Brute force'; rule_kind = 'Scheduled'
@@ -58,6 +60,7 @@ Describe 'Set-ImperionSentinelToBronze' {
 
     It 'uses -Entity for rows without a discriminator' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             $row = [pscustomobject]@{ display_name = 'VIPs'; provider = 'Imperion'; external_id = 'wl-1'; content_hash = 'h' }
             $tally = $row | Set-ImperionSentinelToBronze -Entity watchlists
             $tally.scanned | Should -Be 1
@@ -67,6 +70,7 @@ Describe 'Set-ImperionSentinelToBronze' {
 
     It 'fails loudly on an unknown entity (never invents a table)' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             $row = [pscustomobject]@{ entity = 'incidents'; external_id = 'x' }
             { $row | Set-ImperionSentinelToBronze } | Should -Throw "*unknown Sentinel entity 'incidents'*"
         }
@@ -74,6 +78,7 @@ Describe 'Set-ImperionSentinelToBronze' {
 
     It 'throws when a row has no entity and no -Entity was supplied' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             $row = [pscustomobject]@{ external_id = 'x' }
             { $row | Set-ImperionSentinelToBronze } | Should -Throw "*no 'entity' property*"
         }
@@ -81,6 +86,7 @@ Describe 'Set-ImperionSentinelToBronze' {
 
     It 'writes nothing for empty input and honours -WhatIf' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             (@() | Set-ImperionSentinelToBronze).scanned | Should -Be 0
             $row = [pscustomobject]@{ entity = 'workbooks'; external_id = 'wb'; content_hash = 'h' }
             ($row | Set-ImperionSentinelToBronze -WhatIf).inserted | Should -Be 0

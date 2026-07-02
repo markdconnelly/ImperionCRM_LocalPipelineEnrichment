@@ -10,6 +10,7 @@ BeforeAll {
 Describe 'Set-ImperionM365MailToBronze' {
     It 'projects rows to the migration-0065 column set and change-detect upserts m365_mail_messages' {
         InModuleScope ImperionPipeline {
+            Mock Assert-ImperionColumnSet { }   # drift guard is unit-tested on its own (#427)
             Mock Write-ImperionLog { }
             Mock New-ImperionDbConnection {
                 [pscustomobject]@{} | Add-Member -PassThru -MemberType ScriptMethod -Name Dispose -Value { }
